@@ -1,0 +1,14 @@
+# Cache et fichiers générés par Godot
+.godot/
+.import/
+*.translation
+
+# Gabarit de build Android et fichiers exportés
+android/
+*.apk
+*.aab
+*.idsig
+
+# Clés de signature : ne JAMAIS les mettre sur Git
+*.keystore
+*.jks

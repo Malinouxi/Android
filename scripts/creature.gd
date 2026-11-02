@@ -223,7 +223,7 @@ func _process(delta: float) -> void:
 			if move_along_path(delta):
 				_leave_now()
 		State.FIGHTING:
-			if not fight(_enemy, delta):
+			if not is_instance_valid(_enemy) or not fight(_enemy, delta):
 				_enemy = null
 				state = State.WANDER
 		State.GOING_TO_WORK:

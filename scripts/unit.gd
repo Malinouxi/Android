@@ -221,8 +221,16 @@ func find_nearest_enemy(radius: float) -> Unit:
 
 ## Poursuit une cible et la frappe dès qu'elle est à portée.
 ## Renvoie false si la cible est morte ou inaccessible (le combat est fini).
-func fight(target: Unit, delta: float) -> bool:
-	if not is_instance_valid(target) or target.is_dead() or target.in_hand:
+##
+## Attention : la cible a pu mourir et être détruite entre-temps (« previously freed »).
+## On ne donne donc pas de type au paramètre : Godot refuserait l'objet détruit
+## avant même d'entrer dans la fonction. On vérifie d'abord avec is_instance_valid().
+func fight(target_object, delta: float) -> bool:
+	if not is_instance_valid(target_object):
+		path.clear()
+		return false
+	var target := target_object as Unit
+	if target == null or target.is_dead() or target.in_hand:
 		path.clear()
 		return false
 	if position.distance_to(target.position) <= attack_range:

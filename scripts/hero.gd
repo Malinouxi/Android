@@ -34,6 +34,10 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 	setup(dungeon_map, cell)
 
 
+func to_save() -> Dictionary:
+	return {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp}
+
+
 func display_name() -> String:
 	return Heroes.info(type)["name"]
 

@@ -85,6 +85,19 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Les héros préfèrent **contourner** une porte s'il existe un autre chemin.
 - Les pièges ne touchent que les héros. **Démolir** retire aussi une défense (sans remboursement).
 
+**Étape 8 — Menu et sauvegarde**
+- Le jeu s'ouvre sur un **menu principal** : *Continuer* (avec la vague et l'or de la sauvegarde),
+  *Nouvelle partie*, *Quitter*.
+- Bouton **Pause** en haut : *Reprendre*, *Sauvegarder*, *Sauvegarder et quitter* (retour au menu).
+- **Sauvegarde automatique** toutes les minutes, et quand tu quittes l'appli, passes à une autre appli
+  ou appuies sur « retour » sous Android.
+- Quand le cœur est détruit, la sauvegarde est effacée : *Rejouer* ou *Menu principal*.
+- Tout est enregistré : la carte creusée, les salles, l'or, les pièges et portes, les ouvriers,
+  les créatures (vie, faim, énergie, humeur), les héros présents, les compteurs de paie et de vagues, la caméra.
+  Les unités tenues dans la main sont reposées là où elles avaient été ramassées.
+- Le fichier est `user://savegame.json` (un dossier privé du jeu). C'est du texte lisible : tu peux l'ouvrir
+  pour voir comment la partie est enregistrée.
+
 ## Modifier les graphismes
 
 Les images sont dans `assets/` (`tiles/`, `props/`, `units/`). Deux façons de les changer :
@@ -119,7 +132,8 @@ signature (`.keystore`) ni leurs mots de passe sur Git.
 
 ```
 project.godot              Configuration (rendu Compatibilité/OpenGL, paysage, souris = doigt)
-scenes/main.tscn           La scène principale : assemble les morceaux ci-dessous
+scenes/menu.tscn           Le menu principal (première scène lancée), script : scripts/menu.gd
+scenes/main.tscn           La scène de jeu : assemble les morceaux ci-dessous
 scripts/main.gd            Chef d'orchestre : relie tout, outils, portail, paie, vagues, fin de partie
 scripts/dungeon_map.gd     La grille : données, salles, or, dessin, pathfinding, creusage
 scripts/unit.gd            Base commune de tout ce qui marche (héritage) : chemins, vie, combat
@@ -131,6 +145,7 @@ scripts/heroes.gd          Catalogue des héros : vie, dégâts, vitesse, ranço
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
 scripts/defenses.gd        Catalogue des pièges et portes : nom, prix, dégâts, points de vie
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
+scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
 assets/                    Les images PNG (pixel art 16 x 16)
@@ -159,6 +174,7 @@ Avancer par petites étapes, chacune jouable :
    ✅ La « main » du maître pour ramasser et déposer ses créatures. À venir : pièges, portes.
 6. ✅ **Graphismes** : pixel art pour les tuiles, les objets et les personnages, animation de marche.
 7. ✅ **Pièges et portes** : pointes, rune explosive, porte à casser.
-8. **Niveaux et sauvegarde**, sons, menus.
+8. ✅ **Menu principal, pause et sauvegarde** (automatique et manuelle).
+9. **Sons**, niveaux avec objectifs, équilibrage.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

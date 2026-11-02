@@ -4,7 +4,8 @@ extends Node2D
 ##   - l'outil choisi quand on touche la carte ;
 ##   - l'arrivée des créatures par le portail ;
 ##   - le jour de paie ;
-##   - les vagues de héros et la fin de partie.
+##   - les vagues de héros et la fin de partie ;
+##   - la sauvegarde, le chargement et la pause.
 ##
 ## Les différentes parties communiquent par des SIGNAUX : la caméra ne connaît
 ## pas la carte, elle dit juste « on m'a touchée ici ». C'est main.gd qui décide
@@ -28,6 +29,9 @@ const HERO_SPAWN_GAP := 1.5
 const MAX_HEROES_PER_WAVE := 8
 ## Nombre d'unités que la main du maître peut tenir à la fois.
 const HAND_CAPACITY := 8
+## Secondes entre deux sauvegardes automatiques.
+const AUTOSAVE_INTERVAL := 60.0
+const MENU_SCENE := "res://scenes/menu.tscn"
 
 ## Quelle salle construit chaque outil de la barre.
 const TOOL_ROOMS := {
@@ -68,6 +72,9 @@ var _wave_warned := false
 var _pending_heroes: Array[int] = []
 var _hero_spawn_timer := 0.0
 
+var _autosave_timer := AUTOSAVE_INTERVAL
+var _game_over := false
+
 
 func _ready() -> void:
 	# On branche les signaux sur nos fonctions.
@@ -80,20 +87,42 @@ func _ready() -> void:
 	map.heart_destroyed.connect(_on_heart_destroyed)
 	map.door_destroyed.connect(func(_cell: Vector2i) -> void:
 		hud.show_message("Les héros ont enfoncé une porte !", 3.0))
+	hud.pause_pressed.connect(_on_pause_pressed)
+	hud.resume_pressed.connect(_on_resume_pressed)
+	hud.save_pressed.connect(func() -> void:
+		if save_game():
+			hud.show_message("Partie sauvegardée."))
+	hud.menu_pressed.connect(_on_menu_pressed)
 
 	camera.bounds = Rect2(Vector2.ZERO, map.get_pixel_size())
 	camera.position = map.cell_to_world(map.heart_cell)
+	hud.set_summon_cost(WORKER_COST)
 
+	# Le menu a demandé de continuer la partie sauvegardée ?
+	var loaded := false
+	if SaveGame.load_requested:
+		SaveGame.load_requested = false
+		loaded = _load_game(SaveGame.read())
+		if not loaded:
+			hud.show_message("Impossible de lire la sauvegarde : nouvelle partie.", 5.0)
+	if not loaded:
+		_start_new_game()
+	_refresh_hud()
+
+
+func _start_new_game() -> void:
 	map.set_starting_gold(START_GOLD)
 	for i in START_WORKERS:
 		_spawn_worker()
-
-	hud.set_summon_cost(WORKER_COST)
-	_refresh_hud()
 	hud.show_message("Creuse jusqu'au portail violet pour attirer des créatures. Les héros arriveront par l'entrée grise !", 8.0)
 
 
 func _process(delta: float) -> void:
+	_autosave_timer -= delta
+	if _autosave_timer <= 0.0:
+		_autosave_timer = AUTOSAVE_INTERVAL
+		save_game()
+
 	_hint_timer -= delta
 	_update_portal(delta)
 	_update_payday(delta)
@@ -139,12 +168,18 @@ func _update_portal(delta: float) -> void:
 
 
 func _spawn_creature(type: int) -> void:
+	var creature := _add_creature(type, map.portal_cell)
+	hud.show_message("%s arrive par le portail ! (salaire : %d or)" % [creature.display_name(), creature.salary()])
+
+
+## Crée une créature sur une case (sert aussi au chargement d'une partie).
+func _add_creature(type: int, cell: Vector2i) -> Creature:
 	var creature := Creature.new()
-	creature.setup_creature(map, map.portal_cell, type)
+	creature.setup_creature(map, cell, type)
 	creature.left_dungeon.connect(_on_creature_left)
 	creature.died.connect(_on_creature_died)
 	creatures_root.add_child(creature)
-	hud.show_message("%s arrive par le portail ! (salaire : %d or)" % [creature.display_name(), creature.salary()])
+	return creature
 
 
 func _on_creature_left(creature: Creature) -> void:
@@ -195,10 +230,15 @@ func _start_wave() -> void:
 
 
 func _spawn_hero(type: int) -> void:
+	_add_hero(type, map.entrance_cell)
+
+
+func _add_hero(type: int, cell: Vector2i) -> Hero:
 	var hero := Hero.new()
-	hero.setup_hero(map, map.entrance_cell, type)
+	hero.setup_hero(map, cell, type)
 	hero.died.connect(_on_hero_died)
 	heroes_root.add_child(hero)
+	return hero
 
 
 ## Un héros vaincu rapporte une rançon, rangée au trésor s'il y a de la place.
@@ -216,13 +256,125 @@ func _on_heart_changed() -> void:
 
 
 func _on_heart_destroyed() -> void:
+	_game_over = true
+	SaveGame.delete() # Une partie perdue ne se reprend pas !
 	get_tree().paused = true # Tout s'arrête, sauf l'interface (voir hud.gd).
 	hud.show_game_over(_waves_survived)
 
 
 func _on_restart_pressed() -> void:
+	SaveGame.load_requested = false
 	get_tree().paused = false
 	get_tree().reload_current_scene()
+
+
+# ---------------------------------------------------------------------------
+# Pause, sauvegarde et chargement
+# ---------------------------------------------------------------------------
+
+func _on_pause_pressed() -> void:
+	if _game_over:
+		return
+	get_tree().paused = true
+	hud.hide_message()
+	hud.show_pause_menu()
+
+
+func _on_resume_pressed() -> void:
+	hud.hide_pause_menu()
+	get_tree().paused = false
+
+
+func _on_menu_pressed() -> void:
+	save_game() # Ne fait rien si la partie est perdue.
+	get_tree().paused = false
+	get_tree().change_scene_to_file(MENU_SCENE)
+
+
+## Godot prévient le jeu quand l'appli passe en arrière-plan (Android) ou quand
+## on ferme la fenêtre : on sauvegarde pour ne rien perdre.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST \
+			or what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		save_game()
+
+
+## Écrit toute la partie dans le fichier de sauvegarde. Renvoie true si c'est réussi.
+func save_game() -> bool:
+	if _game_over or not is_node_ready():
+		return false
+	var workers := []
+	for worker: Worker in workers_root.get_children():
+		if not worker.is_dead():
+			workers.append(worker.to_save())
+	var creatures := []
+	for creature: Creature in creatures_root.get_children():
+		if not creature.is_dead() and not creature.is_leaving():
+			creatures.append(creature.to_save())
+	var heroes := []
+	for hero: Hero in heroes_root.get_children():
+		if not hero.is_dead():
+			heroes.append(hero.to_save())
+
+	var data := {
+		"version": SaveGame.VERSION,
+		"summary": {
+			"wave": _next_wave,
+			"gold": map.get_total_gold(),
+			"date": Time.get_datetime_string_from_system(false, true),
+		},
+		"map": map.to_save(),
+		"workers": workers,
+		"creatures": creatures,
+		"heroes": heroes,
+		"state": {
+			"payday_timer": _payday_timer,
+			"wave_timer": _wave_timer,
+			"next_wave": _next_wave,
+			"waves_survived": _waves_survived,
+			"wave_in_progress": _wave_in_progress,
+			"pending_heroes": _pending_heroes,
+			"arrival_timer": _arrival_timer,
+			"portal_connected": _portal_connected,
+		},
+		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
+	}
+	return SaveGame.write(data)
+
+
+## Recrée la partie à partir d'une sauvegarde. Renvoie false si elle est inutilisable.
+func _load_game(data: Dictionary) -> bool:
+	if data.is_empty() or not map.load_save(data["map"]):
+		return false
+
+	for values in data["workers"]:
+		var worker := _add_worker(SaveGame.array_to_cell(values["cell"]))
+		worker.hp = float(values["hp"])
+		worker.carried_gold = int(values["gold"])
+	for values in data["creatures"]:
+		var creature := _add_creature(int(values["type"]), SaveGame.array_to_cell(values["cell"]))
+		creature.load_save(values)
+	for values in data["heroes"]:
+		var hero := _add_hero(int(values["type"]), SaveGame.array_to_cell(values["cell"]))
+		hero.hp = float(values["hp"])
+
+	var state: Dictionary = data["state"]
+	_payday_timer = float(state["payday_timer"])
+	_wave_timer = float(state["wave_timer"])
+	_next_wave = int(state["next_wave"])
+	_waves_survived = int(state["waves_survived"])
+	_wave_in_progress = bool(state["wave_in_progress"])
+	_arrival_timer = float(state["arrival_timer"])
+	_portal_connected = bool(state["portal_connected"])
+	_pending_heroes.clear()
+	for type in state["pending_heroes"]:
+		_pending_heroes.append(int(type))
+
+	var view: Array = data["camera"]
+	camera.position = Vector2(float(view[0]), float(view[1]))
+	camera.zoom = Vector2.ONE * float(view[2])
+	hud.show_message("Partie chargée. Bon retour, Seigneur des Profondeurs !", 4.0)
+	return true
 
 
 # ---------------------------------------------------------------------------
@@ -280,11 +432,17 @@ func _check_full_pockets() -> void:
 # ---------------------------------------------------------------------------
 
 func _spawn_worker() -> void:
+	_add_worker(map.get_spawn_cell())
+
+
+## Crée un ouvrier sur une case (sert aussi au chargement d'une partie).
+func _add_worker(cell: Vector2i) -> Worker:
 	var worker := Worker.new()
-	worker.setup(map, map.get_spawn_cell())
+	worker.setup(map, cell)
 	worker.died.connect(func(_unit: Unit) -> void:
 		hud.show_message("Un ouvrier a été tué par les héros !", 3.0))
 	workers_root.add_child(worker)
+	return worker
 
 
 func _refresh_hud() -> void:

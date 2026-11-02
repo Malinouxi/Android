@@ -42,6 +42,11 @@ func display_name() -> String:
 	return "Ouvrier"
 
 
+## Ce qu'il faut pour recréer l'ouvrier au chargement (voir main.gd).
+func to_save() -> Dictionary:
+	return {"cell": SaveGame.cell_to_array(current_cell()), "hp": hp, "gold": carried_gold}
+
+
 func is_full() -> bool:
 	return carried_gold >= CARRY_CAPACITY
 

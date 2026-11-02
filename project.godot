@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Seigneur des Profondeurs"
 config/description="Prototype de jeu de gestion de donjon pour Android."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"
 

@@ -225,6 +225,88 @@ func _setup_pathfinding() -> void:
 			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART)
 			if is_diggable(cell):
 				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
+	for cell: Vector2i in defenses:
+		if defenses[cell]["type"] == Defenses.Type.DOOR:
+			hero_astar.set_point_weight_scale(cell, HERO_DOOR_WEIGHT)
+
+
+# ---------------------------------------------------------------------------
+# Sauvegarde
+# ---------------------------------------------------------------------------
+
+## Tout ce qu'il faut pour reconstruire la carte, sous une forme que le JSON
+## sait écrire (nombres, textes, listes, dictionnaires à clés texte).
+func to_save() -> Dictionary:
+	var marked_list := []
+	for cell: Vector2i in marked:
+		marked_list.append(SaveGame.cell_to_array(cell))
+	var defense_list := []
+	for cell: Vector2i in defenses:
+		defense_list.append([cell.x, cell.y, defenses[cell]["type"], defenses[cell]["hp"]])
+	return {
+		"width": WIDTH,
+		"height": HEIGHT,
+		"tiles": Array(tiles),
+		"heart": SaveGame.cell_to_array(heart_cell),
+		"portal": SaveGame.cell_to_array(portal_cell),
+		"entrance": SaveGame.cell_to_array(entrance_cell),
+		"heart_hp": heart_hp,
+		"heart_gold": heart_gold,
+		"damage": _cells_to_list(damage),
+		"marked": marked_list,
+		"rooms": _cells_to_list(rooms),
+		"stored_gold": _cells_to_list(stored_gold),
+		"food": _cells_to_list(food),
+		"defenses": defense_list,
+	}
+
+
+## Recharge une carte sauvegardée. Renvoie false si la sauvegarde ne convient pas.
+func load_save(data: Dictionary) -> bool:
+	if int(data.get("width", 0)) != WIDTH or int(data.get("height", 0)) != HEIGHT:
+		return false
+	var saved_tiles: Array = data["tiles"]
+	for i in tiles.size():
+		tiles[i] = int(saved_tiles[i])
+	heart_cell = SaveGame.array_to_cell(data["heart"])
+	portal_cell = SaveGame.array_to_cell(data["portal"])
+	entrance_cell = SaveGame.array_to_cell(data["entrance"])
+	heart_hp = float(data["heart_hp"])
+	heart_gold = int(data["heart_gold"])
+	damage = _list_to_cells(data["damage"])
+	rooms = _list_to_cells(data["rooms"])
+	stored_gold = _list_to_cells(data["stored_gold"])
+	food = _list_to_cells(data["food"])
+	marked.clear()
+	for values in data["marked"]:
+		marked[SaveGame.array_to_cell(values)] = true
+	defenses.clear()
+	for values in data["defenses"]:
+		defenses[SaveGame.array_to_cell(values)] = {
+			"type": int(values[2]), "hp": float(values[3]), "cooldown": 0.0, "flash": 0.0}
+	reserved.clear()
+	beds.clear() # Les créatures rechargées reprendront un lit.
+	_explosions.clear()
+	_setup_pathfinding()
+	gold_changed.emit()
+	queue_redraw()
+	return true
+
+
+## { case: nombre } -> [[x, y, nombre], ...]
+func _cells_to_list(values: Dictionary) -> Array:
+	var result := []
+	for cell: Vector2i in values:
+		result.append([cell.x, cell.y, values[cell]])
+	return result
+
+
+## [[x, y, nombre], ...] -> { case: nombre }
+func _list_to_cells(list: Array) -> Dictionary:
+	var result := {}
+	for values in list:
+		result[SaveGame.array_to_cell(values)] = int(values[2])
+	return result
 
 
 # ---------------------------------------------------------------------------

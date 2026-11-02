@@ -67,6 +67,22 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	bed_cell = map.claim_bed(self)
 
 
+## Ce qu'il faut pour recréer la créature au chargement (voir main.gd).
+func to_save() -> Dictionary:
+	return {
+		"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp,
+		"energy": energy, "hunger": hunger, "happiness": happiness,
+	}
+
+
+## Remet les valeurs sauvegardées (après setup_creature).
+func load_save(data: Dictionary) -> void:
+	hp = float(data["hp"])
+	energy = float(data["energy"])
+	hunger = float(data["hunger"])
+	happiness = float(data["happiness"])
+
+
 func display_name() -> String:
 	return Creatures.info(type)["name"]
 

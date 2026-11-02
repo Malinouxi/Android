@@ -10,6 +10,10 @@ extends CanvasLayer
 
 signal summon_pressed
 signal restart_pressed
+signal pause_pressed
+signal resume_pressed
+signal save_pressed
+signal menu_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
@@ -28,6 +32,7 @@ var _summon_button: Button
 var _message_label: Label
 var _message_timer: SceneTreeTimer
 var _hand_label: Label
+var _pause_panel: Control
 
 
 func _ready() -> void:
@@ -73,6 +78,12 @@ func _build_top_panel() -> void:
 	second_row.add_child(_payday_label)
 	_wave_label = _make_label(20)
 	second_row.add_child(_wave_label)
+	var pause_button := Button.new()
+	pause_button.text = "Pause"
+	pause_button.custom_minimum_size = Vector2(110, 44)
+	pause_button.add_theme_font_size_override("font_size", 20)
+	pause_button.pressed.connect(func() -> void: pause_pressed.emit())
+	second_row.add_child(pause_button)
 
 	_summon_button = Button.new()
 	_summon_button.add_theme_font_size_override("font_size", 22)
@@ -173,6 +184,34 @@ func set_next_wave(wave: int, seconds_left: int) -> void:
 
 ## Écran de fin de partie, avec un bouton pour rejouer.
 func show_game_over(waves_survived: int) -> void:
+	var column := _make_center_panel("Ton cœur a été détruit !")
+	var details := _make_label(24)
+	details.text = "Vagues repoussées : %d" % waves_survived
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(details)
+	column.add_child(_make_big_button("Rejouer", restart_pressed))
+	column.add_child(_make_big_button("Menu principal", menu_pressed))
+
+
+## Le menu de pause (le jeu est arrêté pendant ce temps, voir main.gd).
+func show_pause_menu() -> void:
+	if _pause_panel != null:
+		return
+	var column := _make_center_panel("Pause")
+	_pause_panel = column.get_parent() as Control
+	column.add_child(_make_big_button("Reprendre", resume_pressed))
+	column.add_child(_make_big_button("Sauvegarder", save_pressed))
+	column.add_child(_make_big_button("Sauvegarder et quitter", menu_pressed))
+
+
+func hide_pause_menu() -> void:
+	if _pause_panel != null:
+		_pause_panel.queue_free()
+		_pause_panel = null
+
+
+## Un panneau au centre de l'écran avec un titre. Renvoie la colonne où ajouter des boutons.
+func _make_center_panel(title_text: String) -> VBoxContainer:
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -184,20 +223,20 @@ func show_game_over(waves_survived: int) -> void:
 	panel.add_child(column)
 
 	var title := _make_label(40)
-	title.text = "Ton cœur a été détruit !"
+	title.text = title_text
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
-	var details := _make_label(24)
-	details.text = "Vagues repoussées : %d" % waves_survived
-	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(details)
+	return column
 
+
+## Un grand bouton qui émet un signal quand on le touche.
+func _make_big_button(text: String, on_pressed: Signal) -> Button:
 	var button := Button.new()
-	button.text = "Rejouer"
-	button.custom_minimum_size = Vector2(240, 72)
+	button.text = text
+	button.custom_minimum_size = Vector2(320, 72)
 	button.add_theme_font_size_override("font_size", 28)
-	button.pressed.connect(func() -> void: restart_pressed.emit())
-	column.add_child(button)
+	button.pressed.connect(func() -> void: on_pressed.emit())
+	return button
 
 
 func set_summon_cost(cost: int) -> void:
@@ -212,6 +251,10 @@ func show_message(text: String, duration := 3.0) -> void:
 	await this_timer.timeout
 	if _message_timer == this_timer: # Pas remplacé entre-temps par un autre message.
 		_message_label.text = ""
+
+
+func hide_message() -> void:
+	_message_label.text = ""
 
 
 ## Vrai si cette position de l'écran est sur un panneau de l'interface

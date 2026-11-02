@@ -48,8 +48,8 @@ const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, 
 const HERO_DIG_WEIGHT := 6.0
 ## Une porte « coûte » autant que 10 cases de marche : les héros préfèrent la contourner.
 const HERO_DOOR_WEIGHT := 10.0
-## Durée de l'effet visuel d'une explosion, en secondes.
-const EXPLOSION_TIME := 0.4
+## Durée des effets visuels (explosion, sorts), en secondes.
+const EFFECT_TIME := 0.4
 const HEART_MAX_HP := 1000.0
 
 const MARK_COLOR := Color("ffd54a")
@@ -90,11 +90,15 @@ var entrance_cell: Vector2i
 
 ## Pièges et portes : Vector2i -> { "type": Defenses.Type, "hp", "cooldown", "flash" }.
 var defenses: Dictionary = {}
+## Le territoire du donjon : les cases de sol revendiquées par les ouvriers (Vector2i -> true).
+var claimed: Dictionary = {}
+## Postes de travail occupés dans les salles : case -> créature (voir creature.gd).
+var work_spots: Dictionary = {}
 
 var _farm_timer := 0.0
 var _trap_timer := 0.0
 ## Explosions en cours d'affichage : [{ "position": Vector2, "radius", "time" }].
-var _explosions: Array = []
+var _effects: Array = []
 
 
 func _ready() -> void:
@@ -104,7 +108,7 @@ func _ready() -> void:
 ## Les champignons poussent avec le temps.
 func _process(delta: float) -> void:
 	_update_traps(delta)
-	_update_explosions(delta)
+	_update_effects(delta)
 	_update_farms(delta)
 
 
@@ -158,6 +162,11 @@ func generate(seed_value: int) -> void:
 		for dx in range(-2, 3):
 			_set_tile(heart_cell + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(heart_cell, Tile.HEART)
+	# La salle de départ appartient déjà au donjon.
+	claimed.clear()
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			claimed[heart_cell + Vector2i(dx, dy)] = true
 	heart_hp = HEART_MAX_HP
 	portal_cell = _place_gate(rng, Tile.PORTAL, [])
 	entrance_cell = _place_gate(rng, Tile.ENTRANCE, [portal_cell])
@@ -170,7 +179,8 @@ func generate(seed_value: int) -> void:
 	food.clear()
 	beds.clear()
 	defenses.clear()
-	_explosions.clear()
+	work_spots.clear()
+	_effects.clear()
 	_setup_pathfinding()
 	queue_redraw()
 
@@ -240,6 +250,9 @@ func to_save() -> Dictionary:
 	var marked_list := []
 	for cell: Vector2i in marked:
 		marked_list.append(SaveGame.cell_to_array(cell))
+	var claimed_list := []
+	for cell: Vector2i in claimed:
+		claimed_list.append(SaveGame.cell_to_array(cell))
 	var defense_list := []
 	for cell: Vector2i in defenses:
 		defense_list.append([cell.x, cell.y, defenses[cell]["type"], defenses[cell]["hp"]])
@@ -258,6 +271,7 @@ func to_save() -> Dictionary:
 		"stored_gold": _cells_to_list(stored_gold),
 		"food": _cells_to_list(food),
 		"defenses": defense_list,
+		"claimed": claimed_list,
 	}
 
 
@@ -284,9 +298,21 @@ func load_save(data: Dictionary) -> bool:
 	for values in data["defenses"]:
 		defenses[SaveGame.array_to_cell(values)] = {
 			"type": int(values[2]), "hp": float(values[3]), "cooldown": 0.0, "flash": 0.0}
+	claimed.clear()
+	if data.has("claimed"):
+		for values in data["claimed"]:
+			claimed[SaveGame.array_to_cell(values)] = true
+	else:
+		# Ancienne sauvegarde, d'avant le territoire : tout le sol creusé est à nous.
+		for y in HEIGHT:
+			for x in WIDTH:
+				if get_tile(Vector2i(x, y)) == Tile.FLOOR:
+					claimed[Vector2i(x, y)] = true
+		claimed[heart_cell] = true
 	reserved.clear()
 	beds.clear() # Les créatures rechargées reprendront un lit.
-	_explosions.clear()
+	work_spots.clear()
+	_effects.clear()
 	_setup_pathfinding()
 	gold_changed.emit()
 	queue_redraw()
@@ -437,6 +463,44 @@ func find_dig_job(worker: Node, from_cell: Vector2i, allow_gold := true) -> Dict
 	return best
 
 
+# ---------------------------------------------------------------------------
+# Territoire
+# ---------------------------------------------------------------------------
+
+func is_claimed(cell: Vector2i) -> bool:
+	return claimed.has(cell)
+
+
+func claim(cell: Vector2i) -> void:
+	if get_tile(cell) == Tile.FLOOR:
+		claimed[cell] = true
+		reserved.erase(cell)
+		queue_redraw()
+
+
+## Cherche une case de sol pas encore revendiquée, collée au territoire.
+## Renvoie { "type": "claim", "target": case, "path": chemin }, ou {} si rien à faire.
+func find_claim_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+	var candidates: Array[Vector2i] = []
+	for y in HEIGHT:
+		for x in WIDTH:
+			var cell := Vector2i(x, y)
+			if get_tile(cell) != Tile.FLOOR or claimed.has(cell):
+				continue
+			if reserved.get(cell, worker) != worker:
+				continue
+			for direction in DIRECTIONS:
+				if claimed.has(cell + direction):
+					candidates.append(cell)
+					break
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if not best.is_empty():
+		best["type"] = "claim"
+		release_jobs(worker)
+		reserved[best["target"]] = worker
+	return best
+
+
 ## Libère toutes les cases réservées par un ouvrier.
 func release_jobs(worker: Node) -> void:
 	for cell: Vector2i in reserved.keys():
@@ -454,7 +518,8 @@ func get_room(cell: Vector2i) -> int:
 
 ## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
 func can_build_room(cell: Vector2i) -> bool:
-	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell)
+	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
+			and not defenses.has(cell)
 
 
 func count_room_tiles(type: int) -> int:
@@ -482,6 +547,7 @@ func remove_room(cell: Vector2i) -> int:
 	rooms.erase(cell)
 	food.erase(cell)
 	beds.erase(cell) # La créature qui dormait là n'a plus de lit.
+	work_spots.erase(cell)
 	var lost: int = stored_gold.get(cell, 0)
 	stored_gold.erase(cell)
 	for other: Vector2i in stored_gold:
@@ -510,6 +576,26 @@ func release_bed(creature: Node) -> void:
 	for cell: Vector2i in beds.keys():
 		if beds[cell] == creature:
 			beds.erase(cell)
+
+
+## Réserve pour une créature la case libre la plus proche d'une salle de travail
+## (bibliothèque, atelier, entraînement). Renvoie { "target", "path" } ou {}.
+func find_work_spot(creature: Node, room_type: int, from_cell: Vector2i) -> Dictionary:
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in rooms:
+		if rooms[cell] == room_type and work_spots.get(cell, creature) == creature:
+			candidates.append(cell)
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if not best.is_empty():
+		release_work_spot(creature)
+		work_spots[best["target"]] = creature
+	return best
+
+
+func release_work_spot(creature: Node) -> void:
+	for cell: Vector2i in work_spots.keys():
+		if work_spots[cell] == creature:
+			work_spots.erase(cell)
 
 
 ## Cherche le champignon le plus proche.
@@ -552,7 +638,8 @@ func is_connected_to_heart(cell: Vector2i) -> bool:
 
 ## Les défenses se posent sur le sol des couloirs (pas dans les salles).
 func can_place_defense(cell: Vector2i) -> bool:
-	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell)
+	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
+			and not defenses.has(cell)
 
 
 func place_defense(cell: Vector2i, type: int) -> void:
@@ -627,19 +714,25 @@ func _update_traps(delta: float) -> void:
 func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 	var center := cell_to_world(cell)
 	remove_defense(cell)
-	_explosions.append({"position": center, "radius": radius, "time": EXPLOSION_TIME})
+	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Unit
 		if hero.position.distance_to(center) <= radius:
 			hero.take_damage(explosion_damage)
 
 
-func _update_explosions(delta: float) -> void:
-	if _explosions.is_empty():
+## Affiche un cercle de couleur qui grandit et s'efface (explosion, sort...).
+func add_effect(center: Vector2, radius: float, color: Color) -> void:
+	_effects.append({"position": center, "radius": radius, "time": EFFECT_TIME, "color": color})
+	queue_redraw()
+
+
+func _update_effects(delta: float) -> void:
+	if _effects.is_empty():
 		return
-	for explosion in _explosions:
+	for explosion in _effects:
 		explosion["time"] -= delta
-	_explosions = _explosions.filter(func(e: Dictionary) -> bool: return e["time"] > 0.0)
+	_effects = _effects.filter(func(e: Dictionary) -> bool: return e["time"] > 0.0)
 	queue_redraw()
 
 
@@ -816,7 +909,8 @@ func _draw() -> void:
 					if rooms.has(cell):
 						_draw_room_tile(cell, rect)
 					else:
-						draw_texture_rect(Art.pick(Art.FLOOR, cell), rect, false)
+						var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
+						draw_texture_rect(Art.pick(floor_images, cell), rect, false)
 					# ... puis l'objet par-dessus.
 					if tile == Tile.HEART:
 						_draw_heart(rect)
@@ -836,11 +930,12 @@ func _draw() -> void:
 			if marked.has(cell):
 				draw_rect(rect.grow(-2), MARK_COLOR, false, 2.0)
 
-	# Les explosions par-dessus tout : un cercle orange qui grandit et s'efface.
-	for explosion in _explosions:
-		var progress: float = 1.0 - explosion["time"] / EXPLOSION_TIME
-		var color := Color(1.0, 0.55, 0.1, 0.8 * (1.0 - progress))
-		draw_circle(explosion["position"], explosion["radius"] * (0.4 + 0.6 * progress), color)
+	# Les effets par-dessus tout : un cercle qui grandit et s'efface.
+	for effect in _effects:
+		var progress: float = 1.0 - effect["time"] / EFFECT_TIME
+		var color: Color = effect["color"]
+		color.a *= 1.0 - progress
+		draw_circle(effect["position"], effect["radius"] * (0.4 + 0.6 * progress), color)
 
 
 func _draw_defense(cell: Vector2i, rect: Rect2) -> void:
@@ -894,6 +989,8 @@ func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
 				draw_texture_rect(Art.GOLD_PILES[mini(coins, 5) - 1], rect, false)
 		Rooms.Type.LAIR:
 			draw_texture_rect(Art.BED, rect, false)
+		Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP, Rooms.Type.TRAINING:
+			draw_texture_rect(Art.ROOM_PROPS[type], rect, false)
 		Rooms.Type.FARM:
 			# Un champignon (8 x 8 pixels, affiché en 16 x 16) par unité de nourriture.
 			var spots := [Vector2(1, 14), Vector2(15, 15), Vector2(8, 2)]

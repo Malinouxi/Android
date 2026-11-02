@@ -5,7 +5,8 @@ extends Node2D
 ##   - l'arrivée des créatures par le portail ;
 ##   - le jour de paie ;
 ##   - les vagues de héros et la fin de partie ;
-##   - la sauvegarde, le chargement et la pause.
+##   - la sauvegarde, le chargement et la pause ;
+##   - la mana et les sorts, la recherche et la fabrication des pièges.
 ##
 ## Les différentes parties communiquent par des SIGNAUX : la caméra ne connaît
 ## pas la carte, elle dit juste « on m'a touchée ici ». C'est main.gd qui décide
@@ -38,7 +39,18 @@ const TOOL_ROOMS := {
 	Hud.Tool.TREASURY: Rooms.Type.TREASURY,
 	Hud.Tool.LAIR: Rooms.Type.LAIR,
 	Hud.Tool.FARM: Rooms.Type.FARM,
+	Hud.Tool.LIBRARY: Rooms.Type.LIBRARY,
+	Hud.Tool.WORKSHOP: Rooms.Type.WORKSHOP,
+	Hud.Tool.TRAINING: Rooms.Type.TRAINING,
 }
+## Quel sort lance chaque bouton du panneau de gauche.
+const TOOL_SPELLS := {
+	Hud.Tool.SPELL_HEAL: Spells.Type.HEAL,
+	Hud.Tool.SPELL_LIGHTNING: Spells.Type.LIGHTNING,
+	Hud.Tool.SPELL_HASTE: Spells.Type.HASTE,
+}
+## L'atelier arrête de fabriquer quand le stock total atteint ce nombre.
+const MAX_TRAP_STOCK := 9
 ## Quelle défense pose chaque outil de la barre.
 const TOOL_DEFENSES := {
 	Hud.Tool.SPIKES: Defenses.Type.SPIKES,
@@ -72,6 +84,14 @@ var _wave_warned := false
 var _pending_heroes: Array[int] = []
 var _hero_spawn_timer := 0.0
 
+## La recherche de la Bibliothèque (voir research.gd).
+var research := Research.new()
+var mana := Spells.START_MANA
+## Points de fabrication accumulés par l'Atelier vers le prochain piège.
+var workshop_points := 0.0
+## Pièges et portes fabriqués, prêts à être posés : Defenses.Type -> nombre.
+var trap_stock := {Defenses.Type.SPIKES: 0, Defenses.Type.RUNE: 0, Defenses.Type.DOOR: 0}
+
 var _autosave_timer := AUTOSAVE_INTERVAL
 var _game_over := false
 
@@ -93,6 +113,7 @@ func _ready() -> void:
 		if save_game():
 			hud.show_message("Partie sauvegardée."))
 	hud.menu_pressed.connect(_on_menu_pressed)
+	research.discovered.connect(_on_research_discovered)
 
 	camera.bounds = Rect2(Vector2.ZERO, map.get_pixel_size())
 	camera.position = map.cell_to_world(map.heart_cell)
@@ -122,6 +143,12 @@ func _process(delta: float) -> void:
 	if _autosave_timer <= 0.0:
 		_autosave_timer = AUTOSAVE_INTERVAL
 		save_game()
+
+	# La mana se recharge, plus vite avec un grand territoire.
+	mana = minf(Spells.MAX_MANA, mana + Spells.regen_per_second(map.claimed.size()) * delta)
+	# On dit aux créatures s'il reste quelque chose à chercher ou à fabriquer.
+	Creature.research_needed = not research.is_done()
+	Creature.workshop_needed = _workshop_target() >= 0
 
 	_hint_timer -= delta
 	_update_portal(delta)
@@ -178,8 +205,95 @@ func _add_creature(type: int, cell: Vector2i) -> Creature:
 	creature.setup_creature(map, cell, type)
 	creature.left_dungeon.connect(_on_creature_left)
 	creature.died.connect(_on_creature_died)
+	creature.worked.connect(_on_creature_worked)
+	creature.leveled_up.connect(func(c: Creature) -> void:
+		hud.show_message("%s passe au niveau %d !" % [c.display_name(), c.level], 3.0))
 	creatures_root.add_child(creature)
 	return creature
+
+
+# ---------------------------------------------------------------------------
+# Bibliothèque (recherche) et Atelier (fabrication)
+# ---------------------------------------------------------------------------
+
+func _on_creature_worked(room_type: int, amount: float) -> void:
+	if room_type == Rooms.Type.LIBRARY:
+		research.add_points(amount)
+	elif room_type == Rooms.Type.WORKSHOP:
+		_add_workshop_points(amount)
+
+
+func _on_research_discovered(item: Dictionary) -> void:
+	hud.show_message("Découverte : %s ! Regarde ta barre d'outils." % item["name"], 5.0)
+
+
+## Le piège que l'atelier fabrique en ce moment : le moins nombreux parmi ceux
+## déjà découverts. Renvoie -1 s'il n'y a rien à fabriquer.
+func _workshop_target() -> int:
+	var total := 0
+	for type: int in trap_stock:
+		total += trap_stock[type]
+	if total >= MAX_TRAP_STOCK:
+		return -1
+	var best := -1
+	for type: int in trap_stock:
+		if research.is_unlocked("defense", type) and (best < 0 or trap_stock[type] < trap_stock[best]):
+			best = type
+	return best
+
+
+func _add_workshop_points(amount: float) -> void:
+	var target := _workshop_target()
+	if target < 0:
+		return
+	workshop_points += amount
+	var cost := Defenses.cost(target)
+	if workshop_points >= cost:
+		workshop_points -= cost
+		trap_stock[target] += 1
+		hud.show_message("L'atelier a fabriqué : %s." % Defenses.display_name(target), 3.0)
+
+
+# ---------------------------------------------------------------------------
+# Sorts du maître
+# ---------------------------------------------------------------------------
+
+func _cast_spell(type: int, world_position: Vector2) -> void:
+	var info: Dictionary = Spells.INFO[type]
+	if mana < info["mana"]:
+		hud.show_message("Pas assez de mana : %s coûte %d." % [info["name"], info["mana"]])
+		return
+	var cast := false
+	match type:
+		Spells.Type.HEAL:
+			for unit in _units_near("dungeon", world_position, info["radius"]):
+				unit.heal(info["amount"])
+				cast = true
+		Spells.Type.LIGHTNING:
+			for unit in _units_near("heroes", world_position, info["radius"]):
+				unit.take_damage(info["damage"])
+				cast = true
+		Spells.Type.HASTE:
+			var targets := _units_near("dungeon", world_position, 20.0)
+			if not targets.is_empty():
+				targets[0].apply_haste(info["duration"])
+				cast = true
+	if not cast:
+		hud.show_message("Aucune cible ici : touche %s." % (
+				"un héros" if type == Spells.Type.LIGHTNING else "une de tes unités"))
+		return
+	mana -= info["mana"]
+	map.add_effect(world_position, info.get("radius", 24.0), info["color"])
+
+
+## Les unités d'un groupe (« dungeon » ou « heroes ») à moins de radius pixels.
+func _units_near(group: String, world_position: Vector2, radius: float) -> Array[Unit]:
+	var result: Array[Unit] = []
+	for node in get_tree().get_nodes_in_group(group):
+		var unit := node as Unit
+		if unit != null and not unit.is_dead() and unit.position.distance_to(world_position) <= radius:
+			result.append(unit)
+	return result
 
 
 func _on_creature_left(creature: Creature) -> void:
@@ -338,6 +452,11 @@ func save_game() -> bool:
 			"portal_connected": _portal_connected,
 		},
 		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
+		"research": research.to_save(),
+		"mana": mana,
+		"workshop_points": workshop_points,
+		"trap_stock": [trap_stock[Defenses.Type.SPIKES], trap_stock[Defenses.Type.RUNE],
+				trap_stock[Defenses.Type.DOOR]],
 	}
 	return SaveGame.write(data)
 
@@ -369,6 +488,14 @@ func _load_game(data: Dictionary) -> bool:
 	_pending_heroes.clear()
 	for type in state["pending_heroes"]:
 		_pending_heroes.append(int(type))
+
+	research.load_save(data.get("research", {}))
+	mana = float(data.get("mana", Spells.START_MANA))
+	workshop_points = float(data.get("workshop_points", 0.0))
+	var stock: Array = data.get("trap_stock", [0, 0, 0])
+	trap_stock[Defenses.Type.SPIKES] = int(stock[0])
+	trap_stock[Defenses.Type.RUNE] = int(stock[1])
+	trap_stock[Defenses.Type.DOOR] = int(stock[2])
 
 	var view: Array = data["camera"]
 	camera.position = Vector2(float(view[0]), float(view[1]))
@@ -452,12 +579,50 @@ func _refresh_hud() -> void:
 	hud.set_payday(ceili(_payday_timer))
 	hud.set_heart(map.heart_hp, DungeonMap.HEART_MAX_HP)
 	hud.set_next_wave(_next_wave, ceili(_wave_timer))
+	hud.set_mana(mana, Spells.MAX_MANA)
+	var research_text := research.status_text()
+	var workshop_target := _workshop_target()
+	if workshop_target >= 0 and map.count_room_tiles(Rooms.Type.WORKSHOP) > 0:
+		research_text += "\nAtelier : %s %d %%" % [Defenses.display_name(workshop_target),
+				100.0 * workshop_points / Defenses.cost(workshop_target)]
+	hud.set_research(research_text)
+	_refresh_tools()
+
+
+## Met à jour le texte des outils (prix, stock) et grise ceux pas encore découverts.
+func _refresh_tools() -> void:
+	for tool: int in TOOL_ROOMS:
+		var room: int = TOOL_ROOMS[tool]
+		var text := "%s (%d)" % [Rooms.display_name(room), Rooms.cost(room)]
+		_set_tool(tool, text, Rooms.display_name(room), research.is_unlocked("room", room))
+	for tool: int in TOOL_DEFENSES:
+		var defense: int = TOOL_DEFENSES[tool]
+		var text := "%s x%d" % [Defenses.display_name(defense), trap_stock[defense]]
+		_set_tool(tool, text, Defenses.display_name(defense), research.is_unlocked("defense", defense))
+	for tool: int in TOOL_SPELLS:
+		var spell: int = TOOL_SPELLS[tool]
+		var text := "%s (%d)" % [Spells.display_name(spell), Spells.mana_cost(spell)]
+		_set_tool(tool, text, Spells.display_name(spell), research.is_unlocked("spell", spell))
+
+
+## Un outil pas encore découvert affiche « ? Nom » et ne peut pas être choisi.
+func _set_tool(tool: int, text: String, name_text: String, unlocked: bool) -> void:
+	if unlocked:
+		hud.set_tool_state(tool, text, false)
+	else:
+		hud.set_tool_state(tool, "? " + name_text, true)
 
 
 func _on_tool_selected(tool: int) -> void:
 	current_tool = tool
 	if tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
+	elif tool == Hud.Tool.SPELL_HEAL:
+		hud.show_message("Touche tes unités blessées pour les soigner.", 3.0)
+	elif tool == Hud.Tool.SPELL_LIGHTNING:
+		hud.show_message("Touche un héros pour le foudroyer.", 3.0)
+	elif tool == Hud.Tool.SPELL_HASTE:
+		hud.show_message("Touche une de tes unités pour qu'elle coure plus vite.", 3.0)
 
 
 func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> void:
@@ -481,6 +646,8 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 				_build(cell, TOOL_ROOMS[current_tool])
 			elif TOOL_DEFENSES.has(current_tool):
 				_place_defense(cell, TOOL_DEFENSES[current_tool])
+			elif TOOL_SPELLS.has(current_tool):
+				_cast_spell(TOOL_SPELLS[current_tool], world_position)
 
 
 func _creature_at(world_position: Vector2) -> Creature:
@@ -534,6 +701,8 @@ func _build(cell: Vector2i, room_type: int) -> void:
 	if not map.can_build_room(cell):
 		if not map.is_walkable(cell):
 			hud.show_message("On ne construit que sur du sol déjà creusé.")
+		elif not map.is_claimed(cell):
+			hud.show_message("Ce sol n'est pas encore à toi : tes ouvriers doivent d'abord le revendiquer.")
 		return
 	var cost := Rooms.cost(room_type)
 	if not map.spend_gold(cost):
@@ -542,19 +711,23 @@ func _build(cell: Vector2i, room_type: int) -> void:
 	map.build_room(cell, room_type)
 
 
+## Les pièges et portes ne s'achètent pas : on pose ceux fabriqués par l'Atelier.
 func _place_defense(cell: Vector2i, type: int) -> void:
 	if not map.can_place_defense(cell):
-		hud.show_message("Les pièges et les portes se posent sur le sol des couloirs, pas dans les salles.")
+		hud.show_message("Les pièges et les portes se posent sur le sol revendiqué des couloirs.")
 		return
-	var cost := Defenses.cost(type)
-	if not map.spend_gold(cost):
-		hud.show_message("Pas assez d'or : %s coûte %d." % [Defenses.display_name(type), cost])
+	if trap_stock[type] <= 0:
+		hud.show_message("Aucun(e) %s en stock : construis un Atelier, tes créatures en fabriqueront." %
+				Defenses.display_name(type))
 		return
+	trap_stock[type] -= 1
 	map.place_defense(cell, type)
 
 
 func _demolish(cell: Vector2i) -> void:
 	if map.defenses.has(cell):
+		# Le piège retourne dans le stock (une porte abîmée est réparée au passage).
+		trap_stock[map.defenses[cell]["type"]] += 1
 		map.remove_defense(cell)
 		return
 	if map.get_room(cell) == Rooms.Type.NONE:

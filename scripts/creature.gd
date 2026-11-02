@@ -7,11 +7,25 @@ extends Unit
 ## Si ses besoins ne sont pas satisfaits, son HUMEUR baisse.
 ## À 0, elle quitte le donjon par le portail.
 ## Et quand un héros approche, elle se bat pour défendre le donjon !
+##
+## Quand tout va bien, elle TRAVAILLE : elle étudie à la Bibliothèque, fabrique
+## des pièges à l'Atelier ou s'entraîne. En combattant et en s'entraînant, elle
+## gagne de l'EXPÉRIENCE et monte de NIVEAU (plus forte, mais mieux payée).
 
 ## Émis juste avant que la créature disparaisse par le portail.
 signal left_dungeon(creature: Creature)
+## Émis chaque seconde de travail à la Bibliothèque ou à l'Atelier (main.gd s'en occupe).
+signal worked(room_type: int, amount: float)
+## Émis quand la créature passe un niveau.
+signal leveled_up(creature: Creature)
 
-enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING }
+## main.gd met à jour ces deux valeurs : y a-t-il encore quelque chose à
+## chercher ou à fabriquer ? (« static » : partagées par toutes les créatures.)
+static var research_needed := false
+static var workshop_needed := false
+
+enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING,
+		GOING_TO_WORK, WORKING }
 
 const STATE_NAMES := {
 	State.WANDER: "se promène",
@@ -21,7 +35,21 @@ const STATE_NAMES := {
 	State.EATING: "mange",
 	State.LEAVING: "s'en va, furieuse",
 	State.FIGHTING: "se bat",
+	State.GOING_TO_WORK: "va travailler",
+	State.WORKING: "travaille",
 }
+const WORK_NAMES := {
+	Rooms.Type.LIBRARY: "étudie",
+	Rooms.Type.WORKSHOP: "fabrique des pièges",
+	Rooms.Type.TRAINING: "s'entraîne",
+}
+
+const MAX_LEVEL := 5
+## Bonus par niveau au-dessus de 1 : +20 % de vie et de dégâts, +25 % de salaire.
+const LEVEL_STAT_BONUS := 0.2
+const LEVEL_SALARY_BONUS := 0.25
+const TRAINING_XP := 5.0     ## Expérience gagnée par seconde d'entraînement.
+const WORK_DURATION := 25.0  ## Durée maximale d'une séance de travail, en secondes.
 
 const ENERGY_LOSS := 1.2     ## Énergie perdue par seconde (100 -> 0 en ~80 s).
 const ENERGY_GAIN := 12.0    ## Énergie regagnée par seconde en dormant.
@@ -50,6 +78,14 @@ var _eat_timer := 0.0
 var _combat_timer := 0.0
 var _enemy: Unit = null
 
+var level := 1
+## Expérience accumulée vers le prochain niveau.
+var xp := 0.0
+var _work_room: int = Rooms.Type.NONE
+var _work_cell := NO_CELL
+var _work_timer := 0.0
+var _work_tick := 0.0
+
 
 ## À appeler juste après Creature.new().
 func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int) -> void:
@@ -67,16 +103,51 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	bed_cell = map.claim_bed(self)
 
 
+## Expérience nécessaire pour passer au niveau suivant.
+func xp_to_next_level() -> float:
+	return 100.0 * level
+
+
+func gain_xp(amount: float) -> void:
+	if level >= MAX_LEVEL:
+		return
+	xp += amount
+	while level < MAX_LEVEL and xp >= xp_to_next_level():
+		xp -= xp_to_next_level()
+		level += 1
+		_apply_level()
+		leveled_up.emit(self)
+
+
+## Recalcule la vie et les dégâts selon le niveau (en gardant le % de vie).
+func _apply_level() -> void:
+	var info := Creatures.info(type)
+	var bonus := 1.0 + LEVEL_STAT_BONUS * (level - 1)
+	var health_ratio := hp / max_hp
+	max_hp = info["hp"] * bonus
+	hp = max_hp * health_ratio
+	attack_damage = info["damage"] * bonus
+
+
+## Chaque coup porté rapporte autant d'expérience que de dégâts.
+func _on_hit_landed(damage_dealt: float) -> void:
+	gain_xp(damage_dealt)
+
+
 ## Ce qu'il faut pour recréer la créature au chargement (voir main.gd).
 func to_save() -> Dictionary:
 	return {
 		"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp,
 		"energy": energy, "hunger": hunger, "happiness": happiness,
+		"level": level, "xp": xp,
 	}
 
 
 ## Remet les valeurs sauvegardées (après setup_creature).
 func load_save(data: Dictionary) -> void:
+	level = int(data.get("level", 1))
+	xp = float(data.get("xp", 0.0))
+	_apply_level()
 	hp = float(data["hp"])
 	energy = float(data["energy"])
 	hunger = float(data["hunger"])
@@ -88,7 +159,8 @@ func display_name() -> String:
 
 
 func salary() -> int:
-	return Creatures.info(type)["salary"]
+	var base: int = Creatures.info(type)["salary"]
+	return int(base * (1.0 + LEVEL_SALARY_BONUS * (level - 1)))
 
 
 func is_leaving() -> bool:
@@ -102,8 +174,11 @@ func receive_pay(paid: bool) -> void:
 
 ## Petit texte affiché quand on touche la créature.
 func describe() -> String:
-	return "%s (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
-		display_name(), STATE_NAMES[state], hp, max_hp, happiness, hunger, energy, salary(),
+	var activity: String = STATE_NAMES[state]
+	if state == State.WORKING:
+		activity = WORK_NAMES[_work_room]
+	return "%s niv. %d (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
+		display_name(), level, activity, hp, max_hp, happiness, hunger, energy, salary(),
 		"" if _has_bed() else ", SANS LIT !"]
 
 
@@ -114,6 +189,7 @@ func _process(delta: float) -> void:
 		hunger = minf(100.0, hunger + HUNGER_GAIN * delta)
 	_update_mood(delta)
 	update_attack_cooldown(delta)
+	update_effects(delta)
 	_update_combat(delta)
 
 	match state:
@@ -150,7 +226,75 @@ func _process(delta: float) -> void:
 			if not fight(_enemy, delta):
 				_enemy = null
 				state = State.WANDER
+		State.GOING_TO_WORK:
+			if map.get_room(_work_cell) != _work_room:
+				_stop_work()
+			elif move_along_path(delta):
+				state = State.WORKING
+				_work_timer = WORK_DURATION
+				_work_tick = 0.0
+		State.WORKING:
+			_process_working(delta)
 	queue_redraw()
+
+
+## Au travail : chaque seconde, un peu d'expérience, de recherche ou de fabrication.
+func _process_working(delta: float) -> void:
+	if map.get_room(_work_cell) != _work_room:
+		_stop_work()
+		return
+	_work_timer -= delta
+	_work_tick += delta
+	if _work_tick >= 1.0:
+		_work_tick -= 1.0
+		match _work_room:
+			Rooms.Type.TRAINING:
+				gain_xp(TRAINING_XP)
+				energy = maxf(0.0, energy - ENERGY_LOSS) # L'entraînement fatigue deux fois plus.
+			Rooms.Type.LIBRARY:
+				# Les Sorciers étudient 3 fois plus vite.
+				worked.emit(_work_room, 3.0 if type == Creatures.Type.WARLOCK else 1.0)
+			Rooms.Type.WORKSHOP:
+				# Les Orques sont les meilleurs artisans.
+				worked.emit(_work_room, 3.0 if type == Creatures.Type.ORC else 2.0)
+	var stop_training := _work_room == Rooms.Type.TRAINING and level >= MAX_LEVEL
+	var stop_research := _work_room == Rooms.Type.LIBRARY and not research_needed
+	var stop_workshop := _work_room == Rooms.Type.WORKSHOP and not workshop_needed
+	if _work_timer <= 0.0 or hunger >= HUNGRY_LEVEL or energy <= TIRED_LEVEL \
+			or stop_training or stop_research or stop_workshop:
+		_stop_work()
+
+
+## Choisit un travail utile et part vers un poste libre. Renvoie false si rien à faire.
+func _start_work() -> bool:
+	var options: Array[int] = []
+	if research_needed and map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
+		options.append(Rooms.Type.LIBRARY)
+		if type == Creatures.Type.WARLOCK:
+			options.append_array([Rooms.Type.LIBRARY, Rooms.Type.LIBRARY]) # Il adore étudier.
+	if workshop_needed and type != Creatures.Type.WARLOCK and map.count_room_tiles(Rooms.Type.WORKSHOP) > 0:
+		options.append(Rooms.Type.WORKSHOP)
+	if level < MAX_LEVEL and map.count_room_tiles(Rooms.Type.TRAINING) > 0:
+		options.append(Rooms.Type.TRAINING)
+	if options.is_empty():
+		return false
+	var room: int = options.pick_random()
+	var spot := map.find_work_spot(self, room, current_cell())
+	if spot.is_empty():
+		return false
+	_work_room = room
+	_work_cell = spot["target"]
+	follow_path(spot["path"])
+	state = State.GOING_TO_WORK
+	return true
+
+
+func _stop_work() -> void:
+	map.release_work_spot(self)
+	_work_room = Rooms.Type.NONE
+	_work_cell = NO_CELL
+	if state == State.GOING_TO_WORK or state == State.WORKING:
+		state = State.WANDER
 
 
 ## Trois fois par seconde : y a-t-il un héros à combattre ?
@@ -167,6 +311,7 @@ func _update_combat(delta: float) -> void:
 	if enemy == null:
 		return
 	if state != State.FIGHTING:
+		map.release_work_spot(self)
 		path.clear()
 		state = State.FIGHTING
 	_enemy = enemy
@@ -193,6 +338,10 @@ func _process_wander(delta: float) -> void:
 	# Priorité 2 : dormir.
 	if energy <= TIRED_LEVEL and _has_bed() and go_to(bed_cell):
 		state = State.GOING_TO_SLEEP
+		return
+
+	# Priorité 3 : travailler (si elle n'a ni faim ni sommeil).
+	if energy > TIRED_LEVEL + 15.0 and hunger < HUNGRY_LEVEL and _start_work():
 		return
 
 	# Sinon : se promener un peu.
@@ -231,6 +380,7 @@ func _has_bed() -> bool:
 
 
 func _start_leaving() -> void:
+	map.release_work_spot(self)
 	state = State.LEAVING
 	map.release_bed(self)
 	bed_cell = NO_CELL
@@ -245,12 +395,14 @@ func can_be_picked_up() -> bool:
 
 func _on_picked_up() -> void:
 	_enemy = null
+	map.release_work_spot(self)
 	state = State.WANDER
 
 
 ## Morte au combat : on libère son lit, puis Unit.die() fait le reste.
 func die() -> void:
 	map.release_bed(self)
+	map.release_work_spot(self)
 	super()
 
 
@@ -276,6 +428,9 @@ func _draw() -> void:
 	draw_strike()
 
 	var font := ThemeDB.fallback_font
+	# Le niveau, en petit à gauche des barres.
+	draw_string(font, Vector2(-bar_width / 2 - 9, bar_y + 3), str(level), HORIZONTAL_ALIGNMENT_LEFT,
+			-1, 10, Color("ffd54a"))
 	if state == State.SLEEPING:
 		draw_string(font, Vector2(radius, -radius), "z", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	elif state == State.LEAVING:

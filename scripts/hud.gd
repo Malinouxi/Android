@@ -4,6 +4,7 @@ extends CanvasLayer
 ##   - en haut : or, trésor, ouvriers, créatures, bouton d'invocation ;
 ##     et en dessous : vie du cœur, jour de paie, prochaine vague de héros ;
 ##   - à droite : la barre d'outils (creuser, construire une salle, démolir) ;
+##   - à gauche : la mana, les sorts et la recherche en cours ;
 ##   - en bas : les messages.
 ## Un CanvasLayer ne bouge pas avec la caméra : parfait pour une interface.
 ## Tout est construit par code, pour que tu voies comment ça marche.
@@ -17,7 +18,8 @@ signal menu_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
-enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR }
+enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
+		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -33,6 +35,13 @@ var _message_label: Label
 var _message_timer: SceneTreeTimer
 var _hand_label: Label
 var _pause_panel: Control
+var _spell_panel: PanelContainer
+var _mana_label: Label
+var _research_label: Label
+## Tous les boutons d'outils : Tool -> Button (main.gd change leur texte).
+var _tool_buttons: Dictionary = {}
+## Un seul bouton enfoncé à la fois, entre la barre d'outils ET les sorts.
+var _tool_group := ButtonGroup.new()
 
 
 func _ready() -> void:
@@ -40,6 +49,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_top_panel()
 	_build_tool_panel()
+	_build_spell_panel()
 
 	_message_label = _make_label(22)
 	# Ancré en bas de l'écran, sur toute la largeur.
@@ -114,30 +124,22 @@ func _build_tool_panel() -> void:
 	grid.add_theme_constant_override("v_separation", 6)
 	column.add_child(grid)
 
-	# Un ButtonGroup fait qu'un seul bouton peut être enfoncé à la fois.
-	var group := ButtonGroup.new()
 	var tools := [
 		[Tool.DIG, "Creuser"],
 		[Tool.HAND, "Main"],
 		[Tool.TREASURY, _room_label(Rooms.Type.TREASURY)],
 		[Tool.LAIR, _room_label(Rooms.Type.LAIR)],
 		[Tool.FARM, _room_label(Rooms.Type.FARM)],
+		[Tool.LIBRARY, _room_label(Rooms.Type.LIBRARY)],
+		[Tool.WORKSHOP, _room_label(Rooms.Type.WORKSHOP)],
+		[Tool.TRAINING, _room_label(Rooms.Type.TRAINING)],
 		[Tool.SPIKES, _defense_label(Defenses.Type.SPIKES)],
 		[Tool.RUNE, _defense_label(Defenses.Type.RUNE)],
 		[Tool.DOOR, _defense_label(Defenses.Type.DOOR)],
 		[Tool.DEMOLISH, "Démolir"],
 	]
 	for entry in tools:
-		var tool: int = entry[0]
-		var button := Button.new()
-		button.text = entry[1]
-		button.toggle_mode = true
-		button.button_group = group
-		button.button_pressed = tool == Tool.DIG
-		button.custom_minimum_size = Vector2(170, 56)
-		button.add_theme_font_size_override("font_size", 18)
-		button.pressed.connect(func() -> void: tool_selected.emit(tool))
-		grid.add_child(button)
+		grid.add_child(_make_tool_button(entry[0], entry[1]))
 
 	# Ce que le joueur tient dans sa main.
 	_hand_label = _make_label(18)
@@ -145,6 +147,53 @@ func _build_tool_panel() -> void:
 	_hand_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_hand_label)
 	set_hand([], 0)
+
+
+## Le panneau de gauche : mana, boutons de sorts, recherche en cours.
+func _build_spell_panel() -> void:
+	_spell_panel = PanelContainer.new()
+	_spell_panel.position = Vector2(12, 130)
+	add_child(_spell_panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 6)
+	_spell_panel.add_child(column)
+
+	_mana_label = _make_label(20)
+	column.add_child(_mana_label)
+	for tool in [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE]:
+		column.add_child(_make_tool_button(tool, ""))
+	_research_label = _make_label(16)
+	_research_label.custom_minimum_size = Vector2(170, 0)
+	_research_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_research_label)
+
+
+func _make_tool_button(tool: int, text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.toggle_mode = true
+	button.button_group = _tool_group
+	button.button_pressed = tool == Tool.DIG
+	button.custom_minimum_size = Vector2(170, 50)
+	button.add_theme_font_size_override("font_size", 18)
+	button.pressed.connect(func() -> void: tool_selected.emit(tool))
+	_tool_buttons[tool] = button
+	return button
+
+
+## Change le texte d'un outil, et le grise s'il n'est pas encore découvert.
+func set_tool_state(tool: int, text: String, locked: bool) -> void:
+	var button: Button = _tool_buttons[tool]
+	button.text = text
+	button.disabled = locked
+
+
+func set_mana(mana: float, max_mana: float) -> void:
+	_mana_label.text = "Mana : %d / %d" % [mana, max_mana]
+
+
+func set_research(text: String) -> void:
+	_research_label.text = text
 
 
 ## names = noms des unités tenues, la dernière ramassée en dernier.
@@ -261,7 +310,8 @@ func hide_message() -> void:
 ## (pour ne pas agir sur la case cachée sous un bouton).
 func is_over_ui(screen_position: Vector2) -> bool:
 	return _top_panel.get_global_rect().has_point(screen_position) \
-			or _tool_panel.get_global_rect().has_point(screen_position)
+			or _tool_panel.get_global_rect().has_point(screen_position) \
+			or _spell_panel.get_global_rect().has_point(screen_position)
 
 
 func _defense_label(type: int) -> String:

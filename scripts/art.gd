@@ -29,6 +29,21 @@ const ROOM_FLOORS := {
 	Rooms.Type.TREASURY: preload("res://assets/tiles/room_treasury.png"),
 	Rooms.Type.LAIR: preload("res://assets/tiles/room_lair.png"),
 	Rooms.Type.FARM: preload("res://assets/tiles/room_farm.png"),
+	Rooms.Type.LIBRARY: preload("res://assets/tiles/room_library.png"),
+	Rooms.Type.WORKSHOP: preload("res://assets/tiles/room_workshop.png"),
+	Rooms.Type.TRAINING: preload("res://assets/tiles/room_training.png"),
+}
+## Le sol revendiqué par ton donjon.
+const CLAIMED := [
+	preload("res://assets/tiles/claimed_0.png"),
+	preload("res://assets/tiles/claimed_1.png"),
+	preload("res://assets/tiles/claimed_2.png"),
+]
+## Le meuble posé sur chaque case de ces salles.
+const ROOM_PROPS := {
+	Rooms.Type.LIBRARY: preload("res://assets/props/bookshelf.png"),
+	Rooms.Type.WORKSHOP: preload("res://assets/props/anvil.png"),
+	Rooms.Type.TRAINING: preload("res://assets/props/dummy.png"),
 }
 
 # --- Objets et décor ---

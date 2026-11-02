@@ -1,6 +1,7 @@
 class_name Worker
 extends Unit
-## Un ouvrier : il creuse les cases marquées et rapporte l'or au trésor.
+## Un ouvrier : il creuse les cases marquées, rapporte l'or au trésor et
+## revendique le sol creusé pour agrandir le territoire du donjon.
 ## (Il hérite de Unit : la marche et les chemins sont écrits dans unit.gd.)
 ##
 ## Son comportement est une « machine à états » : à chaque instant il est dans
@@ -8,16 +9,18 @@ extends Unit
 ## C'est la façon la plus simple et la plus lisible de programmer une IA de jeu.
 ##
 ## Son travail (« job ») est un petit dictionnaire :
-##   { "type": "dig" ou "deposit", "target": case visée, "path": chemin }
+##   { "type": "dig", "deposit" ou "claim", "target": case visée, "path": chemin }
 
 enum State {
 	IDLE,    ## Ne fait rien : cherche du travail ou se promène.
 	MOVING,  ## Suit un chemin.
 	DIGGING, ## Creuse une case.
+	CLAIMING, ## Revendique une case de sol pour le donjon.
 }
 
 const DIG_INTERVAL := 0.45   ## Secondes entre deux coups de pioche.
 const CARRY_CAPACITY := 120  ## Or qu'un ouvrier peut porter dans ses poches.
+const CLAIM_TIME := 1.5      ## Secondes pour revendiquer une case.
 
 var state: State = State.IDLE
 ## Travail en cours, ou {} s'il n'en a pas.
@@ -54,6 +57,7 @@ func is_full() -> bool:
 ## Godot appelle _process() à chaque image (environ 60 fois par seconde).
 ## « delta » = temps écoulé depuis l'image précédente, en secondes.
 func _process(delta: float) -> void:
+	update_effects(delta)
 	match state:
 		State.IDLE:
 			_process_idle(delta)
@@ -61,6 +65,8 @@ func _process(delta: float) -> void:
 			_process_moving(delta)
 		State.DIGGING:
 			_process_digging(delta)
+		State.CLAIMING:
+			_process_claiming(delta)
 	queue_redraw()
 
 
@@ -94,7 +100,11 @@ func _choose_job() -> Dictionary:
 		if not deposit.is_empty():
 			return deposit
 	# 2. Sinon on creuse. Avec les poches pleines, on évite les filons d'or.
-	return map.find_dig_job(self, current_cell(), not is_full())
+	var dig := map.find_dig_job(self, current_cell(), not is_full())
+	if not dig.is_empty():
+		return dig
+	# 3. Rien à creuser : on agrandit le territoire.
+	return map.find_claim_job(self, current_cell())
 
 
 func _process_moving(delta: float) -> void:
@@ -113,6 +123,9 @@ func _arrive() -> void:
 	elif job["type"] == "dig":
 		state = State.DIGGING
 		_dig_timer = DIG_INTERVAL
+	elif job["type"] == "claim":
+		state = State.CLAIMING
+		_dig_timer = CLAIM_TIME
 	else: # "deposit"
 		carried_gold -= map.deposit_gold(job["target"], carried_gold)
 		_stop_job()
@@ -138,11 +151,26 @@ func _process_digging(delta: float) -> void:
 		_think_timer = 0.1 # On cherche tout de suite le travail suivant.
 
 
+## Revendiquer : l'ouvrier reste un moment sur la case, puis elle devient à nous.
+func _process_claiming(delta: float) -> void:
+	if not _job_still_valid():
+		_stop_job()
+		return
+	_swing += delta * 8.0
+	_dig_timer -= delta
+	if _dig_timer <= 0.0:
+		map.claim(job["target"])
+		_stop_job()
+		_think_timer = 0.1
+
+
 func _job_still_valid() -> bool:
 	if job.is_empty():
 		return true
 	if job["type"] == "dig":
 		return map.marked.has(job["target"])
+	if job["type"] == "claim":
+		return not map.is_claimed(job["target"])
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
 
 
@@ -182,4 +210,7 @@ func _draw() -> void:
 		draw_line(Vector2.ZERO, tip, Color("8d6e63"), 3.0)
 		draw_line(tip - tip.orthogonal().normalized() * 5.0,
 				tip + tip.orthogonal().normalized() * 5.0, Color("cfd8dc"), 3.0)
+	# Pendant qu'il revendique : un halo rouge qui pulse sous ses pieds.
+	if state == State.CLAIMING:
+		draw_arc(Vector2(0, 8), 10.0 + 2.0 * sin(_swing), 0.0, TAU, 20, Color(0.9, 0.2, 0.3, 0.8), 2.0)
 	draw_health_bar(-19.0)

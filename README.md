@@ -98,6 +98,35 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Le fichier est `user://savegame.json` (un dossier privé du jeu). C'est du texte lisible : tu peux l'ouvrir
   pour voir comment la partie est enregistrée.
 
+**Étape 9 — Territoire, niveaux, sorts, recherche et atelier**
+
+*Territoire revendiqué*
+- Quand ils n'ont rien à creuser, les ouvriers **revendiquent** le sol creusé collé à ton territoire
+  (halo rouge sous leurs pieds) : il prend la couleur de ton donjon (dalles rouge sombre).
+- Salles, pièges et portes ne se construisent que sur **ton** territoire.
+
+*Niveaux des créatures*
+- Chaque coup porté rapporte de l'expérience ; la **Salle d'entraînement** aussi (5 XP/s, mais ça fatigue).
+- Niveau 1 à 5 (petit chiffre jaune à gauche des barres) : +20 % de vie et de dégâts par niveau,
+  mais +25 % de salaire.
+
+*Sorts du maître* (panneau de gauche)
+- La **mana** (max 200) se recharge toute seule : 0,5/s + 1/s par tranche de 40 cases de territoire.
+
+  | Sort | Mana | Effet |
+  |------|------|-------|
+  | Soin | 30 | +60 PV à tes unités dans un rayon de près de 2 cases |
+  | Éclair | 40 | 70 dégâts aux héros touchés (à découvrir) |
+  | Hâte | 25 | Une de tes unités court 80 % plus vite pendant 15 s (à découvrir) |
+
+*Bibliothèque et Atelier*
+- Quand elles n'ont ni faim ni sommeil, les créatures **travaillent** : elles étudient à la **Bibliothèque**
+  (les Sorciers 3 fois plus vite), fabriquent à l'**Atelier** (les Orques sont les meilleurs) ou s'entraînent.
+- La recherche découvre, dans l'ordre : Atelier, Pointes, Salle d'entraînement, Éclair, Porte, Hâte, Rune.
+  Ce qui n'est pas encore découvert est grisé avec un « ? ».
+- Les pièges et portes ne s'achètent plus : l'**Atelier les fabrique** (le moins nombreux en priorité,
+  9 en stock au maximum). Le bouton indique le stock (« Pointes x2 »). Démolir un piège le remet en stock.
+
 ## Modifier les graphismes
 
 Les images sont dans `assets/` (`tiles/`, `props/`, `units/`). Deux façons de les changer :
@@ -144,6 +173,8 @@ scripts/hero.gd            Un héros (extends Unit) : combat, sinon marche (et c
 scripts/heroes.gd          Catalogue des héros : vie, dégâts, vitesse, rançon, première vague
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
 scripts/defenses.gd        Catalogue des pièges et portes : nom, prix, dégâts, points de vie
+scripts/spells.gd          Catalogue des sorts : mana, effets, recharge de la mana
+scripts/research.gd        La recherche : liste des découvertes et progression
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
@@ -175,6 +206,8 @@ Avancer par petites étapes, chacune jouable :
 6. ✅ **Graphismes** : pixel art pour les tuiles, les objets et les personnages, animation de marche.
 7. ✅ **Pièges et portes** : pointes, rune explosive, porte à casser.
 8. ✅ **Menu principal, pause et sauvegarde** (automatique et manuelle).
-9. **Sons**, niveaux avec objectifs, équilibrage.
+9. ✅ **Territoire, niveaux des créatures, sorts, bibliothèque et atelier** (mécaniques classiques du
+   genre, conçues pour ce jeu et le tactile).
+10. **Sons**, niveaux avec objectifs, équilibrage.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

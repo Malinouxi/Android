@@ -48,6 +48,7 @@ func reward() -> int:
 
 func _process(delta: float) -> void:
 	update_attack_cooldown(delta)
+	update_effects(delta)
 
 	# Si notre cible a disparu (morte entre-temps), on l'oublie.
 	if _target != null and not is_instance_valid(_target):

@@ -35,6 +35,9 @@ var _strike_timer := 0.0
 var _strike_offset := Vector2.ZERO
 ## Regarde vers la gauche (l'image est alors retournée en miroir).
 var _facing_left := false
+## Secondes de « Hâte » restantes (sort du maître) : l'unité court plus vite.
+var _haste_left := 0.0
+const HASTE_SPEED_FACTOR := 1.8
 
 
 ## Quand l'unité entre dans la scène, on la range dans un « groupe » selon son camp.
@@ -97,7 +100,8 @@ func move_along_path(delta: float) -> bool:
 		_facing_left = true
 	elif next_position.x > position.x + 0.5:
 		_facing_left = false
-	position = position.move_toward(next_position, speed * delta)
+	var current_speed := speed * (HASTE_SPEED_FACTOR if _haste_left > 0.0 else 1.0)
+	position = position.move_toward(next_position, current_speed * delta)
 	if position == next_position:
 		path.remove_at(0)
 	return path.is_empty()
@@ -149,6 +153,26 @@ func _on_dropped() -> void:
 # ---------------------------------------------------------------------------
 # Combat
 # ---------------------------------------------------------------------------
+
+## À appeler à chaque image par toutes les unités : fait s'écouler les effets des sorts.
+func update_effects(delta: float) -> void:
+	_haste_left = maxf(0.0, _haste_left - delta)
+
+
+func apply_haste(duration: float) -> void:
+	_haste_left = duration
+
+
+func heal(amount: float) -> void:
+	if not is_dead():
+		hp = minf(max_hp, hp + amount)
+
+
+## Appelée chaque fois que l'unité touche un ennemi. Les créatures s'en servent
+## pour gagner de l'expérience (voir creature.gd).
+func _on_hit_landed(_damage: float) -> void:
+	pass
+
 
 func is_dead() -> bool:
 	return hp <= 0.0
@@ -207,6 +231,7 @@ func fight(target: Unit, delta: float) -> bool:
 			_attack_cooldown = attack_interval
 			show_strike(target.position)
 			target.take_damage(attack_damage)
+			_on_hit_landed(attack_damage)
 		return true
 	# Pas encore à portée : on recalcule le chemin seulement si la cible a changé de case.
 	var target_cell := target.current_cell()
@@ -245,6 +270,9 @@ func draw_sprite(frames: Array, sprite_scale := 1.0) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0 if _facing_left else 1.0, 1.0))
 	var size := Vector2(32, 32) * sprite_scale
 	draw_texture_rect(frame, Rect2(-size / 2 - Vector2(0, 2), size), false)
+	if _haste_left > 0.0:
+		# Un cercle bleu clair autour d'une unité accélérée.
+		draw_arc(Vector2.ZERO, 14.0 * sprite_scale, 0.0, TAU, 20, Color(0.3, 0.9, 1.0, 0.8), 1.5)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

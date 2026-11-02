@@ -122,10 +122,10 @@ def rock_tile(rng):
     return image
 
 
-def floor_tile(rng):
-    """Dalles de pierre sombres."""
-    image = Image.new("RGBA", (SIZE, SIZE), hex_color("#1d1916"))
-    shades = ["#2b2622", "#2f2925", "#27221f"]
+def floor_tile(rng, mortar="#1d1916", shades=("#2b2622", "#2f2925", "#27221f"), highlight="#38312b"):
+    """Dalles de pierre sombres (couleurs réglables pour le sol revendiqué)."""
+    image = Image.new("RGBA", (SIZE, SIZE), hex_color(mortar))
+    shades = list(shades)
     stones = [(0, 0, 8, 8), (8, 0, 8, 8), (0, 8, 5, 8), (5, 8, 8, 8), (13, 8, 3, 8)]
     for sx, sy, w, h in stones:
         shade = hex_color(rng.choice(shades))
@@ -134,7 +134,15 @@ def floor_tile(rng):
                 if x < SIZE and y < SIZE:
                     image.putpixel((x, y), shade)
         for x in range(sx + 1, min(sx + w, SIZE)):
-            image.putpixel((x, sy + 1), hex_color("#38312b"))
+            image.putpixel((x, sy + 1), hex_color(highlight))
+    return image
+
+
+def claimed_tile(rng):
+    """Sol revendiqué par le donjon : dalles rouge sombre avec un petit emblème."""
+    image = floor_tile(rng, "#1a1012", ("#3a2226", "#3f2529", "#36201f"), "#55303a")
+    for x, y in [(7, 6), (8, 6), (6, 7), (9, 7), (7, 8), (8, 8)]:
+        image.putpixel((x, y), hex_color("#7a2e3a"))
     return image
 
 
@@ -161,6 +169,15 @@ def make_tiles():
     save(pattern_tile("#3d2f4d", "#4a3a5e", lambda x, y: (x + y) % 4 == 0), "tiles", "room_lair.png")
     save(pattern_tile("#33251a", "#2c4630", lambda x, y: y % 5 == 2 or (y % 5 == 3 and x % 3 == 0)),
          "tiles", "room_farm.png")
+    save(pattern_tile("#22324a", "#2d4363", lambda x, y: y % 4 == 0 or (x + (y // 4) * 5) % 8 == 0),
+         "tiles", "room_library.png")
+    save(pattern_tile("#3a3632", "#47423c", lambda x, y: (x // 4 + y // 4) % 2 == 0), "tiles", "room_workshop.png")
+    save(pattern_tile("#4a2a22", "#5e352a", lambda x, y: y % 4 == 3 or (x + (y // 4) * 4) % 8 == 0),
+         "tiles", "room_training.png")
+
+    claimed_rng = random.Random(7)
+    for i in range(3):
+        save(claimed_tile(claimed_rng), "tiles", "claimed_%d.png" % i)
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +525,74 @@ def door():
     return image
 
 
+BOOKSHELF = [
+    "................",
+    ".kkkkkkkkkkkkkk.",
+    ".kwwwwwwwwwwwwk.",
+    ".krrbbggyyrrbbk.",
+    ".krrbbggyyrrbbk.",
+    ".krRbbgGyyrRbbk.",
+    ".kwwwwwwwwwwwwk.",
+    ".kbbyyrrggbbyyk.",
+    ".kbByyrRggbByyk.",
+    ".kbbyyrrggbbyyk.",
+    ".kwwwwwwwwwwwwk.",
+    ".kggrrbbyyggrrk.",
+    ".kgGrrbByygGrrk.",
+    ".kggrrbbyyggrrk.",
+    ".kkkkkkkkkkkkkk.",
+    "................",
+]
+BOOKSHELF_PALETTE = {"k": "#3e2723", "w": "#6d4c41", "r": "#c62828", "R": "#ef9a9a", "b": "#1565c0",
+                     "B": "#90caf9", "g": "#2e7d32", "G": "#a5d6a7", "y": "#f9a825"}
+
+ANVIL = [
+    "................",
+    "................",
+    "................",
+    "...kkkkkkkkkk...",
+    "..kMMMMMMMMMMkk.",
+    ".kMmmmmmmmmmmmMk",
+    "..kkmmmmmmmmkkk.",
+    ".....kmmmmmk....",
+    ".....kmmmmk.....",
+    "....kkmmmmkk....",
+    "...kmmmmmmmmk...",
+    "...kddddddddk...",
+    "...kkkkkkkkkk...",
+    "................",
+    "................",
+    "................",
+]
+ANVIL_PALETTE = {"k": "#1c1c1c", "M": "#cfd8dc", "m": "#78909c", "d": "#455a64"}
+
+DUMMY = [
+    "................",
+    "......kkkk......",
+    ".....kssssk.....",
+    ".....ksrrsk.....",
+    ".....kssssk.....",
+    "...kkkkwwkkkk...",
+    "..kssssssssssk..",
+    "...kkksrrskkk...",
+    ".....ksrrsk.....",
+    ".....kssssk.....",
+    ".....kssssk.....",
+    "......kwwk......",
+    "......kwwk......",
+    "....kkwwwwkk....",
+    "...kwwwwwwwwk...",
+    "....kkkkkkkk....",
+]
+DUMMY_PALETTE = {"k": "#3e2723", "s": "#d4a85a", "r": "#c62828", "w": "#6d4c41"}
+
+
+def make_room_props():
+    save(from_ascii(BOOKSHELF, BOOKSHELF_PALETTE), "props", "bookshelf.png")
+    save(from_ascii(ANVIL, ANVIL_PALETTE), "props", "anvil.png")
+    save(from_ascii(DUMMY, DUMMY_PALETTE), "props", "dummy.png")
+
+
 def make_defenses():
     save(spikes(False), "props", "spikes_down.png")
     save(spikes(True), "props", "spikes_up.png")
@@ -520,6 +605,7 @@ def main():
     make_props()
     make_characters()
     make_defenses()
+    make_room_props()
     print("Images générées dans", ASSETS)
 
 

@@ -39,6 +39,10 @@ func setup(dungeon_map: DungeonMap, cell: Vector2i) -> void:
 	_think_timer = randf_range(0.0, 0.5)
 
 
+func display_name() -> String:
+	return "Ouvrier"
+
+
 func is_full() -> bool:
 	return carried_gold >= CARRY_CAPACITY
 
@@ -136,6 +140,15 @@ func _job_still_valid() -> bool:
 	if job["type"] == "dig":
 		return map.marked.has(job["target"])
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
+
+
+## Ramassé par le joueur : il abandonne son travail (il en cherchera un autre).
+func _on_picked_up() -> void:
+	_stop_job()
+
+
+func _on_dropped() -> void:
+	_think_timer = 0.2
 
 
 ## Tué par un héros : il libère la case qu'il devait creuser.

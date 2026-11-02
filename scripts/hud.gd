@@ -13,7 +13,7 @@ signal restart_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
-enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH }
+enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -27,6 +27,7 @@ var _wave_label: Label
 var _summon_button: Button
 var _message_label: Label
 var _message_timer: SceneTreeTimer
+var _hand_label: Label
 
 
 func _ready() -> void:
@@ -100,6 +101,7 @@ func _build_tool_panel() -> void:
 	var group := ButtonGroup.new()
 	var tools := [
 		[Tool.DIG, "Creuser"],
+		[Tool.HAND, "Main"],
 		[Tool.TREASURY, _room_label(Rooms.Type.TREASURY)],
 		[Tool.LAIR, _room_label(Rooms.Type.LAIR)],
 		[Tool.FARM, _room_label(Rooms.Type.FARM)],
@@ -112,10 +114,25 @@ func _build_tool_panel() -> void:
 		button.toggle_mode = true
 		button.button_group = group
 		button.button_pressed = tool == Tool.DIG
-		button.custom_minimum_size = Vector2(240, 60)
+		button.custom_minimum_size = Vector2(240, 56)
 		button.add_theme_font_size_override("font_size", 22)
 		button.pressed.connect(func() -> void: tool_selected.emit(tool))
 		column.add_child(button)
+
+	# Ce que le joueur tient dans sa main.
+	_hand_label = _make_label(18)
+	_hand_label.custom_minimum_size = Vector2(240, 0)
+	_hand_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_hand_label)
+	set_hand([], 0)
+
+
+## names = noms des unités tenues, la dernière ramassée en dernier.
+func set_hand(names: Array[String], capacity: int) -> void:
+	if names.is_empty():
+		_hand_label.text = "Main : vide"
+	else:
+		_hand_label.text = "Main (%d/%d) : %s" % [names.size(), capacity, ", ".join(names)]
 
 
 func set_gold(total: int, stored: int, capacity: int) -> void:

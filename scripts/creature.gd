@@ -222,6 +222,16 @@ func _start_leaving() -> void:
 		_leave_now()
 
 
+## On ne peut pas retenir une créature qui a décidé de partir !
+func can_be_picked_up() -> bool:
+	return super() and state != State.LEAVING
+
+
+func _on_picked_up() -> void:
+	_enemy = null
+	state = State.WANDER
+
+
 ## Morte au combat : on libère son lit, puis Unit.die() fait le reste.
 func die() -> void:
 	map.release_bed(self)

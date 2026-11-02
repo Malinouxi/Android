@@ -440,8 +440,15 @@ func take_food(cell: Vector2i) -> bool:
 
 ## Vrai si un chemin de sol relie le portail au cœur du donjon.
 func is_portal_connected() -> bool:
+	return is_connected_to_heart(portal_cell)
+
+
+## Vrai si on peut marcher de cette case jusqu'au cœur.
+func is_connected_to_heart(cell: Vector2i) -> bool:
+	if not is_walkable(cell):
+		return false
 	for direction in DIRECTIONS:
-		if not find_path(portal_cell, heart_cell + direction).is_empty():
+		if not find_path(cell, heart_cell + direction).is_empty():
 			return true
 	return false
 

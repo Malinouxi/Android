@@ -26,6 +26,8 @@ const WAVE_INTERVAL := 120.0
 const HERO_SPAWN_GAP := 1.5
 ## Nombre maximum de héros par vague.
 const MAX_HEROES_PER_WAVE := 8
+## Nombre d'unités que la main du maître peut tenir à la fois.
+const HAND_CAPACITY := 8
 
 ## Quelle salle construit chaque outil de la barre.
 const TOOL_ROOMS := {
@@ -42,6 +44,8 @@ const TOOL_ROOMS := {
 @onready var hud: Hud = $HUD
 
 var current_tool: int = Hud.Tool.DIG
+## Les unités tenues dans la main. On dépose toujours la dernière ramassée.
+var hand: Array[Unit] = []
 
 var _portal_connected := false
 var _portal_check_timer := 0.0
@@ -286,6 +290,8 @@ func _refresh_hud() -> void:
 
 func _on_tool_selected(tool: int) -> void:
 	current_tool = tool
+	if tool == Hud.Tool.HAND:
+		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
 
 
 func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> void:
@@ -300,6 +306,8 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 				hud.show_message(creature.describe(), 5.0)
 			else:
 				map.toggle_mark(cell)
+		Hud.Tool.HAND:
+			_use_hand(cell, world_position)
 		Hud.Tool.DEMOLISH:
 			_demolish(cell)
 		_:
@@ -307,10 +315,50 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 
 
 func _creature_at(world_position: Vector2) -> Creature:
-	for creature: Creature in creatures_root.get_children():
-		if creature.position.distance_to(world_position) < 16.0:
-			return creature
+	return _unit_at(world_position, creatures_root) as Creature
+
+
+## L'unité (pas déjà dans la main) sous le doigt, parmi les enfants de root.
+func _unit_at(world_position: Vector2, root: Node) -> Unit:
+	for unit: Unit in root.get_children():
+		if not unit.in_hand and unit.position.distance_to(world_position) < 16.0:
+			return unit
 	return null
+
+
+## La main du maître : toucher une unité la ramasse, toucher le sol dépose
+## la dernière ramassée.
+func _use_hand(cell: Vector2i, world_position: Vector2) -> void:
+	var unit := _unit_at(world_position, creatures_root)
+	if unit == null:
+		unit = _unit_at(world_position, workers_root)
+
+	if unit != null:
+		if hand.size() >= HAND_CAPACITY:
+			hud.show_message("Ta main est pleine : dépose d'abord quelqu'un.")
+		elif not unit.can_be_picked_up():
+			hud.show_message("Elle a décidé de partir : impossible de la retenir !")
+		else:
+			unit.pick_up()
+			hand.append(unit)
+			_refresh_hand()
+		return
+
+	if hand.is_empty():
+		return
+	if not map.is_connected_to_heart(cell):
+		hud.show_message("Dépose-la sur un sol relié à ton donjon.")
+		return
+	var dropped: Unit = hand.pop_back()
+	dropped.drop_at(cell)
+	_refresh_hand()
+
+
+func _refresh_hand() -> void:
+	var names: Array[String] = []
+	for unit in hand:
+		names.append(unit.display_name())
+	hud.set_hand(names, HAND_CAPACITY)
 
 
 func _build(cell: Vector2i, room_type: int) -> void:

@@ -60,6 +60,13 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Un héros vaincu rapporte une **rançon**, rangée au Trésor s'il y a de la place.
 - Le **cœur** a 1000 points de vie. S'il tombe à 0, la partie est perdue : bouton « Rejouer ».
 
+**Étape 5 — La main du maître**
+- Outil **Main** : touche une créature ou un ouvrier pour le **ramasser** (8 au maximum).
+  Touche ensuite une case de sol reliée au donjon pour **déposer** le dernier ramassé.
+- Pratique pour envoyer tes créatures droit sur les héros, ou des ouvriers creuser loin du cœur.
+- Une unité dans la main est figée : elle ne perd ni énergie ni humeur, et les héros ne la voient pas.
+  Elle reçoit quand même son salaire. Une créature qui s'en va, furieuse, ne peut pas être retenue.
+
 Aucune image n'est nécessaire : tout est dessiné avec des formes simples. On ajoutera des graphismes plus tard.
 
 ## Démarrer
@@ -117,7 +124,7 @@ Avancer par petites étapes, chacune jouable :
    (salaire, faim, sommeil) et partent si elles sont mécontentes.
 4. ✅ **Héros** : des vagues d'aventuriers entrent par la surface et veulent détruire le cœur.
 5. ✅ **Combat** : points de vie, attaques, rançons, fin de partie.
-   À venir : ramasser et déposer ses créatures avec la « main » du maître, pièges, portes.
+   ✅ La « main » du maître pour ramasser et déposer ses créatures. À venir : pièges, portes.
 6. **Niveaux et sauvegarde**, sons, vrais graphismes (pixel art 32×32), menus.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

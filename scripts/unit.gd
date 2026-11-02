@@ -26,6 +26,9 @@ var attack_damage := 0.0
 var attack_range := 26.0     ## Distance d'attaque, en pixels (une case = 32).
 var attack_interval := 1.0   ## Secondes entre deux coups.
 
+## Vrai pendant que le joueur tient l'unité dans sa « main ».
+var in_hand := false
+
 var _attack_cooldown := 0.0
 var _chase_cell := Vector2i(-1, -1)
 var _strike_timer := 0.0
@@ -42,6 +45,11 @@ func _ready() -> void:
 func setup(dungeon_map: DungeonMap, cell: Vector2i) -> void:
 	map = dungeon_map
 	position = map.cell_to_world(cell)
+
+
+## Nom affiché dans les messages. Chaque classe fille le remplace par le sien.
+func display_name() -> String:
+	return "Unité"
 
 
 func current_cell() -> Vector2i:
@@ -78,6 +86,49 @@ func move_along_path(delta: float) -> bool:
 	if position == next_position:
 		path.remove_at(0)
 	return path.is_empty()
+
+
+# ---------------------------------------------------------------------------
+# La main du maître : ramasser et déposer
+# ---------------------------------------------------------------------------
+
+## Les classes filles peuvent refuser (une créature qui s'en va, par exemple).
+func can_be_picked_up() -> bool:
+	return not is_dead() and not in_hand
+
+
+## Retire l'unité du jeu sans la détruire : invisible, figée, et les ennemis
+## ne la voient plus (on la retire de son groupe).
+func pick_up() -> void:
+	in_hand = true
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+	remove_from_group(_group_name(team))
+	path.clear()
+	_on_picked_up()
+
+
+## Remet l'unité dans le jeu, sur une case.
+func drop_at(cell: Vector2i) -> void:
+	in_hand = false
+	position = map.cell_to_world(cell)
+	visible = true
+	process_mode = Node.PROCESS_MODE_INHERIT
+	add_to_group(_group_name(team))
+	_attack_cooldown = 0.5 # Un petit temps pour se remettre de la chute.
+	# Effet « plop » : elle apparaît un peu grosse puis reprend sa taille.
+	scale = Vector2(1.6, 1.6)
+	create_tween().tween_property(self, "scale", Vector2.ONE, 0.2)
+	_on_dropped()
+
+
+## À compléter dans les classes filles (on remet l'IA à zéro, par exemple).
+func _on_picked_up() -> void:
+	pass
+
+
+func _on_dropped() -> void:
+	pass
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +183,7 @@ func find_nearest_enemy(radius: float) -> Unit:
 ## Poursuit une cible et la frappe dès qu'elle est à portée.
 ## Renvoie false si la cible est morte ou inaccessible (le combat est fini).
 func fight(target: Unit, delta: float) -> bool:
-	if not is_instance_valid(target) or target.is_dead():
+	if not is_instance_valid(target) or target.is_dead() or target.in_hand:
 		path.clear()
 		return false
 	if position.distance_to(target.position) <= attack_range:

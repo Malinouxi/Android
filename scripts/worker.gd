@@ -18,7 +18,6 @@ enum State {
 
 const DIG_INTERVAL := 0.45   ## Secondes entre deux coups de pioche.
 const CARRY_CAPACITY := 120  ## Or qu'un ouvrier peut porter dans ses poches.
-const BODY_COLOR := Color("7cb342")
 
 var state: State = State.IDLE
 ## Travail en cours, ou {} s'il n'en a pas.
@@ -165,14 +164,11 @@ func _stop_job() -> void:
 
 
 func _draw() -> void:
-	# Le corps et les yeux.
-	draw_circle(Vector2.ZERO, 9.0, BODY_COLOR)
-	draw_circle(Vector2(-3, -2), 1.8, Color.BLACK)
-	draw_circle(Vector2(3, -2), 1.8, Color.BLACK)
+	draw_sprite(Art.UNITS["worker"], 0.85)
 	# Un petit sac doré quand il transporte de l'or.
 	if carried_gold > 0:
-		draw_circle(Vector2(7, 6), 4.5, Color("ffd54a"))
-		draw_arc(Vector2(7, 6), 4.5, 0.0, TAU, 12, Color("8d6e00"), 1.0)
+		draw_circle(Vector2(8, 6), 4.0, Color("ffd54a"))
+		draw_arc(Vector2(8, 6), 4.0, 0.0, TAU, 12, Color("8d6e00"), 1.0)
 	# Pendant qu'il creuse : une pioche qui se balance vers la case visée.
 	if state == State.DIGGING and not job.is_empty():
 		var direction := map.cell_to_world(job["target"]) - position
@@ -181,4 +177,4 @@ func _draw() -> void:
 		draw_line(Vector2.ZERO, tip, Color("8d6e63"), 3.0)
 		draw_line(tip - tip.orthogonal().normalized() * 5.0,
 				tip + tip.orthogonal().normalized() * 5.0, Color("cfd8dc"), 3.0)
-	draw_health_bar(-15.0)
+	draw_health_bar(-19.0)

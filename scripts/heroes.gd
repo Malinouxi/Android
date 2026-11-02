@@ -8,17 +8,17 @@ enum Type { ADVENTURER, THIEF, KNIGHT }
 ## "first_wave" : numéro de la première vague où il peut apparaître.
 const INFO := {
 	Type.ADVENTURER: {
-		"name": "Aventurier", "color": Color("42a5f5"), "size": 8.0, "speed": 70.0,
+		"name": "Aventurier", "sprite": "adventurer", "color": Color("42a5f5"), "size": 8.0, "speed": 70.0,
 		"hp": 90.0, "damage": 8.0, "range": 26.0, "attack_interval": 1.0,
 		"reward": 40, "first_wave": 1,
 	},
 	Type.THIEF: {
-		"name": "Voleuse", "color": Color("80deea"), "size": 7.0, "speed": 105.0,
+		"name": "Voleuse", "sprite": "thief", "color": Color("80deea"), "size": 7.0, "speed": 105.0,
 		"hp": 50.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.7,
 		"reward": 30, "first_wave": 2,
 	},
 	Type.KNIGHT: {
-		"name": "Chevalier", "color": Color("eceff1"), "size": 10.0, "speed": 55.0,
+		"name": "Chevalier", "sprite": "knight", "color": Color("eceff1"), "size": 10.0, "speed": 55.0,
 		"hp": 220.0, "damage": 14.0, "range": 28.0, "attack_interval": 1.3,
 		"reward": 80, "first_wave": 4,
 	},

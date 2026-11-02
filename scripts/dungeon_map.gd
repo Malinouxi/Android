@@ -41,22 +41,12 @@ const GOLD_PER_HIT := 15
 ## Les 4 directions voisines (pas de diagonale, c'est plus simple).
 const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 
-const COLORS := {
-	Tile.EARTH: Color("6b4a2f"),
-	Tile.GOLD: Color("7a5a2f"),
-	Tile.ROCK: Color("3a3a40"),
-	Tile.FLOOR: Color("2b2622"),
-	Tile.HEART: Color("2b2622"),
-	Tile.PORTAL: Color("2b2622"),
-	Tile.ENTRANCE: Color("2b2622"),
-}
 ## Pour les héros, traverser de la terre « coûte » autant que marcher 6 cases :
 ## ils préfèrent les couloirs existants, mais creusent s'il le faut.
 const HERO_DIG_WEIGHT := 6.0
 const HEART_MAX_HP := 1000.0
 
 const MARK_COLOR := Color("ffd54a")
-const GOLD_COLOR := Color("ffd54a")
 
 ## Le type de chaque case. On range la grille 2D dans un tableau 1D :
 ## la case (x, y) est à l'indice y * WIDTH + x.
@@ -605,6 +595,7 @@ func _sort_by_distance(cells: Array[Vector2i], from_cell: Vector2i) -> void:
 # ---------------------------------------------------------------------------
 
 ## Godot appelle _draw() quand on demande queue_redraw().
+## Chaque case est une petite image 16 x 16 (voir art.gd) affichée en 32 x 32.
 func _draw() -> void:
 	var size := Vector2(TILE_SIZE, TILE_SIZE)
 	for y in HEIGHT:
@@ -612,40 +603,27 @@ func _draw() -> void:
 			var cell := Vector2i(x, y)
 			var rect := Rect2(Vector2(cell * TILE_SIZE), size)
 			var tile := get_tile(cell)
-			draw_rect(rect, COLORS[tile])
 
 			match tile:
+				Tile.EARTH:
+					draw_texture_rect(Art.pick(Art.EARTH, cell), rect, false)
 				Tile.GOLD:
-					# Quelques pépites jaunes.
-					draw_circle(rect.position + Vector2(9, 10), 3.0, GOLD_COLOR)
-					draw_circle(rect.position + Vector2(22, 14), 2.5, GOLD_COLOR)
-					draw_circle(rect.position + Vector2(14, 23), 2.0, GOLD_COLOR)
-				Tile.HEART:
-					draw_circle(rect.get_center(), 12.0, Color("c62828"))
-					draw_circle(rect.get_center() - Vector2(3, 3), 4.0, Color("ef5350"))
-					if heart_hp < HEART_MAX_HP:
-						var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
-						draw_rect(bar, Color(0, 0, 0, 0.7))
-						bar.size.x *= heart_hp / HEART_MAX_HP
-						draw_rect(bar, Color("e53935"))
-				Tile.ENTRANCE:
-					# Une porte de pierre grise.
-					draw_rect(rect.grow(-2), Color("78909c"))
-					draw_rect(Rect2(rect.position + Vector2(9, 8), Vector2(14, 22)), Color("263238"))
-					draw_circle(rect.position + Vector2(16, 8), 7.0, Color("263238"))
-				Tile.PORTAL:
-					# Des anneaux violets : un tourbillon magique.
-					draw_circle(rect.get_center(), 14.0, Color("4a148c"))
-					draw_arc(rect.get_center(), 11.0, 0.0, TAU, 24, Color("ab47bc"), 2.0)
-					draw_arc(rect.get_center(), 6.0, 0.0, TAU, 16, Color("e1bee7"), 2.0)
-				Tile.FLOOR:
+					draw_texture_rect(Art.pick(Art.GOLD, cell), rect, false)
+				Tile.ROCK:
+					draw_texture_rect(Art.pick(Art.ROCK, cell), rect, false)
+				_:
+					# Sol, cœur, portail ou entrée : d'abord le sol en dessous...
 					if rooms.has(cell):
 						_draw_room_tile(cell, rect)
 					else:
-						draw_rect(rect, Color(1, 1, 1, 0.04), false, 1.0)
-				_:
-					# Petit relief pour distinguer les blocs.
-					draw_rect(rect.grow(-1), Color(0, 0, 0, 0.25), false, 1.0)
+						draw_texture_rect(Art.pick(Art.FLOOR, cell), rect, false)
+					# ... puis l'objet par-dessus.
+					if tile == Tile.HEART:
+						_draw_heart(rect)
+					elif tile == Tile.PORTAL:
+						draw_texture_rect(Art.PORTAL, rect, false)
+					elif tile == Tile.ENTRANCE:
+						draw_texture_rect(Art.ENTRANCE, rect, false)
 
 			# Plus la case a pris de coups, plus elle s'assombrit.
 			if damage.has(cell) and DIG_HITS.has(tile):
@@ -657,13 +635,21 @@ func _draw() -> void:
 				draw_rect(rect.grow(-2), MARK_COLOR, false, 2.0)
 
 
+func _draw_heart(rect: Rect2) -> void:
+	draw_texture_rect(Art.HEART, rect, false)
+	if heart_hp < HEART_MAX_HP:
+		var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
+		draw_rect(bar, Color(0, 0, 0, 0.7))
+		bar.size.x *= heart_hp / HEART_MAX_HP
+		draw_rect(bar, Color("e53935"))
+
+
 func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
 	var type := get_room(cell)
-	var room_color := Rooms.color(type)
-	draw_rect(rect, room_color)
+	draw_texture_rect(Art.ROOM_FLOORS[type], rect, false)
 
 	# Un bord clair seulement là où la salle s'arrête : on voit sa forme.
-	var edge_color := room_color.lightened(0.35)
+	var edge_color := Rooms.color(type).lightened(0.35)
 	var corners := [rect.position, rect.position + Vector2(rect.size.x, 0),
 			rect.end, rect.position + Vector2(0, rect.size.y)]
 	if get_room(cell + Vector2i.UP) != type:
@@ -675,22 +661,16 @@ func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
 	if get_room(cell + Vector2i.LEFT) != type:
 		draw_line(corners[3], corners[0], edge_color, 2.0)
 
-	var center := rect.get_center()
 	match type:
 		Rooms.Type.TREASURY:
 			# Un tas d'or qui grossit avec la quantité stockée (0 à 5 pièces).
 			var coins := ceili(5.0 * stored_gold.get(cell, 0) / Rooms.TREASURY_CAPACITY)
-			var offsets := [Vector2(0, 4), Vector2(-6, 6), Vector2(6, 6), Vector2(-3, -1), Vector2(3, -1)]
-			for i in coins:
-				draw_circle(center + offsets[i], 4.0, GOLD_COLOR)
+			if coins > 0:
+				draw_texture_rect(Art.GOLD_PILES[mini(coins, 5) - 1], rect, false)
 		Rooms.Type.LAIR:
-			# Un petit lit de paille.
-			draw_rect(Rect2(center - Vector2(9, 6), Vector2(18, 12)), Color("a1887f"))
-			draw_rect(Rect2(center - Vector2(9, 6), Vector2(6, 12)), Color("d7ccc8"))
+			draw_texture_rect(Art.BED, rect, false)
 		Rooms.Type.FARM:
-			# Un champignon dessiné par unité de nourriture.
-			var spots := [Vector2(-7, 4), Vector2(6, 6), Vector2(0, -5)]
+			# Un champignon (8 x 8 pixels, affiché en 16 x 16) par unité de nourriture.
+			var spots := [Vector2(1, 14), Vector2(15, 15), Vector2(8, 2)]
 			for i in food.get(cell, 0):
-				var base: Vector2 = center + spots[i]
-				draw_rect(Rect2(base - Vector2(1.5, 0), Vector2(3, 5)), Color("efebe9"))
-				draw_circle(base, 4.0, Color("e57373"))
+				draw_texture_rect(Art.MUSHROOM, Rect2(rect.position + spots[i], Vector2(16, 16)), false)

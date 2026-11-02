@@ -245,14 +245,13 @@ func _leave_now() -> void:
 
 func _draw() -> void:
 	var info := Creatures.info(type)
-	var radius: float = info["size"]
-	draw_circle(Vector2.ZERO, radius, info["color"])
-	draw_circle(Vector2(-radius * 0.35, -radius * 0.2), 1.8, Color.BLACK)
-	draw_circle(Vector2(radius * 0.35, -radius * 0.2), 1.8, Color.BLACK)
+	var sprite_scale: float = info["size"] / 8.0 # Taille 8 = image normale (32 pixels).
+	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
+	var radius := 14.0 * sprite_scale
 
 	# Barre d'humeur au-dessus de la tête : verte = contente, rouge = furieuse.
 	var bar_width := 18.0
-	var bar_y := -radius - 7.0
+	var bar_y := -radius - 6.0
 	draw_rect(Rect2(-bar_width / 2, bar_y, bar_width, 3), Color(0, 0, 0, 0.6))
 	draw_rect(Rect2(-bar_width / 2, bar_y, bar_width * happiness / 100.0, 3),
 			Color.RED.lerp(Color.GREEN, happiness / 100.0))

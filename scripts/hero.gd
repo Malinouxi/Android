@@ -10,7 +10,6 @@ extends Unit
 
 const AGGRO_RADIUS := 128.0  ## Distance (pixels) à laquelle il repère un ennemi.
 const DIG_INTERVAL := 0.6    ## Secondes entre deux coups de pioche.
-const OUTLINE_COLOR := Color("0d47a1")
 
 var type: int
 
@@ -102,11 +101,7 @@ func _attack_heart() -> void:
 
 func _draw() -> void:
 	var info := Heroes.info(type)
-	var radius: float = info["size"]
-	# Un contour bleu foncé : on reconnaît tout de suite l'ennemi.
-	draw_circle(Vector2.ZERO, radius + 2.0, OUTLINE_COLOR)
-	draw_circle(Vector2.ZERO, radius, info["color"])
-	draw_circle(Vector2(-radius * 0.35, -radius * 0.2), 1.6, Color.BLACK)
-	draw_circle(Vector2(radius * 0.35, -radius * 0.2), 1.6, Color.BLACK)
+	var sprite_scale: float = info["size"] / 8.0
+	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
 	draw_strike()
-	draw_health_bar(-radius - 8.0)
+	draw_health_bar(-16.0 * sprite_scale - 6.0)

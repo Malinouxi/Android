@@ -67,7 +67,23 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Une unité dans la main est figée : elle ne perd ni énergie ni humeur, et les héros ne la voient pas.
   Elle reçoit quand même son salaire. Une créature qui s'en va, furieuse, ne peut pas être retenue.
 
-Aucune image n'est nécessaire : tout est dessiné avec des formes simples. On ajoutera des graphismes plus tard.
+**Étape 6 — Graphismes**
+- Tout est en **pixel art original** 16 × 16, affiché en 32 × 32 : tuiles (avec plusieurs variantes de terre,
+  de roche et de sol), salles, cœur, portail, entrée, tas d'or, lits, champignons et les 7 personnages.
+- Les personnages ont une petite **animation de marche** et se retournent selon leur direction.
+  Les héros ont une **ombre bleue**, tes unités une ombre noire.
+
+## Modifier les graphismes
+
+Les images sont dans `assets/` (`tiles/`, `props/`, `units/`). Deux façons de les changer :
+
+1. **Dessiner toi-même** : ouvre un PNG dans une appli de pixel art (Pixel Studio, LibreSprite, Aseprite…),
+   garde la taille 16 × 16 et enregistre par-dessus. Godot recharge l'image tout seul.
+2. **Modifier le script** `tools/generate_art.py` : chaque personnage y est dessiné avec des lettres
+   (une lettre = une couleur), puis lance `python3 tools/generate_art.py` (il faut Pillow : `pip install pillow`).
+   Attention : relancer le script écrase les PNG de `assets/`.
+
+La liste des images utilisées par le jeu est dans `scripts/art.gd`.
 
 ## Démarrer
 
@@ -101,8 +117,11 @@ scripts/creatures.gd       Catalogue des créatures : nom, couleur, vitesse, sal
 scripts/hero.gd            Un héros (extends Unit) : combat, sinon marche (et creuse) vers le cœur
 scripts/heroes.gd          Catalogue des héros : vie, dégâts, vitesse, rançon, première vague
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
+scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
+assets/                    Les images PNG (pixel art 16 x 16)
+tools/generate_art.py      Le script Python qui dessine toutes les images
 ```
 
 Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau
@@ -125,6 +144,7 @@ Avancer par petites étapes, chacune jouable :
 4. ✅ **Héros** : des vagues d'aventuriers entrent par la surface et veulent détruire le cœur.
 5. ✅ **Combat** : points de vie, attaques, rançons, fin de partie.
    ✅ La « main » du maître pour ramasser et déposer ses créatures. À venir : pièges, portes.
-6. **Niveaux et sauvegarde**, sons, vrais graphismes (pixel art 32×32), menus.
+6. ✅ **Graphismes** : pixel art pour les tuiles, les objets et les personnages, animation de marche.
+7. **Niveaux et sauvegarde**, sons, menus, pièges et portes.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

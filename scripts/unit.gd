@@ -33,6 +33,8 @@ var _attack_cooldown := 0.0
 var _chase_cell := Vector2i(-1, -1)
 var _strike_timer := 0.0
 var _strike_offset := Vector2.ZERO
+## Regarde vers la gauche (l'image est alors retournée en miroir).
+var _facing_left := false
 
 
 ## Quand l'unité entre dans la scène, on la range dans un « groupe » selon son camp.
@@ -82,6 +84,10 @@ func move_along_path(delta: float) -> bool:
 	if path.is_empty():
 		return true
 	var next_position := map.cell_to_world(path[0])
+	if next_position.x < position.x - 0.5:
+		_facing_left = true
+	elif next_position.x > position.x + 0.5:
+		_facing_left = false
 	position = position.move_toward(next_position, speed * delta)
 	if position == next_position:
 		path.remove_at(0)
@@ -212,6 +218,26 @@ func show_strike(world_position: Vector2) -> void:
 # ---------------------------------------------------------------------------
 # Affichage (utilisé par les _draw() des classes filles)
 # ---------------------------------------------------------------------------
+
+## Dessine le personnage : une ombre au sol, puis l'image (32 x 32 à l'échelle 1).
+## frames = les images d'animation (voir Art.UNITS). On alterne entre elles
+## quand l'unité marche, et on retourne l'image quand elle va vers la gauche.
+func draw_sprite(frames: Array, sprite_scale := 1.0) -> void:
+	var frame: Texture2D = frames[0]
+	if not path.is_empty():
+		frame = frames[int(Time.get_ticks_msec() / 150.0) % frames.size()]
+
+	# L'ombre : un cercle aplati. Bleue sous les héros, pour les repérer d'un coup d'œil.
+	var shadow := Color(0.2, 0.45, 1.0, 0.6) if team == Team.HEROES else Color(0, 0, 0, 0.35)
+	draw_set_transform(Vector2(0, 11 * sprite_scale), 0.0, Vector2(1.0, 0.35))
+	draw_circle(Vector2.ZERO, 10.0 * sprite_scale, shadow)
+
+	# draw_set_transform avec une échelle de -1 en x = effet miroir.
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0 if _facing_left else 1.0, 1.0))
+	var size := Vector2(32, 32) * sprite_scale
+	draw_texture_rect(frame, Rect2(-size / 2 - Vector2(0, 2), size), false)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 
 ## Barre de vie rouge, affichée seulement si l'unité est blessée.
 func draw_health_bar(y: float) -> void:

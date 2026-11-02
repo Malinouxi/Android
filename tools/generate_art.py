@@ -446,10 +446,80 @@ def make_characters():
         save(bob_frame(image), "units", "%s_1.png" % name)
 
 
+# ---------------------------------------------------------------------------
+# Défenses : pièges et porte
+# ---------------------------------------------------------------------------
+
+SPIKE_HOLES = [(4, 4), (8, 4), (12, 4), (6, 8), (10, 8), (4, 12), (8, 12), (12, 12)]
+
+
+def spikes(raised):
+    """Une plaque de métal percée ; si raised, des pointes sortent des trous."""
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    for y in range(1, 15):
+        for x in range(1, 15):
+            border = x in (1, 14) or y in (1, 14)
+            image.putpixel((x, y), hex_color("#263238" if border else "#546e7a"))
+    for x, y in SPIKE_HOLES:
+        image.putpixel((x, y), hex_color("#1c1c1c"))
+        if raised:
+            image.putpixel((x, y - 2), hex_color("#ffffff"))
+            image.putpixel((x, y - 1), hex_color("#cfd8dc"))
+            image.putpixel((x - 1, y), hex_color("#90a4ae"))
+            image.putpixel((x, y), hex_color("#b0bec5"))
+            image.putpixel((x + 1, y), hex_color("#78909c"))
+    return image
+
+
+def rune():
+    """Un cercle magique orange gravé dans le sol."""
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    glow, core = hex_color("#ff6f00"), hex_color("#ffd54f")
+    for y in range(SIZE):
+        for x in range(SIZE):
+            distance = ((x - 7.5) ** 2 + (y - 7.5) ** 2) ** 0.5
+            if 5.2 <= distance <= 6.4:
+                image.putpixel((x, y), glow)
+    for i in range(4, 12):
+        image.putpixel((i, 7), core)   # trait horizontal
+        image.putpixel((7, i), core)   # trait vertical
+        image.putpixel((i, i), glow)   # diagonale
+    return image
+
+
+def door():
+    """Une porte en bois vue de dessus, avec des bandes de fer et un cadre de pierre."""
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if x <= 1 or x >= 14:
+                color = "#78909c" if (x in (0, 15) or y in (0, 15)) else "#b0bec5"
+            elif y in (4, 11):
+                color = "#37474f"           # bande de fer
+            elif (x - 2) % 3 == 0:
+                color = "#5d4037"           # séparation des planches
+            else:
+                color = "#8d6e63" if y % 5 else "#795548"
+            image.putpixel((x, y), hex_color(color))
+    for x in (3, 7, 12):
+        image.putpixel((x, 4), hex_color("#b0bec5"))   # rivets
+        image.putpixel((x, 11), hex_color("#b0bec5"))
+    image.putpixel((11, 8), hex_color("#ffca28"))       # poignée
+    return image
+
+
+def make_defenses():
+    save(spikes(False), "props", "spikes_down.png")
+    save(spikes(True), "props", "spikes_up.png")
+    save(rune(), "props", "rune.png")
+    save(door(), "props", "door.png")
+
+
 def main():
     make_tiles()
     make_props()
     make_characters()
+    make_defenses()
     print("Images générées dans", ASSETS)
 
 

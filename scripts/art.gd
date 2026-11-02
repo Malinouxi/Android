@@ -37,6 +37,12 @@ const PORTAL := preload("res://assets/props/portal.png")
 const ENTRANCE := preload("res://assets/props/entrance.png")
 const BED := preload("res://assets/props/bed.png")
 const MUSHROOM := preload("res://assets/props/mushroom.png")
+# --- Défenses ---
+const SPIKES_DOWN := preload("res://assets/props/spikes_down.png")
+const SPIKES_UP := preload("res://assets/props/spikes_up.png")
+const RUNE := preload("res://assets/props/rune.png")
+const DOOR := preload("res://assets/props/door.png")
+
 ## Tas d'or du trésor, de 1 à 5 pièces.
 const GOLD_PILES := [
 	preload("res://assets/props/gold_pile_1.png"),

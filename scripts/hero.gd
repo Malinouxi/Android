@@ -16,6 +16,8 @@ var type: int
 var _target: Unit = null
 var _think_timer := 0.0
 var _dig_timer := 0.0
+## Porte qui nous a bloqué le passage à cette image, ou (-1, -1).
+var _door_cell := Vector2i(-1, -1)
 
 
 ## À appeler juste après Hero.new().
@@ -62,7 +64,28 @@ func _process(delta: float) -> void:
 			path.clear()
 	else:
 		_march(delta)
+
+	# Une porte nous barre la route (en marchant ou en poursuivant) : on la frappe.
+	if _door_cell != Vector2i(-1, -1):
+		_attack_door(_door_cell)
+		_door_cell = Vector2i(-1, -1)
 	queue_redraw()
+
+
+## Les portes arrêtent les héros (les autres unités passent librement).
+func _is_blocked(cell: Vector2i) -> bool:
+	if map.has_door(cell):
+		_door_cell = cell
+		return true
+	return false
+
+
+func _attack_door(cell: Vector2i) -> void:
+	if _attack_cooldown > 0.0:
+		return
+	_attack_cooldown = attack_interval
+	show_strike(map.cell_to_world(cell))
+	map.damage_door(cell, attack_damage)
 
 
 func _march(delta: float) -> void:

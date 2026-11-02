@@ -79,10 +79,19 @@ func go_to(cell: Vector2i) -> bool:
 	return true
 
 
+## Vrai si l'unité ne peut pas entrer dans cette case. Par défaut, rien ne bloque :
+## hero.gd remplace cette fonction pour que les portes arrêtent les héros.
+func _is_blocked(_cell: Vector2i) -> bool:
+	return false
+
+
 ## Avance un peu le long du chemin. Renvoie true quand on est arrivé au bout.
+## Si la case suivante est bloquée (voir _is_blocked), on n'avance pas.
 func move_along_path(delta: float) -> bool:
 	if path.is_empty():
 		return true
+	if _is_blocked(path[0]):
+		return false
 	var next_position := map.cell_to_world(path[0])
 	if next_position.x < position.x - 0.5:
 		_facing_left = true

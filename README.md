@@ -73,6 +73,18 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Les personnages ont une petite **animation de marche** et se retournent selon leur direction.
   Les héros ont une **ombre bleue**, tes unités une ombre noire.
 
+**Étape 7 — Pièges et portes**
+- Trois défenses à poser sur le **sol des couloirs** (pas dans les salles), avec les nouveaux boutons :
+
+  | Défense | Prix | Effet |
+  |---------|------|-------|
+  | Pointes | 80 or | 30 dégâts au héros qui marche dessus, se réarment en 2,5 s, à l'infini |
+  | Rune | 120 or | Explose au passage d'un héros : 90 dégâts autour d'elle (près de 2 cases), puis disparaît |
+  | Porte | 100 or | Bloque les héros, qui doivent la casser (300 PV). Tes unités passent librement |
+
+- Les héros préfèrent **contourner** une porte s'il existe un autre chemin.
+- Les pièges ne touchent que les héros. **Démolir** retire aussi une défense (sans remboursement).
+
 ## Modifier les graphismes
 
 Les images sont dans `assets/` (`tiles/`, `props/`, `units/`). Deux façons de les changer :
@@ -117,6 +129,7 @@ scripts/creatures.gd       Catalogue des créatures : nom, couleur, vitesse, sal
 scripts/hero.gd            Un héros (extends Unit) : combat, sinon marche (et creuse) vers le cœur
 scripts/heroes.gd          Catalogue des héros : vie, dégâts, vitesse, rançon, première vague
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
+scripts/defenses.gd        Catalogue des pièges et portes : nom, prix, dégâts, points de vie
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
@@ -145,6 +158,7 @@ Avancer par petites étapes, chacune jouable :
 5. ✅ **Combat** : points de vie, attaques, rançons, fin de partie.
    ✅ La « main » du maître pour ramasser et déposer ses créatures. À venir : pièges, portes.
 6. ✅ **Graphismes** : pixel art pour les tuiles, les objets et les personnages, animation de marche.
-7. **Niveaux et sauvegarde**, sons, menus, pièges et portes.
+7. ✅ **Pièges et portes** : pointes, rune explosive, porte à casser.
+8. **Niveaux et sauvegarde**, sons, menus.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

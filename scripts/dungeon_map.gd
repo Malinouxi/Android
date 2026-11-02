@@ -17,6 +17,8 @@ signal gold_changed
 signal heart_changed
 ## Émis une seule fois, quand le cœur est détruit : la partie est perdue.
 signal heart_destroyed
+## Émis quand les héros ont cassé une porte.
+signal door_destroyed(cell: Vector2i)
 
 ## Les différents types de tuiles.
 enum Tile {
@@ -44,6 +46,10 @@ const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, 
 ## Pour les héros, traverser de la terre « coûte » autant que marcher 6 cases :
 ## ils préfèrent les couloirs existants, mais creusent s'il le faut.
 const HERO_DIG_WEIGHT := 6.0
+## Une porte « coûte » autant que 10 cases de marche : les héros préfèrent la contourner.
+const HERO_DOOR_WEIGHT := 10.0
+## Durée de l'effet visuel d'une explosion, en secondes.
+const EXPLOSION_TIME := 0.4
 const HEART_MAX_HP := 1000.0
 
 const MARK_COLOR := Color("ffd54a")
@@ -82,7 +88,13 @@ var portal_cell: Vector2i
 ## Position de l'entrée des héros.
 var entrance_cell: Vector2i
 
+## Pièges et portes : Vector2i -> { "type": Defenses.Type, "hp", "cooldown", "flash" }.
+var defenses: Dictionary = {}
+
 var _farm_timer := 0.0
+var _trap_timer := 0.0
+## Explosions en cours d'affichage : [{ "position": Vector2, "radius", "time" }].
+var _explosions: Array = []
 
 
 func _ready() -> void:
@@ -91,6 +103,13 @@ func _ready() -> void:
 
 ## Les champignons poussent avec le temps.
 func _process(delta: float) -> void:
+	_update_traps(delta)
+	_update_explosions(delta)
+	_update_farms(delta)
+
+
+## Les champignons poussent avec le temps.
+func _update_farms(delta: float) -> void:
 	_farm_timer += delta
 	if _farm_timer < Rooms.FARM_GROW_TIME:
 		return
@@ -150,6 +169,8 @@ func generate(seed_value: int) -> void:
 	stored_gold.clear()
 	food.clear()
 	beds.clear()
+	defenses.clear()
+	_explosions.clear()
 	_setup_pathfinding()
 	queue_redraw()
 
@@ -351,7 +372,7 @@ func get_room(cell: Vector2i) -> int:
 
 ## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
 func can_build_room(cell: Vector2i) -> bool:
-	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell)
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell)
 
 
 func count_room_tiles(type: int) -> int:
@@ -441,6 +462,103 @@ func is_connected_to_heart(cell: Vector2i) -> bool:
 		if not find_path(cell, heart_cell + direction).is_empty():
 			return true
 	return false
+
+
+# ---------------------------------------------------------------------------
+# Défenses : pièges et portes
+# ---------------------------------------------------------------------------
+
+## Les défenses se posent sur le sol des couloirs (pas dans les salles).
+func can_place_defense(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell)
+
+
+func place_defense(cell: Vector2i, type: int) -> void:
+	defenses[cell] = {
+		"type": type,
+		"hp": Defenses.INFO[type].get("hp", 0.0),
+		"cooldown": 0.0, # Temps avant que le piège soit de nouveau prêt.
+		"flash": 0.0,    # Temps pendant lequel les pointes restent sorties.
+	}
+	if type == Defenses.Type.DOOR:
+		hero_astar.set_point_weight_scale(cell, HERO_DOOR_WEIGHT)
+	queue_redraw()
+
+
+func remove_defense(cell: Vector2i) -> void:
+	if not defenses.has(cell):
+		return
+	if defenses[cell]["type"] == Defenses.Type.DOOR:
+		hero_astar.set_point_weight_scale(cell, 1.0)
+	defenses.erase(cell)
+	queue_redraw()
+
+
+func has_door(cell: Vector2i) -> bool:
+	return defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.DOOR
+
+
+## Un héros frappe une porte. À 0 point de vie, elle est détruite.
+func damage_door(cell: Vector2i, amount: float) -> void:
+	if not has_door(cell):
+		return
+	defenses[cell]["hp"] -= amount
+	queue_redraw()
+	if defenses[cell]["hp"] <= 0.0:
+		remove_defense(cell)
+		door_destroyed.emit(cell)
+
+
+## Dix fois par seconde, on regarde si un héros marche sur un piège.
+func _update_traps(delta: float) -> void:
+	for cell: Vector2i in defenses:
+		var defense: Dictionary = defenses[cell]
+		defense["cooldown"] = maxf(0.0, defense["cooldown"] - delta)
+		if defense["flash"] > 0.0:
+			defense["flash"] -= delta
+			if defense["flash"] <= 0.0:
+				queue_redraw() # Les pointes rentrent.
+
+	_trap_timer -= delta
+	if _trap_timer > 0.0:
+		return
+	_trap_timer = 0.1
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var hero := node as Unit
+		var cell := world_to_cell(hero.position)
+		if not defenses.has(cell):
+			continue
+		var defense: Dictionary = defenses[cell]
+		var info: Dictionary = Defenses.INFO[defense["type"]]
+		match defense["type"]:
+			Defenses.Type.SPIKES:
+				if defense["cooldown"] <= 0.0:
+					defense["cooldown"] = info["rearm_time"]
+					defense["flash"] = 0.4
+					hero.take_damage(info["damage"])
+					queue_redraw()
+			Defenses.Type.RUNE:
+				_explode(cell, info["damage"], info["radius"])
+
+
+## La rune explose : tous les héros proches sont touchés, puis elle disparaît.
+func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
+	var center := cell_to_world(cell)
+	remove_defense(cell)
+	_explosions.append({"position": center, "radius": radius, "time": EXPLOSION_TIME})
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var hero := node as Unit
+		if hero.position.distance_to(center) <= radius:
+			hero.take_damage(explosion_damage)
+
+
+func _update_explosions(delta: float) -> void:
+	if _explosions.is_empty():
+		return
+	for explosion in _explosions:
+		explosion["time"] -= delta
+	_explosions = _explosions.filter(func(e: Dictionary) -> bool: return e["time"] > 0.0)
+	queue_redraw()
 
 
 # ---------------------------------------------------------------------------
@@ -624,6 +742,8 @@ func _draw() -> void:
 						draw_texture_rect(Art.PORTAL, rect, false)
 					elif tile == Tile.ENTRANCE:
 						draw_texture_rect(Art.ENTRANCE, rect, false)
+					if defenses.has(cell):
+						_draw_defense(cell, rect)
 
 			# Plus la case a pris de coups, plus elle s'assombrit.
 			if damage.has(cell) and DIG_HITS.has(tile):
@@ -633,6 +753,29 @@ func _draw() -> void:
 			# Les cases marquées « à creuser » sont entourées de jaune.
 			if marked.has(cell):
 				draw_rect(rect.grow(-2), MARK_COLOR, false, 2.0)
+
+	# Les explosions par-dessus tout : un cercle orange qui grandit et s'efface.
+	for explosion in _explosions:
+		var progress: float = 1.0 - explosion["time"] / EXPLOSION_TIME
+		var color := Color(1.0, 0.55, 0.1, 0.8 * (1.0 - progress))
+		draw_circle(explosion["position"], explosion["radius"] * (0.4 + 0.6 * progress), color)
+
+
+func _draw_defense(cell: Vector2i, rect: Rect2) -> void:
+	var defense: Dictionary = defenses[cell]
+	match defense["type"]:
+		Defenses.Type.SPIKES:
+			draw_texture_rect(Art.SPIKES_UP if defense["flash"] > 0.0 else Art.SPIKES_DOWN, rect, false)
+		Defenses.Type.RUNE:
+			draw_texture_rect(Art.RUNE, rect, false)
+		Defenses.Type.DOOR:
+			draw_texture_rect(Art.DOOR, rect, false)
+			var max_hp: float = Defenses.INFO[Defenses.Type.DOOR]["hp"]
+			if defense["hp"] < max_hp:
+				var bar := Rect2(rect.position + Vector2(2, -6), Vector2(TILE_SIZE - 4, 4))
+				draw_rect(bar, Color(0, 0, 0, 0.7))
+				bar.size.x *= defense["hp"] / max_hp
+				draw_rect(bar, Color("ffa726"))
 
 
 func _draw_heart(rect: Rect2) -> void:

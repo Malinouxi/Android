@@ -13,7 +13,7 @@ signal restart_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
-enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND }
+enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -96,6 +96,12 @@ func _build_tool_panel() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	_tool_panel.add_child(column)
+	# Une grille de 2 colonnes : tous les boutons tiennent sur l'écran.
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	column.add_child(grid)
 
 	# Un ButtonGroup fait qu'un seul bouton peut être enfoncé à la fois.
 	var group := ButtonGroup.new()
@@ -105,6 +111,9 @@ func _build_tool_panel() -> void:
 		[Tool.TREASURY, _room_label(Rooms.Type.TREASURY)],
 		[Tool.LAIR, _room_label(Rooms.Type.LAIR)],
 		[Tool.FARM, _room_label(Rooms.Type.FARM)],
+		[Tool.SPIKES, _defense_label(Defenses.Type.SPIKES)],
+		[Tool.RUNE, _defense_label(Defenses.Type.RUNE)],
+		[Tool.DOOR, _defense_label(Defenses.Type.DOOR)],
 		[Tool.DEMOLISH, "Démolir"],
 	]
 	for entry in tools:
@@ -114,14 +123,14 @@ func _build_tool_panel() -> void:
 		button.toggle_mode = true
 		button.button_group = group
 		button.button_pressed = tool == Tool.DIG
-		button.custom_minimum_size = Vector2(240, 56)
-		button.add_theme_font_size_override("font_size", 22)
+		button.custom_minimum_size = Vector2(170, 56)
+		button.add_theme_font_size_override("font_size", 18)
 		button.pressed.connect(func() -> void: tool_selected.emit(tool))
-		column.add_child(button)
+		grid.add_child(button)
 
 	# Ce que le joueur tient dans sa main.
 	_hand_label = _make_label(18)
-	_hand_label.custom_minimum_size = Vector2(240, 0)
+	_hand_label.custom_minimum_size = Vector2(346, 0)
 	_hand_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_hand_label)
 	set_hand([], 0)
@@ -210,6 +219,10 @@ func show_message(text: String, duration := 3.0) -> void:
 func is_over_ui(screen_position: Vector2) -> bool:
 	return _top_panel.get_global_rect().has_point(screen_position) \
 			or _tool_panel.get_global_rect().has_point(screen_position)
+
+
+func _defense_label(type: int) -> String:
+	return "%s (%d)" % [Defenses.display_name(type), Defenses.cost(type)]
 
 
 func _room_label(type: int) -> String:

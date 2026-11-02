@@ -35,6 +35,12 @@ const TOOL_ROOMS := {
 	Hud.Tool.LAIR: Rooms.Type.LAIR,
 	Hud.Tool.FARM: Rooms.Type.FARM,
 }
+## Quelle défense pose chaque outil de la barre.
+const TOOL_DEFENSES := {
+	Hud.Tool.SPIKES: Defenses.Type.SPIKES,
+	Hud.Tool.RUNE: Defenses.Type.RUNE,
+	Hud.Tool.DOOR: Defenses.Type.DOOR,
+}
 
 @onready var map: DungeonMap = $DungeonMap
 @onready var workers_root: Node2D = $Workers
@@ -72,6 +78,8 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_on_restart_pressed)
 	map.heart_changed.connect(_on_heart_changed)
 	map.heart_destroyed.connect(_on_heart_destroyed)
+	map.door_destroyed.connect(func(_cell: Vector2i) -> void:
+		hud.show_message("Les héros ont enfoncé une porte !", 3.0))
 
 	camera.bounds = Rect2(Vector2.ZERO, map.get_pixel_size())
 	camera.position = map.cell_to_world(map.heart_cell)
@@ -311,7 +319,10 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 		Hud.Tool.DEMOLISH:
 			_demolish(cell)
 		_:
-			_build(cell, TOOL_ROOMS[current_tool])
+			if TOOL_ROOMS.has(current_tool):
+				_build(cell, TOOL_ROOMS[current_tool])
+			elif TOOL_DEFENSES.has(current_tool):
+				_place_defense(cell, TOOL_DEFENSES[current_tool])
 
 
 func _creature_at(world_position: Vector2) -> Creature:
@@ -373,7 +384,21 @@ func _build(cell: Vector2i, room_type: int) -> void:
 	map.build_room(cell, room_type)
 
 
+func _place_defense(cell: Vector2i, type: int) -> void:
+	if not map.can_place_defense(cell):
+		hud.show_message("Les pièges et les portes se posent sur le sol des couloirs, pas dans les salles.")
+		return
+	var cost := Defenses.cost(type)
+	if not map.spend_gold(cost):
+		hud.show_message("Pas assez d'or : %s coûte %d." % [Defenses.display_name(type), cost])
+		return
+	map.place_defense(cell, type)
+
+
 func _demolish(cell: Vector2i) -> void:
+	if map.defenses.has(cell):
+		map.remove_defense(cell)
+		return
 	if map.get_room(cell) == Rooms.Type.NONE:
 		return
 	var lost := map.remove_room(cell)

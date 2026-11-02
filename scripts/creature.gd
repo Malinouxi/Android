@@ -6,11 +6,12 @@ extends Unit
 ##   - le SALAIRE : main.gd la paie à chaque jour de paie.
 ## Si ses besoins ne sont pas satisfaits, son HUMEUR baisse.
 ## À 0, elle quitte le donjon par le portail.
+## Et quand un héros approche, elle se bat pour défendre le donjon !
 
 ## Émis juste avant que la créature disparaisse par le portail.
 signal left_dungeon(creature: Creature)
 
-enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING }
+enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING }
 
 const STATE_NAMES := {
 	State.WANDER: "se promène",
@@ -19,6 +20,7 @@ const STATE_NAMES := {
 	State.GOING_TO_EAT: "va manger",
 	State.EATING: "mange",
 	State.LEAVING: "s'en va, furieuse",
+	State.FIGHTING: "se bat",
 }
 
 const ENERGY_LOSS := 1.2     ## Énergie perdue par seconde (100 -> 0 en ~80 s).
@@ -28,6 +30,9 @@ const MEAL_VALUE := 60.0     ## Faim enlevée par un champignon.
 const EAT_TIME := 1.5        ## Secondes pour manger.
 const TIRED_LEVEL := 25.0    ## En dessous : elle va dormir.
 const HUNGRY_LEVEL := 65.0   ## Au-dessus : elle va manger.
+const HEAL_WHILE_SLEEPING := 5.0 ## Points de vie regagnés par seconde en dormant.
+const AGGRO_RADIUS := 192.0  ## Distance (pixels) à laquelle elle repère un héros.
+const WAKE_RADIUS := 96.0    ## Un héros plus proche que ça la réveille.
 const NO_CELL := Vector2i(-1, -1)
 
 var type: int
@@ -42,12 +47,20 @@ var _food_cell := NO_CELL
 var _think_timer := 0.0
 var _mood_timer := 0.0
 var _eat_timer := 0.0
+var _combat_timer := 0.0
+var _enemy: Unit = null
 
 
 ## À appeler juste après Creature.new().
 func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int) -> void:
 	type = creature_type
-	speed = Creatures.info(type)["speed"]
+	var info := Creatures.info(type)
+	speed = info["speed"]
+	max_hp = info["hp"]
+	hp = max_hp
+	attack_damage = info["damage"]
+	attack_range = info["range"]
+	attack_interval = info["attack_interval"]
 	setup(dungeon_map, cell)
 	energy = randf_range(60.0, 100.0)
 	hunger = randf_range(0.0, 30.0)
@@ -73,8 +86,8 @@ func receive_pay(paid: bool) -> void:
 
 ## Petit texte affiché quand on touche la créature.
 func describe() -> String:
-	return "%s (%s) : humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
-		display_name(), STATE_NAMES[state], happiness, hunger, energy, salary(),
+	return "%s (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
+		display_name(), STATE_NAMES[state], hp, max_hp, happiness, hunger, energy, salary(),
 		"" if _has_bed() else ", SANS LIT !"]
 
 
@@ -84,6 +97,8 @@ func _process(delta: float) -> void:
 	if state != State.EATING:
 		hunger = minf(100.0, hunger + HUNGER_GAIN * delta)
 	_update_mood(delta)
+	update_attack_cooldown(delta)
+	_update_combat(delta)
 
 	match state:
 		State.WANDER:
@@ -95,6 +110,7 @@ func _process(delta: float) -> void:
 				state = State.SLEEPING
 		State.SLEEPING:
 			energy += ENERGY_GAIN * delta
+			hp = minf(max_hp, hp + HEAL_WHILE_SLEEPING * delta)
 			if energy >= 100.0 or not _has_bed():
 				energy = minf(energy, 100.0)
 				state = State.WANDER
@@ -114,7 +130,30 @@ func _process(delta: float) -> void:
 		State.LEAVING:
 			if move_along_path(delta):
 				_leave_now()
+		State.FIGHTING:
+			if not fight(_enemy, delta):
+				_enemy = null
+				state = State.WANDER
 	queue_redraw()
+
+
+## Trois fois par seconde : y a-t-il un héros à combattre ?
+func _update_combat(delta: float) -> void:
+	if state == State.LEAVING:
+		return
+	_combat_timer -= delta
+	if _combat_timer > 0.0:
+		return
+	_combat_timer = 0.3
+	# Une créature endormie ne remarque que les héros tout proches.
+	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS
+	var enemy := find_nearest_enemy(radius)
+	if enemy == null:
+		return
+	if state != State.FIGHTING:
+		path.clear()
+		state = State.FIGHTING
+	_enemy = enemy
 
 
 func _process_wander(delta: float) -> void:
@@ -183,6 +222,12 @@ func _start_leaving() -> void:
 		_leave_now()
 
 
+## Morte au combat : on libère son lit, puis Unit.die() fait le reste.
+func die() -> void:
+	map.release_bed(self)
+	super()
+
+
 func _leave_now() -> void:
 	left_dungeon.emit(self)
 	queue_free()
@@ -201,6 +246,9 @@ func _draw() -> void:
 	draw_rect(Rect2(-bar_width / 2, bar_y, bar_width, 3), Color(0, 0, 0, 0.6))
 	draw_rect(Rect2(-bar_width / 2, bar_y, bar_width * happiness / 100.0, 3),
 			Color.RED.lerp(Color.GREEN, happiness / 100.0))
+
+	draw_health_bar(bar_y - 4.0)
+	draw_strike()
 
 	var font := ThemeDB.fallback_font
 	if state == State.SLEEPING:

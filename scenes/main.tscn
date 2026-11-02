@@ -15,6 +15,8 @@ script = ExtResource("2_map")
 
 [node name="Creatures" type="Node2D" parent="."]
 
+[node name="Heroes" type="Node2D" parent="."]
+
 [node name="Camera" type="Camera2D" parent="."]
 script = ExtResource("3_camera")
 

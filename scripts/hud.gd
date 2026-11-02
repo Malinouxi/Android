@@ -1,13 +1,15 @@
 class_name Hud
 extends CanvasLayer
 ## L'interface affichée par-dessus le jeu :
-##   - en haut : or, place dans le trésor, ouvriers, créatures, paie, bouton d'invocation ;
+##   - en haut : or, trésor, ouvriers, créatures, bouton d'invocation ;
+##     et en dessous : vie du cœur, jour de paie, prochaine vague de héros ;
 ##   - à droite : la barre d'outils (creuser, construire une salle, démolir) ;
 ##   - en bas : les messages.
 ## Un CanvasLayer ne bouge pas avec la caméra : parfait pour une interface.
 ## Tout est construit par code, pour que tu voies comment ça marche.
 
 signal summon_pressed
+signal restart_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
@@ -20,12 +22,16 @@ var _treasury_label: Label
 var _workers_label: Label
 var _creatures_label: Label
 var _payday_label: Label
+var _heart_label: Label
+var _wave_label: Label
 var _summon_button: Button
 var _message_label: Label
 var _message_timer: SceneTreeTimer
 
 
 func _ready() -> void:
+	# L'interface continue de marcher quand le jeu est en pause (écran de défaite).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_top_panel()
 	_build_tool_panel()
 
@@ -43,9 +49,14 @@ func _build_top_panel() -> void:
 	_top_panel.position = Vector2(12, 12)
 	add_child(_top_panel)
 
+	var rows := VBoxContainer.new()
+	_top_panel.add_child(rows)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 20)
-	_top_panel.add_child(row)
+	rows.add_child(row)
+	var second_row := HBoxContainer.new()
+	second_row.add_theme_constant_override("separation", 20)
+	rows.add_child(second_row)
 
 	_gold_label = _make_label(24)
 	row.add_child(_gold_label)
@@ -55,8 +66,12 @@ func _build_top_panel() -> void:
 	row.add_child(_workers_label)
 	_creatures_label = _make_label(24)
 	row.add_child(_creatures_label)
-	_payday_label = _make_label(18)
-	row.add_child(_payday_label)
+	_heart_label = _make_label(20)
+	second_row.add_child(_heart_label)
+	_payday_label = _make_label(20)
+	second_row.add_child(_payday_label)
+	_wave_label = _make_label(20)
+	second_row.add_child(_wave_label)
 
 	_summon_button = Button.new()
 	_summon_button.add_theme_font_size_override("font_size", 22)
@@ -73,7 +88,7 @@ func _build_tool_panel() -> void:
 	_tool_panel.anchor_right = 1.0
 	_tool_panel.offset_left = -12
 	_tool_panel.offset_right = -12
-	_tool_panel.offset_top = 110
+	_tool_panel.offset_top = 130
 	_tool_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	add_child(_tool_panel)
 
@@ -119,6 +134,44 @@ func set_creatures(count: int, beds: int) -> void:
 
 func set_payday(seconds_left: int) -> void:
 	_payday_label.text = "Paie dans %d s" % seconds_left
+
+
+func set_heart(hp: float, max_hp: float) -> void:
+	_heart_label.text = "Cœur : %d / %d" % [hp, max_hp]
+
+
+## wave = numéro de la prochaine vague, seconds_left = temps avant son arrivée.
+func set_next_wave(wave: int, seconds_left: int) -> void:
+	_wave_label.text = "Vague %d dans %d s" % [wave, seconds_left]
+
+
+## Écran de fin de partie, avec un bouton pour rejouer.
+func show_game_over(waves_survived: int) -> void:
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	add_child(panel)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 16)
+	panel.add_child(column)
+
+	var title := _make_label(40)
+	title.text = "Ton cœur a été détruit !"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(title)
+	var details := _make_label(24)
+	details.text = "Vagues repoussées : %d" % waves_survived
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(details)
+
+	var button := Button.new()
+	button.text = "Rejouer"
+	button.custom_minimum_size = Vector2(240, 72)
+	button.add_theme_font_size_override("font_size", 28)
+	button.pressed.connect(func() -> void: restart_pressed.emit())
+	column.add_child(button)
 
 
 func set_summon_cost(cost: int) -> void:

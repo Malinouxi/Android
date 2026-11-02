@@ -8,10 +8,15 @@ extends Node2D
 ##      les lits des créatures et la nourriture ;
 ##   3. l'OR du joueur (stocké dans le cœur et dans les salles du trésor) ;
 ##   4. l'AFFICHAGE : il dessine la grille avec des formes simples ;
-##   5. le PATHFINDING : il calcule les chemins avec AStarGrid2D.
+##   5. le PATHFINDING : il calcule les chemins avec AStarGrid2D ;
+##   6. le CŒUR du donjon et ses points de vie.
 
 ## Émis chaque fois que la quantité d'or du joueur change.
 signal gold_changed
+## Émis quand le cœur perd des points de vie.
+signal heart_changed
+## Émis une seule fois, quand le cœur est détruit : la partie est perdue.
+signal heart_destroyed
 
 ## Les différents types de tuiles.
 enum Tile {
@@ -21,6 +26,7 @@ enum Tile {
 	FLOOR, ## Sol creusé : on peut marcher dessus et y construire des salles.
 	HEART, ## Le cœur du donjon : ce qu'il faudra protéger plus tard.
 	PORTAL, ## Le portail : les créatures arrivent (et repartent) par là.
+	ENTRANCE, ## L'entrée des héros.
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -42,7 +48,13 @@ const COLORS := {
 	Tile.FLOOR: Color("2b2622"),
 	Tile.HEART: Color("2b2622"),
 	Tile.PORTAL: Color("2b2622"),
+	Tile.ENTRANCE: Color("2b2622"),
 }
+## Pour les héros, traverser de la terre « coûte » autant que marcher 6 cases :
+## ils préfèrent les couloirs existants, mais creusent s'il le faut.
+const HERO_DIG_WEIGHT := 6.0
+const HEART_MAX_HP := 1000.0
+
 const MARK_COLOR := Color("ffd54a")
 const GOLD_COLOR := Color("ffd54a")
 
@@ -60,6 +72,10 @@ var reserved: Dictionary = {}
 var heart_cell: Vector2i
 ## L'outil de Godot qui calcule les chemins sur une grille.
 var astar := AStarGrid2D.new()
+## Un deuxième A* pour les héros : pour eux la terre n'est pas un mur, juste un détour.
+var hero_astar := AStarGrid2D.new()
+## Points de vie du cœur.
+var heart_hp := HEART_MAX_HP
 
 ## Les salles construites : Vector2i -> Rooms.Type.
 var rooms: Dictionary = {}
@@ -73,6 +89,8 @@ var food: Dictionary = {}
 var beds: Dictionary = {}
 ## Position du portail.
 var portal_cell: Vector2i
+## Position de l'entrée des héros.
+var entrance_cell: Vector2i
 
 var _farm_timer := 0.0
 
@@ -131,7 +149,9 @@ func generate(seed_value: int) -> void:
 		for dx in range(-2, 3):
 			_set_tile(heart_cell + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(heart_cell, Tile.HEART)
-	_place_portal(rng)
+	heart_hp = HEART_MAX_HP
+	portal_cell = _place_gate(rng, Tile.PORTAL, [])
+	entrance_cell = _place_gate(rng, Tile.ENTRANCE, [portal_cell])
 
 	damage.clear()
 	marked.clear()
@@ -144,23 +164,28 @@ func generate(seed_value: int) -> void:
 	queue_redraw()
 
 
-## Place le portail assez loin du cœur, dans une petite clairière.
-func _place_portal(rng: RandomNumberGenerator) -> void:
-	portal_cell = Vector2i(4, 4)
-	for _attempt in 100:
+## Place une « porte » (portail ou entrée des héros) assez loin du cœur,
+## et loin des cases de la liste avoid, dans une petite clairière. Renvoie sa case.
+func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) -> Vector2i:
+	var gate := Vector2i(3, 3)
+	for _attempt in 200:
 		var cell := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
 		var distance := _manhattan(cell, heart_cell)
-		if distance >= 12 and distance <= 20:
-			portal_cell = cell
+		var far_enough := true
+		for other in avoid:
+			if _manhattan(cell, other) < 12:
+				far_enough = false
+		if far_enough and distance >= 12 and distance <= 22:
+			gate = cell
 			break
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
-			_set_tile(portal_cell + Vector2i(dx, dy), Tile.FLOOR)
-	_set_tile(portal_cell, Tile.PORTAL)
+			_set_tile(gate + Vector2i(dx, dy), Tile.FLOOR)
+	_set_tile(gate, tile)
 
 	# On garantit qu'on pourra creuser jusqu'au cœur : sur un chemin en « L »,
 	# la roche indestructible est remplacée par de la terre.
-	var step := portal_cell
+	var step := gate
 	while step != heart_cell:
 		if step.x != heart_cell.x:
 			step.x += signi(heart_cell.x - step.x)
@@ -168,6 +193,7 @@ func _place_portal(rng: RandomNumberGenerator) -> void:
 			step.y += signi(heart_cell.y - step.y)
 		if get_tile(step) == Tile.ROCK:
 			_set_tile(step, Tile.EARTH)
+	return gate
 
 
 func _setup_pathfinding() -> void:
@@ -175,11 +201,19 @@ func _setup_pathfinding() -> void:
 	astar.cell_size = Vector2(TILE_SIZE, TILE_SIZE)
 	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
 	astar.update()
+	hero_astar.region = astar.region
+	hero_astar.cell_size = astar.cell_size
+	hero_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
+	hero_astar.update()
 	# On indique à A* quelles cases sont des murs (« solid »).
 	for y in HEIGHT:
 		for x in WIDTH:
 			var cell := Vector2i(x, y)
 			astar.set_point_solid(cell, not is_walkable(cell))
+			var tile := get_tile(cell)
+			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART)
+			if is_diggable(cell):
+				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +232,7 @@ func get_tile(cell: Vector2i) -> int:
 
 func is_walkable(cell: Vector2i) -> bool:
 	var tile := get_tile(cell)
-	return tile == Tile.FLOOR or tile == Tile.PORTAL
+	return tile == Tile.FLOOR or tile == Tile.PORTAL or tile == Tile.ENTRANCE
 
 
 func is_diggable(cell: Vector2i) -> bool:
@@ -267,6 +301,7 @@ func dig(cell: Vector2i) -> Dictionary:
 	if finished:
 		_set_tile(cell, Tile.FLOOR)
 		astar.set_point_solid(cell, false)
+		hero_astar.set_point_weight_scale(cell, 1.0)
 		damage.erase(cell)
 		marked.erase(cell)
 		reserved.erase(cell)
@@ -412,6 +447,40 @@ func is_portal_connected() -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Cœur et héros
+# ---------------------------------------------------------------------------
+
+func is_next_to_heart(cell: Vector2i) -> bool:
+	return _manhattan(cell, heart_cell) == 1
+
+
+## Chemin d'un héros vers une case voisine du cœur. Il peut traverser de la
+## terre (le héros devra la creuser), mais pas la roche.
+func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
+	var best: Array[Vector2i] = []
+	if hero_astar.is_point_solid(from_cell):
+		return best
+	for direction in DIRECTIONS:
+		var goal := heart_cell + direction
+		if hero_astar.is_point_solid(goal):
+			continue
+		var candidate := hero_astar.get_id_path(from_cell, goal)
+		if not candidate.is_empty() and (best.is_empty() or candidate.size() < best.size()):
+			best = candidate
+	return best
+
+
+func damage_heart(amount: float) -> void:
+	if heart_hp <= 0.0:
+		return
+	heart_hp = maxf(0.0, heart_hp - amount)
+	heart_changed.emit()
+	queue_redraw()
+	if heart_hp <= 0.0:
+		heart_destroyed.emit()
+
+
+# ---------------------------------------------------------------------------
 # Or
 # ---------------------------------------------------------------------------
 
@@ -450,6 +519,19 @@ func spend_gold(amount: int) -> bool:
 	gold_changed.emit()
 	queue_redraw()
 	return true
+
+
+## Range de l'or dans les trésors, où il y a de la place. Renvoie la quantité rangée.
+func add_gold_to_treasury(amount: int) -> int:
+	var remaining := amount
+	for cell: Vector2i in stored_gold:
+		var accepted := mini(remaining, Rooms.TREASURY_CAPACITY - stored_gold[cell])
+		stored_gold[cell] += accepted
+		remaining -= accepted
+	if remaining < amount:
+		gold_changed.emit()
+		queue_redraw()
+	return amount - remaining
 
 
 ## Un ouvrier dépose de l'or sur une case de trésor. Renvoie la quantité acceptée.
@@ -534,6 +616,16 @@ func _draw() -> void:
 				Tile.HEART:
 					draw_circle(rect.get_center(), 12.0, Color("c62828"))
 					draw_circle(rect.get_center() - Vector2(3, 3), 4.0, Color("ef5350"))
+					if heart_hp < HEART_MAX_HP:
+						var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
+						draw_rect(bar, Color(0, 0, 0, 0.7))
+						bar.size.x *= heart_hp / HEART_MAX_HP
+						draw_rect(bar, Color("e53935"))
+				Tile.ENTRANCE:
+					# Une porte de pierre grise.
+					draw_rect(rect.grow(-2), Color("78909c"))
+					draw_rect(Rect2(rect.position + Vector2(9, 8), Vector2(14, 22)), Color("263238"))
+					draw_circle(rect.position + Vector2(16, 8), 7.0, Color("263238"))
 				Tile.PORTAL:
 					# Des anneaux violets : un tourbillon magique.
 					draw_circle(rect.get_center(), 14.0, Color("4a148c"))

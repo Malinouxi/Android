@@ -34,6 +34,8 @@ var _swing := 0.0
 ## On complète la fonction setup() de Unit : super() appelle la version d'origine.
 func setup(dungeon_map: DungeonMap, cell: Vector2i) -> void:
 	super(dungeon_map, cell)
+	max_hp = 40.0 # Les ouvriers ne se battent pas, et sont fragiles !
+	hp = max_hp
 	_think_timer = randf_range(0.0, 0.5)
 
 
@@ -136,6 +138,12 @@ func _job_still_valid() -> bool:
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
 
 
+## Tué par un héros : il libère la case qu'il devait creuser.
+func die() -> void:
+	map.release_jobs(self)
+	super()
+
+
 func _stop_job() -> void:
 	map.release_jobs(self)
 	job = {}
@@ -160,3 +168,4 @@ func _draw() -> void:
 		draw_line(Vector2.ZERO, tip, Color("8d6e63"), 3.0)
 		draw_line(tip - tip.orthogonal().normalized() * 5.0,
 				tip + tip.orthogonal().normalized() * 5.0, Color("cfd8dc"), 3.0)
+	draw_health_bar(-15.0)

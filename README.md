@@ -39,7 +39,26 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   champignon), et toutes les 90 secondes c'est le **jour de paie** (prélevé automatiquement sur ton or).
 - La **barre d'humeur** au-dessus de leur tête baisse si elles ont faim, sont épuisées, n'ont pas de lit ou ne sont
   pas payées. À zéro, la créature repart par le portail (« ! » rouge).
-- Avec l'outil **Creuser**, touche une créature pour voir son humeur, sa faim, son énergie et son salaire.
+- Avec l'outil **Creuser**, touche une créature pour voir sa vie, son humeur, sa faim, son énergie et son salaire.
+
+**Étape 4 — Héros et combat**
+- Une **entrée grise** (porte de pierre) est placée loin du cœur et du portail. Les héros arrivent par là.
+- Première **vague** au bout de 3 minutes, puis une toutes les 2 minutes (compte à rebours en haut).
+  Vague 1 : 2 héros, puis un de plus à chaque vague (8 maximum).
+- Les héros marchent vers ton cœur. S'il n'y a pas de couloir, **ils creusent eux-mêmes** (lentement),
+  en préférant les couloirs existants. Ils ont un contour bleu foncé.
+
+  | Héros | Vie | Particularité | Rançon | Dès la vague |
+  |-------|-----|---------------|--------|--------------|
+  | Aventurier | 90 | équilibré | 40 or | 1 |
+  | Voleuse | 50 | rapide, frappe vite | 30 or | 2 |
+  | Chevalier | 220 | très résistant | 80 or | 4 |
+
+- Tes **créatures** attaquent les héros proches (les endormies ne se réveillent que si un héros est tout près).
+  Le **Sorcier** attaque à distance (3 cases). Les **ouvriers** ne se battent pas : protège-les !
+- Les créatures regagnent de la vie en dormant. Une barre rouge s'affiche sur toute unité blessée.
+- Un héros vaincu rapporte une **rançon**, rangée au Trésor s'il y a de la place.
+- Le **cœur** a 1000 points de vie. S'il tombe à 0, la partie est perdue : bouton « Rejouer ».
 
 Aucune image n'est nécessaire : tout est dessiné avec des formes simples. On ajoutera des graphismes plus tard.
 
@@ -66,24 +85,27 @@ signature (`.keystore`) ni leurs mots de passe sur Git.
 ```
 project.godot              Configuration (rendu mobile, paysage, souris = doigt)
 scenes/main.tscn           La scène principale : assemble les morceaux ci-dessous
-scripts/main.gd            Chef d'orchestre : relie tout, outils, portail, jour de paie
+scripts/main.gd            Chef d'orchestre : relie tout, outils, portail, paie, vagues, fin de partie
 scripts/dungeon_map.gd     La grille : données, salles, or, dessin, pathfinding, creusage
-scripts/unit.gd            Base commune de tout ce qui marche (héritage) : chemins, déplacement
+scripts/unit.gd            Base commune de tout ce qui marche (héritage) : chemins, vie, combat
 scripts/worker.gd          Un ouvrier (extends Unit) : IA à états (attente / marche / creuse / range l'or)
 scripts/creature.gd        Une créature (extends Unit) : énergie, faim, humeur, sommeil, repas, départ
-scripts/creatures.gd       Catalogue des créatures : nom, couleur, vitesse, salaire, salles exigées
+scripts/creatures.gd       Catalogue des créatures : nom, couleur, vitesse, salaire, salles exigées, combat
+scripts/hero.gd            Un héros (extends Unit) : combat, sinon marche (et creuse) vers le cœur
+scripts/heroes.gd          Catalogue des héros : vie, dégâts, vitesse, rançon, première vague
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
 ```
 
-Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`) : chaque morceau
+Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau
 reste simple et peut être modifié sans casser les autres.
 
 **Pour expérimenter**, change les constantes en haut des fichiers : `WIDTH`/`HEIGHT` (taille de la carte),
 `DIG_HITS` (difficulté à creuser), `GOLD_PER_HIT`, `SPEED` et `CARRY_CAPACITY` des ouvriers, `WORKER_COST`,
 les prix et réglages des salles dans `scripts/rooms.gd`, les créatures dans `scripts/creatures.gd`,
-les besoins dans `scripts/creature.gd`, la paie et les arrivées dans `scripts/main.gd`…
+les besoins dans `scripts/creature.gd`, les héros dans `scripts/heroes.gd`, la paie, les arrivées
+et le rythme des vagues (`FIRST_WAVE_DELAY`, `WAVE_INTERVAL`) dans `scripts/main.gd`…
 
 ## Feuille de route
 
@@ -93,8 +115,9 @@ Avancer par petites étapes, chacune jouable :
 2. ✅ **Construire des salles** : *Trésor* (l'or doit y être porté), *Repaire*, *Champignonnière*.
 3. ✅ **Créatures** : un portail en attire selon les salles construites ; elles ont des besoins
    (salaire, faim, sommeil) et partent si elles sont mécontentes.
-4. **Héros** : des vagues d'aventuriers entrent par la surface et veulent détruire le cœur.
-5. **Combat** : points de vie, attaques, le joueur peut ramasser et déposer ses créatures.
+4. ✅ **Héros** : des vagues d'aventuriers entrent par la surface et veulent détruire le cœur.
+5. ✅ **Combat** : points de vie, attaques, rançons, fin de partie.
+   À venir : ramasser et déposer ses créatures avec la « main » du maître, pièges, portes.
 6. **Niveaux et sauvegarde**, sons, vrais graphismes (pixel art 32×32), menus.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

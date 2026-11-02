@@ -4,7 +4,8 @@ extends Node2D
 ##
 ## Ce script s'occupe de :
 ##   1. les DONNÉES : quel type de tuile se trouve à chaque case ;
-##   2. les SALLES posées sur le sol (trésor, repaire, champignonnière) ;
+##   2. les SALLES posées sur le sol (trésor, repaire, champignonnière),
+##      les lits des créatures et la nourriture ;
 ##   3. l'OR du joueur (stocké dans le cœur et dans les salles du trésor) ;
 ##   4. l'AFFICHAGE : il dessine la grille avec des formes simples ;
 ##   5. le PATHFINDING : il calcule les chemins avec AStarGrid2D.
@@ -19,6 +20,7 @@ enum Tile {
 	ROCK,  ## Roche : indestructible.
 	FLOOR, ## Sol creusé : on peut marcher dessus et y construire des salles.
 	HEART, ## Le cœur du donjon : ce qu'il faudra protéger plus tard.
+	PORTAL, ## Le portail : les créatures arrivent (et repartent) par là.
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -39,6 +41,7 @@ const COLORS := {
 	Tile.ROCK: Color("3a3a40"),
 	Tile.FLOOR: Color("2b2622"),
 	Tile.HEART: Color("2b2622"),
+	Tile.PORTAL: Color("2b2622"),
 }
 const MARK_COLOR := Color("ffd54a")
 const GOLD_COLOR := Color("ffd54a")
@@ -66,6 +69,10 @@ var stored_gold: Dictionary = {}
 var heart_gold := 0
 ## Champignons sur chaque case de champignonnière : Vector2i -> int.
 var food: Dictionary = {}
+## Lits occupés : case de repaire -> créature qui y dort.
+var beds: Dictionary = {}
+## Position du portail.
+var portal_cell: Vector2i
 
 var _farm_timer := 0.0
 
@@ -104,6 +111,9 @@ func generate(seed_value: int) -> void:
 	gold_noise.seed = seed_value + 1
 	gold_noise.frequency = 0.15
 
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+
 	tiles.resize(WIDTH * HEIGHT)
 	for y in HEIGHT:
 		for x in WIDTH:
@@ -121,6 +131,7 @@ func generate(seed_value: int) -> void:
 		for dx in range(-2, 3):
 			_set_tile(heart_cell + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(heart_cell, Tile.HEART)
+	_place_portal(rng)
 
 	damage.clear()
 	marked.clear()
@@ -128,8 +139,35 @@ func generate(seed_value: int) -> void:
 	rooms.clear()
 	stored_gold.clear()
 	food.clear()
+	beds.clear()
 	_setup_pathfinding()
 	queue_redraw()
+
+
+## Place le portail assez loin du cœur, dans une petite clairière.
+func _place_portal(rng: RandomNumberGenerator) -> void:
+	portal_cell = Vector2i(4, 4)
+	for _attempt in 100:
+		var cell := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
+		var distance := _manhattan(cell, heart_cell)
+		if distance >= 12 and distance <= 20:
+			portal_cell = cell
+			break
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			_set_tile(portal_cell + Vector2i(dx, dy), Tile.FLOOR)
+	_set_tile(portal_cell, Tile.PORTAL)
+
+	# On garantit qu'on pourra creuser jusqu'au cœur : sur un chemin en « L »,
+	# la roche indestructible est remplacée par de la terre.
+	var step := portal_cell
+	while step != heart_cell:
+		if step.x != heart_cell.x:
+			step.x += signi(heart_cell.x - step.x)
+		else:
+			step.y += signi(heart_cell.y - step.y)
+		if get_tile(step) == Tile.ROCK:
+			_set_tile(step, Tile.EARTH)
 
 
 func _setup_pathfinding() -> void:
@@ -159,7 +197,8 @@ func get_tile(cell: Vector2i) -> int:
 
 
 func is_walkable(cell: Vector2i) -> bool:
-	return get_tile(cell) == Tile.FLOOR
+	var tile := get_tile(cell)
+	return tile == Tile.FLOOR or tile == Tile.PORTAL
 
 
 func is_diggable(cell: Vector2i) -> bool:
@@ -287,7 +326,15 @@ func get_room(cell: Vector2i) -> int:
 
 ## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
 func can_build_room(cell: Vector2i) -> bool:
-	return is_walkable(cell) and not rooms.has(cell)
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell)
+
+
+func count_room_tiles(type: int) -> int:
+	var count := 0
+	for cell: Vector2i in rooms:
+		if rooms[cell] == type:
+			count += 1
+	return count
 
 
 func build_room(cell: Vector2i, type: int) -> void:
@@ -306,6 +353,7 @@ func remove_room(cell: Vector2i) -> int:
 		return 0
 	rooms.erase(cell)
 	food.erase(cell)
+	beds.erase(cell) # La créature qui dormait là n'a plus de lit.
 	var lost: int = stored_gold.get(cell, 0)
 	stored_gold.erase(cell)
 	for other: Vector2i in stored_gold:
@@ -315,6 +363,52 @@ func remove_room(cell: Vector2i) -> int:
 	gold_changed.emit()
 	queue_redraw()
 	return lost
+
+
+# ---------------------------------------------------------------------------
+# Lits, nourriture et portail (pour les créatures)
+# ---------------------------------------------------------------------------
+
+## Donne un lit libre à une créature. Renvoie sa case, ou (-1, -1) s'il n'y en a pas.
+func claim_bed(creature: Node) -> Vector2i:
+	for cell: Vector2i in rooms:
+		if rooms[cell] == Rooms.Type.LAIR and not beds.has(cell):
+			beds[cell] = creature
+			return cell
+	return Vector2i(-1, -1)
+
+
+func release_bed(creature: Node) -> void:
+	for cell: Vector2i in beds.keys():
+		if beds[cell] == creature:
+			beds.erase(cell)
+
+
+## Cherche le champignon le plus proche.
+## Renvoie { "target": case, "path": chemin }, ou {} s'il n'y en a pas.
+func find_food_job(from_cell: Vector2i) -> Dictionary:
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in food:
+		if food[cell] > 0:
+			candidates.append(cell)
+	return _find_nearest_reachable(candidates, from_cell)
+
+
+## Mange un champignon sur une case. Renvoie false s'il n'y en a plus.
+func take_food(cell: Vector2i) -> bool:
+	if food.get(cell, 0) <= 0:
+		return false
+	food[cell] -= 1
+	queue_redraw()
+	return true
+
+
+## Vrai si un chemin de sol relie le portail au cœur du donjon.
+func is_portal_connected() -> bool:
+	for direction in DIRECTIONS:
+		if not find_path(portal_cell, heart_cell + direction).is_empty():
+			return true
+	return false
 
 
 # ---------------------------------------------------------------------------
@@ -377,17 +471,9 @@ func find_deposit_job(from_cell: Vector2i) -> Dictionary:
 	for cell: Vector2i in stored_gold:
 		if stored_gold[cell] < Rooms.TREASURY_CAPACITY:
 			candidates.append(cell)
-	_sort_by_distance(candidates, from_cell)
-
-	var best := {}
-	var tested := 0
-	for cell in candidates:
-		var path := find_path(from_cell, cell)
-		if not path.is_empty() and (best.is_empty() or path.size() < best["path"].size()):
-			best = {"type": "deposit", "target": cell, "path": path}
-		tested += 1
-		if tested >= 10 and not best.is_empty():
-			break
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if not best.is_empty():
+		best["type"] = "deposit"
 	return best
 
 
@@ -402,6 +488,22 @@ func _set_tile(cell: Vector2i, tile: int) -> void:
 
 func _manhattan(a: Vector2i, b: Vector2i) -> int:
 	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+## Parmi des cases où l'on peut marcher, trouve celle au chemin le plus court.
+## Renvoie { "target": case, "path": chemin }, ou {} si aucune n'est accessible.
+func _find_nearest_reachable(cells: Array[Vector2i], from_cell: Vector2i) -> Dictionary:
+	_sort_by_distance(cells, from_cell)
+	var best := {}
+	var tested := 0
+	for cell in cells:
+		var path := find_path(from_cell, cell)
+		if not path.is_empty() and (best.is_empty() or path.size() < best["path"].size()):
+			best = {"target": cell, "path": path}
+		tested += 1
+		if tested >= 10 and not best.is_empty():
+			break
+	return best
 
 
 func _sort_by_distance(cells: Array[Vector2i], from_cell: Vector2i) -> void:
@@ -432,6 +534,11 @@ func _draw() -> void:
 				Tile.HEART:
 					draw_circle(rect.get_center(), 12.0, Color("c62828"))
 					draw_circle(rect.get_center() - Vector2(3, 3), 4.0, Color("ef5350"))
+				Tile.PORTAL:
+					# Des anneaux violets : un tourbillon magique.
+					draw_circle(rect.get_center(), 14.0, Color("4a148c"))
+					draw_arc(rect.get_center(), 11.0, 0.0, TAU, 24, Color("ab47bc"), 2.0)
+					draw_arc(rect.get_center(), 6.0, 0.0, TAU, 16, Color("e1bee7"), 2.0)
 				Tile.FLOOR:
 					if rooms.has(cell):
 						_draw_room_tile(cell, rect)

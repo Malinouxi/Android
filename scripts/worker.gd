@@ -1,6 +1,7 @@
 class_name Worker
-extends Node2D
+extends Unit
 ## Un ouvrier : il creuse les cases marquées et rapporte l'or au trésor.
+## (Il hérite de Unit : la marche et les chemins sont écrits dans unit.gd.)
 ##
 ## Son comportement est une « machine à états » : à chaque instant il est dans
 ## UN état (IDLE, MOVING ou DIGGING), et chaque état a sa propre fonction.
@@ -15,15 +16,11 @@ enum State {
 	DIGGING, ## Creuse une case.
 }
 
-const SPEED := 90.0          ## Vitesse de marche, en pixels par seconde.
 const DIG_INTERVAL := 0.45   ## Secondes entre deux coups de pioche.
 const CARRY_CAPACITY := 120  ## Or qu'un ouvrier peut porter dans ses poches.
 const BODY_COLOR := Color("7cb342")
 
-var map: DungeonMap
 var state: State = State.IDLE
-## Cases qu'il reste à parcourir.
-var path: Array[Vector2i] = []
 ## Travail en cours, ou {} s'il n'en a pas.
 var job: Dictionary = {}
 ## Or transporté.
@@ -34,15 +31,10 @@ var _dig_timer := 0.0
 var _swing := 0.0
 
 
-## Appelée par main.gd juste après la création de l'ouvrier.
+## On complète la fonction setup() de Unit : super() appelle la version d'origine.
 func setup(dungeon_map: DungeonMap, cell: Vector2i) -> void:
-	map = dungeon_map
-	position = map.cell_to_world(cell)
+	super(dungeon_map, cell)
 	_think_timer = randf_range(0.0, 0.5)
-
-
-func current_cell() -> Vector2i:
-	return map.world_to_cell(position)
 
 
 func is_full() -> bool:
@@ -71,14 +63,16 @@ func _process_idle(delta: float) -> void:
 
 	job = _choose_job()
 	if not job.is_empty():
-		_follow(job["path"])
+		follow_path(job["path"])
+		state = State.MOVING
 		return
 
 	# Rien à faire : on fait quelques pas au hasard pour paraître vivant.
 	var wander_target := current_cell() + Vector2i(randi_range(-2, 2), randi_range(-2, 2))
 	var wander_path := map.find_path(current_cell(), wander_target)
 	if wander_path.size() > 1 and wander_path.size() <= 5:
-		_follow(wander_path)
+		follow_path(wander_path)
+		state = State.MOVING
 	_think_timer = randf_range(0.8, 2.0)
 
 
@@ -98,15 +92,8 @@ func _process_moving(delta: float) -> void:
 	if not _job_still_valid():
 		_stop_job()
 		return
-
-	if path.is_empty():
+	if move_along_path(delta):
 		_arrive()
-		return
-
-	var next_position := map.cell_to_world(path[0])
-	position = position.move_toward(next_position, SPEED * delta)
-	if position == next_position:
-		path.remove_at(0)
 
 
 ## Arrivé au bout du chemin : on fait ce qui était prévu.
@@ -147,13 +134,6 @@ func _job_still_valid() -> bool:
 	if job["type"] == "dig":
 		return map.marked.has(job["target"])
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
-
-
-func _follow(new_path: Array[Vector2i]) -> void:
-	path.assign(new_path) # Copie du chemin.
-	if not path.is_empty():
-		path.remove_at(0) # La première case est celle où l'on se trouve déjà.
-	state = State.MOVING
 
 
 func _stop_job() -> void:

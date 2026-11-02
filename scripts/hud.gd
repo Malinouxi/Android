@@ -1,7 +1,7 @@
 class_name Hud
 extends CanvasLayer
 ## L'interface affichée par-dessus le jeu :
-##   - en haut : or, place dans le trésor, ouvriers, bouton d'invocation ;
+##   - en haut : or, place dans le trésor, ouvriers, créatures, paie, bouton d'invocation ;
 ##   - à droite : la barre d'outils (creuser, construire une salle, démolir) ;
 ##   - en bas : les messages.
 ## Un CanvasLayer ne bouge pas avec la caméra : parfait pour une interface.
@@ -18,6 +18,8 @@ var _tool_panel: PanelContainer
 var _gold_label: Label
 var _treasury_label: Label
 var _workers_label: Label
+var _creatures_label: Label
+var _payday_label: Label
 var _summon_button: Button
 var _message_label: Label
 var _message_timer: SceneTreeTimer
@@ -42,18 +44,22 @@ func _build_top_panel() -> void:
 	add_child(_top_panel)
 
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
+	row.add_theme_constant_override("separation", 20)
 	_top_panel.add_child(row)
 
-	_gold_label = _make_label(28)
+	_gold_label = _make_label(24)
 	row.add_child(_gold_label)
-	_treasury_label = _make_label(20)
+	_treasury_label = _make_label(18)
 	row.add_child(_treasury_label)
-	_workers_label = _make_label(28)
+	_workers_label = _make_label(24)
 	row.add_child(_workers_label)
+	_creatures_label = _make_label(24)
+	row.add_child(_creatures_label)
+	_payday_label = _make_label(18)
+	row.add_child(_payday_label)
 
 	_summon_button = Button.new()
-	_summon_button.add_theme_font_size_override("font_size", 24)
+	_summon_button.add_theme_font_size_override("font_size", 22)
 	# Un bouton de 64 px de haut est facile à toucher avec le doigt.
 	_summon_button.custom_minimum_size = Vector2(0, 64)
 	_summon_button.pressed.connect(func() -> void: summon_pressed.emit())
@@ -106,8 +112,17 @@ func set_workers(count: int) -> void:
 	_workers_label.text = "Ouvriers : %d" % count
 
 
+## count = créatures présentes, beds = nombre de lits (cases de Repaire).
+func set_creatures(count: int, beds: int) -> void:
+	_creatures_label.text = "Créatures : %d / %d lits" % [count, beds]
+
+
+func set_payday(seconds_left: int) -> void:
+	_payday_label.text = "Paie dans %d s" % seconds_left
+
+
 func set_summon_cost(cost: int) -> void:
-	_summon_button.text = "Invoquer un ouvrier (%d or)" % cost
+	_summon_button.text = "+ Ouvrier (%d or)" % cost
 
 
 ## Affiche un message en bas de l'écran pendant quelques secondes.

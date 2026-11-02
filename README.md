@@ -23,6 +23,24 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Démolir** : retire une salle (pas de remboursement). L'or d'un trésor démoli va dans les autres trésors s'il y a de la place.
 - L'or de départ (200) est gardé dans le cœur : on peut le dépenser, mais pas le remplir.
 
+**Étape 3 — Créatures**
+- Un **portail violet** se trouve quelque part sur la carte. Creuse un couloir pour le relier à ton donjon :
+  dès qu'il est relié, une créature peut arriver toutes les 20 secondes.
+- Chaque case de **Repaire est un lit** : jamais plus de créatures que de lits.
+- Chaque créature vient seulement si ton donjon a assez de salles :
+
+  | Créature | Il faut au moins | Salaire |
+  |----------|------------------|---------|
+  | Kobold   | 1 Repaire        | 15 or   |
+  | Orque    | 4 Repaire + 4 Champignonnière | 40 or |
+  | Sorcier  | 6 Repaire + 9 Trésor | 70 or |
+
+- Leurs **besoins** : l'énergie baisse (elles vont dormir dans leur lit), la faim monte (elles vont manger un
+  champignon), et toutes les 90 secondes c'est le **jour de paie** (prélevé automatiquement sur ton or).
+- La **barre d'humeur** au-dessus de leur tête baisse si elles ont faim, sont épuisées, n'ont pas de lit ou ne sont
+  pas payées. À zéro, la créature repart par le portail (« ! » rouge).
+- Avec l'outil **Creuser**, touche une créature pour voir son humeur, sa faim, son énergie et son salaire.
+
 Aucune image n'est nécessaire : tout est dessiné avec des formes simples. On ajoutera des graphismes plus tard.
 
 ## Démarrer
@@ -48,20 +66,24 @@ signature (`.keystore`) ni leurs mots de passe sur Git.
 ```
 project.godot              Configuration (rendu mobile, paysage, souris = doigt)
 scenes/main.tscn           La scène principale : assemble les morceaux ci-dessous
-scripts/main.gd            Chef d'orchestre : relie tout, gère l'or
+scripts/main.gd            Chef d'orchestre : relie tout, outils, portail, jour de paie
 scripts/dungeon_map.gd     La grille : données, salles, or, dessin, pathfinding, creusage
-scripts/worker.gd          Un ouvrier : petite IA à états (attente / marche / creuse / range l'or)
+scripts/unit.gd            Base commune de tout ce qui marche (héritage) : chemins, déplacement
+scripts/worker.gd          Un ouvrier (extends Unit) : IA à états (attente / marche / creuse / range l'or)
+scripts/creature.gd        Une créature (extends Unit) : énergie, faim, humeur, sommeil, repas, départ
+scripts/creatures.gd       Catalogue des créatures : nom, couleur, vitesse, salaire, salles exigées
 scripts/rooms.gd           Catalogue des salles : nom, prix, couleur, réglages
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
 ```
 
-Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`) : chaque morceau
+Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`) : chaque morceau
 reste simple et peut être modifié sans casser les autres.
 
 **Pour expérimenter**, change les constantes en haut des fichiers : `WIDTH`/`HEIGHT` (taille de la carte),
 `DIG_HITS` (difficulté à creuser), `GOLD_PER_HIT`, `SPEED` et `CARRY_CAPACITY` des ouvriers, `WORKER_COST`,
-les prix et réglages des salles dans `scripts/rooms.gd`…
+les prix et réglages des salles dans `scripts/rooms.gd`, les créatures dans `scripts/creatures.gd`,
+les besoins dans `scripts/creature.gd`, la paie et les arrivées dans `scripts/main.gd`…
 
 ## Feuille de route
 
@@ -69,7 +91,7 @@ Avancer par petites étapes, chacune jouable :
 
 1. ✅ **Creuser** : grille, marquage, ouvriers, or.
 2. ✅ **Construire des salles** : *Trésor* (l'or doit y être porté), *Repaire*, *Champignonnière*.
-3. **Créatures** : un portail en attire selon les salles construites ; elles ont des besoins
+3. ✅ **Créatures** : un portail en attire selon les salles construites ; elles ont des besoins
    (salaire, faim, sommeil) et partent si elles sont mécontentes.
 4. **Héros** : des vagues d'aventuriers entrent par la surface et veulent détruire le cœur.
 5. **Combat** : points de vie, attaques, le joueur peut ramasser et déposer ses créatures.

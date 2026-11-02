@@ -12,3 +12,6 @@ android/
 # Clés de signature : ne JAMAIS les mettre sur Git
 *.keystore
 *.jks
+
+# Archives (ex. zip du projet)
+*.zip

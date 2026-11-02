@@ -8,7 +8,7 @@ config_version=5
 config/name="Seigneur des Profondeurs"
 config/description="Prototype de jeu de gestion de donjon pour Android."
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.3", "Mobile")
+config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [display]
@@ -25,5 +25,8 @@ pointing/emulate_touch_from_mouse=true
 
 [rendering]
 
-renderer/rendering_method="mobile"
+; Rendu « Compatibilité » (OpenGL) : idéal pour un jeu 2D, marche sur tous les
+; téléphones Android et évite les soucis de pilotes Vulkan sur PC.
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true

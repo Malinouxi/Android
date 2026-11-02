@@ -90,7 +90,7 @@ signature (`.keystore`) ni leurs mots de passe sur Git.
 ## Organisation du code
 
 ```
-project.godot              Configuration (rendu mobile, paysage, souris = doigt)
+project.godot              Configuration (rendu Compatibilité/OpenGL, paysage, souris = doigt)
 scenes/main.tscn           La scène principale : assemble les morceaux ci-dessous
 scripts/main.gd            Chef d'orchestre : relie tout, outils, portail, paie, vagues, fin de partie
 scripts/dungeon_map.gd     La grille : données, salles, or, dessin, pathfinding, creusage

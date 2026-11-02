@@ -2,22 +2,22 @@ class_name DungeonMap
 extends Node2D
 ## La carte du donjon : une grille de tuiles vue de dessus.
 ##
-## Ce script s'occupe de trois choses :
+## Ce script s'occupe de :
 ##   1. les DONNÉES : quel type de tuile se trouve à chaque case ;
-##   2. l'AFFICHAGE : il dessine la grille avec des rectangles de couleur
-##      (pas besoin d'images pour un prototype) ;
-##   3. le PATHFINDING : il sait calculer un chemin entre deux cases,
-##      grâce à AStarGrid2D, fourni par Godot.
+##   2. les SALLES posées sur le sol (trésor, repaire, champignonnière) ;
+##   3. l'OR du joueur (stocké dans le cœur et dans les salles du trésor) ;
+##   4. l'AFFICHAGE : il dessine la grille avec des formes simples ;
+##   5. le PATHFINDING : il calcule les chemins avec AStarGrid2D.
 
-## Émis quand un ouvrier extrait de l'or d'un filon.
-signal gold_mined(amount: int)
+## Émis chaque fois que la quantité d'or du joueur change.
+signal gold_changed
 
 ## Les différents types de tuiles.
 enum Tile {
 	EARTH, ## Terre : se creuse.
 	GOLD,  ## Filon d'or : se creuse et rapporte de l'or.
 	ROCK,  ## Roche : indestructible.
-	FLOOR, ## Sol creusé : on peut marcher dessus.
+	FLOOR, ## Sol creusé : on peut marcher dessus et y construire des salles.
 	HEART, ## Le cœur du donjon : ce qu'il faudra protéger plus tard.
 }
 
@@ -27,7 +27,7 @@ const HEIGHT := 32    ## Hauteur de la carte, en cases.
 
 ## Nombre de coups de pioche pour creuser chaque type de tuile.
 const DIG_HITS := {Tile.EARTH: 4, Tile.GOLD: 8}
-## Or gagné à chaque coup de pioche dans un filon.
+## Or arraché à chaque coup de pioche dans un filon.
 const GOLD_PER_HIT := 15
 
 ## Les 4 directions voisines (pas de diagonale, c'est plus simple).
@@ -41,7 +41,7 @@ const COLORS := {
 	Tile.HEART: Color("2b2622"),
 }
 const MARK_COLOR := Color("ffd54a")
-const GOLD_NUGGET_COLOR := Color("ffd54a")
+const GOLD_COLOR := Color("ffd54a")
 
 ## Le type de chaque case. On range la grille 2D dans un tableau 1D :
 ## la case (x, y) est à l'indice y * WIDTH + x.
@@ -58,9 +58,35 @@ var heart_cell: Vector2i
 ## L'outil de Godot qui calcule les chemins sur une grille.
 var astar := AStarGrid2D.new()
 
+## Les salles construites : Vector2i -> Rooms.Type.
+var rooms: Dictionary = {}
+## Or rangé dans chaque case de trésor : Vector2i -> int.
+var stored_gold: Dictionary = {}
+## Or de départ, gardé dans le cœur. On peut le dépenser, mais pas le remplir.
+var heart_gold := 0
+## Champignons sur chaque case de champignonnière : Vector2i -> int.
+var food: Dictionary = {}
+
+var _farm_timer := 0.0
+
 
 func _ready() -> void:
 	generate(randi())
+
+
+## Les champignons poussent avec le temps.
+func _process(delta: float) -> void:
+	_farm_timer += delta
+	if _farm_timer < Rooms.FARM_GROW_TIME:
+		return
+	_farm_timer = 0.0
+	var changed := false
+	for cell: Vector2i in food:
+		if food[cell] < Rooms.FARM_MAX_FOOD:
+			food[cell] += 1
+			changed = true
+	if changed:
+		queue_redraw()
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +95,7 @@ func _ready() -> void:
 
 ## Crée une nouvelle carte. La même « graine » (seed) donne toujours la même carte.
 func generate(seed_value: int) -> void:
-	# Le « bruit » de Perlin/Simplex donne des valeurs qui varient en douceur :
+	# Le « bruit » donne des valeurs qui varient en douceur :
 	# parfait pour faire des amas de roche ou des filons d'or naturels.
 	var rock_noise := FastNoiseLite.new()
 	rock_noise.seed = seed_value
@@ -99,6 +125,9 @@ func generate(seed_value: int) -> void:
 	damage.clear()
 	marked.clear()
 	reserved.clear()
+	rooms.clear()
+	stored_gold.clear()
+	food.clear()
 	_setup_pathfinding()
 	queue_redraw()
 
@@ -171,7 +200,7 @@ func get_spawn_cell() -> Vector2i:
 
 
 # ---------------------------------------------------------------------------
-# Actions
+# Creusage
 # ---------------------------------------------------------------------------
 
 ## Le joueur touche une case : on la marque, ou on enlève la marque.
@@ -186,13 +215,13 @@ func toggle_mark(cell: Vector2i) -> void:
 	queue_redraw()
 
 
-## Un ouvrier donne un coup de pioche. Renvoie true si la case est entièrement creusée.
-func dig(cell: Vector2i) -> bool:
+## Un ouvrier donne un coup de pioche.
+## Renvoie { "finished": la case est entièrement creusée, "gold": or arraché }.
+func dig(cell: Vector2i) -> Dictionary:
 	if not is_diggable(cell):
-		return true
+		return {"finished": true, "gold": 0}
 	var tile := get_tile(cell)
-	if tile == Tile.GOLD:
-		gold_mined.emit(GOLD_PER_HIT)
+	var gold := GOLD_PER_HIT if tile == Tile.GOLD else 0
 
 	damage[cell] = damage.get(cell, 0) + 1
 	var finished: bool = damage[cell] >= DIG_HITS[tile]
@@ -203,21 +232,22 @@ func dig(cell: Vector2i) -> bool:
 		marked.erase(cell)
 		reserved.erase(cell)
 	queue_redraw()
-	return finished
+	return {"finished": finished, "gold": gold}
 
 
 ## Cherche la case marquée la plus proche pour un ouvrier.
-## Renvoie un dictionnaire { "target": case à creuser, "path": chemin },
-## ou un dictionnaire vide s'il n'y a rien à faire.
-func find_dig_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+## Si allow_gold est faux, on ignore les filons (l'ouvrier a les poches pleines).
+## Renvoie { "type": "dig", "target": case, "path": chemin }, ou {} si rien à faire.
+func find_dig_job(worker: Node, from_cell: Vector2i, allow_gold := true) -> Dictionary:
 	# 1. On liste les cases marquées que personne d'autre ne creuse déjà.
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in marked:
+		if not allow_gold and get_tile(cell) == Tile.GOLD:
+			continue
 		if reserved.get(cell, worker) == worker:
 			candidates.append(cell)
 	# 2. On les trie de la plus proche à la plus lointaine (à vol d'oiseau).
-	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return _manhattan(a, from_cell) < _manhattan(b, from_cell))
+	_sort_by_distance(candidates, from_cell)
 
 	# 3. Pour chaque case, on cherche un vrai chemin vers une case de sol voisine.
 	#    On s'arrête vite pour ne pas calculer des centaines de chemins.
@@ -229,7 +259,7 @@ func find_dig_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 			if path.is_empty():
 				continue
 			if best.is_empty() or path.size() < best["path"].size():
-				best = {"target": cell, "path": path}
+				best = {"type": "dig", "target": cell, "path": path}
 		tested += 1
 		if tested >= 10 and not best.is_empty():
 			break
@@ -247,6 +277,124 @@ func release_jobs(worker: Node) -> void:
 			reserved.erase(cell)
 
 
+# ---------------------------------------------------------------------------
+# Salles
+# ---------------------------------------------------------------------------
+
+func get_room(cell: Vector2i) -> int:
+	return rooms.get(cell, Rooms.Type.NONE)
+
+
+## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
+func can_build_room(cell: Vector2i) -> bool:
+	return is_walkable(cell) and not rooms.has(cell)
+
+
+func build_room(cell: Vector2i, type: int) -> void:
+	rooms[cell] = type
+	if type == Rooms.Type.TREASURY:
+		stored_gold[cell] = 0
+	elif type == Rooms.Type.FARM:
+		food[cell] = 0
+	queue_redraw()
+
+
+## Démolit la salle d'une case. L'or qu'elle contenait est déplacé dans les
+## autres cases de trésor s'il y a de la place. Renvoie l'or perdu.
+func remove_room(cell: Vector2i) -> int:
+	if not rooms.has(cell):
+		return 0
+	rooms.erase(cell)
+	food.erase(cell)
+	var lost: int = stored_gold.get(cell, 0)
+	stored_gold.erase(cell)
+	for other: Vector2i in stored_gold:
+		var moved := mini(lost, Rooms.TREASURY_CAPACITY - stored_gold[other])
+		stored_gold[other] += moved
+		lost -= moved
+	gold_changed.emit()
+	queue_redraw()
+	return lost
+
+
+# ---------------------------------------------------------------------------
+# Or
+# ---------------------------------------------------------------------------
+
+## Tout l'or du joueur : celui du cœur plus celui des salles du trésor.
+func get_total_gold() -> int:
+	return heart_gold + get_treasury_stored()
+
+
+func get_treasury_stored() -> int:
+	var total := 0
+	for cell: Vector2i in stored_gold:
+		total += stored_gold[cell]
+	return total
+
+
+func get_treasury_capacity() -> int:
+	return stored_gold.size() * Rooms.TREASURY_CAPACITY
+
+
+func set_starting_gold(amount: int) -> void:
+	heart_gold = amount
+	gold_changed.emit()
+
+
+## Dépense de l'or. Renvoie false (et ne dépense rien) s'il n'y en a pas assez.
+func spend_gold(amount: int) -> bool:
+	if get_total_gold() < amount:
+		return false
+	# On vide d'abord les trésors (ça libère de la place), puis le cœur.
+	var remaining := amount
+	for cell: Vector2i in stored_gold:
+		var taken := mini(remaining, stored_gold[cell])
+		stored_gold[cell] -= taken
+		remaining -= taken
+	heart_gold -= remaining
+	gold_changed.emit()
+	queue_redraw()
+	return true
+
+
+## Un ouvrier dépose de l'or sur une case de trésor. Renvoie la quantité acceptée.
+func deposit_gold(cell: Vector2i, amount: int) -> int:
+	if not stored_gold.has(cell):
+		return 0
+	var accepted := mini(amount, Rooms.TREASURY_CAPACITY - stored_gold[cell])
+	stored_gold[cell] += accepted
+	if accepted > 0:
+		gold_changed.emit()
+		queue_redraw()
+	return accepted
+
+
+## Cherche la case de trésor non pleine la plus proche.
+## Renvoie { "type": "deposit", "target": case, "path": chemin }, ou {} si aucune.
+func find_deposit_job(from_cell: Vector2i) -> Dictionary:
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in stored_gold:
+		if stored_gold[cell] < Rooms.TREASURY_CAPACITY:
+			candidates.append(cell)
+	_sort_by_distance(candidates, from_cell)
+
+	var best := {}
+	var tested := 0
+	for cell in candidates:
+		var path := find_path(from_cell, cell)
+		if not path.is_empty() and (best.is_empty() or path.size() < best["path"].size()):
+			best = {"type": "deposit", "target": cell, "path": path}
+		tested += 1
+		if tested >= 10 and not best.is_empty():
+			break
+	return best
+
+
+# ---------------------------------------------------------------------------
+# Outils internes
+# ---------------------------------------------------------------------------
+
 func _set_tile(cell: Vector2i, tile: int) -> void:
 	if is_inside(cell):
 		tiles[cell.y * WIDTH + cell.x] = tile
@@ -254,6 +402,11 @@ func _set_tile(cell: Vector2i, tile: int) -> void:
 
 func _manhattan(a: Vector2i, b: Vector2i) -> int:
 	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+func _sort_by_distance(cells: Array[Vector2i], from_cell: Vector2i) -> void:
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return _manhattan(a, from_cell) < _manhattan(b, from_cell))
 
 
 # ---------------------------------------------------------------------------
@@ -273,14 +426,17 @@ func _draw() -> void:
 			match tile:
 				Tile.GOLD:
 					# Quelques pépites jaunes.
-					draw_circle(rect.position + Vector2(9, 10), 3.0, GOLD_NUGGET_COLOR)
-					draw_circle(rect.position + Vector2(22, 14), 2.5, GOLD_NUGGET_COLOR)
-					draw_circle(rect.position + Vector2(14, 23), 2.0, GOLD_NUGGET_COLOR)
+					draw_circle(rect.position + Vector2(9, 10), 3.0, GOLD_COLOR)
+					draw_circle(rect.position + Vector2(22, 14), 2.5, GOLD_COLOR)
+					draw_circle(rect.position + Vector2(14, 23), 2.0, GOLD_COLOR)
 				Tile.HEART:
 					draw_circle(rect.get_center(), 12.0, Color("c62828"))
 					draw_circle(rect.get_center() - Vector2(3, 3), 4.0, Color("ef5350"))
 				Tile.FLOOR:
-					draw_rect(rect, Color(1, 1, 1, 0.04), false, 1.0)
+					if rooms.has(cell):
+						_draw_room_tile(cell, rect)
+					else:
+						draw_rect(rect, Color(1, 1, 1, 0.04), false, 1.0)
 				_:
 					# Petit relief pour distinguer les blocs.
 					draw_rect(rect.grow(-1), Color(0, 0, 0, 0.25), false, 1.0)
@@ -293,3 +449,42 @@ func _draw() -> void:
 			# Les cases marquées « à creuser » sont entourées de jaune.
 			if marked.has(cell):
 				draw_rect(rect.grow(-2), MARK_COLOR, false, 2.0)
+
+
+func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
+	var type := get_room(cell)
+	var room_color := Rooms.color(type)
+	draw_rect(rect, room_color)
+
+	# Un bord clair seulement là où la salle s'arrête : on voit sa forme.
+	var edge_color := room_color.lightened(0.35)
+	var corners := [rect.position, rect.position + Vector2(rect.size.x, 0),
+			rect.end, rect.position + Vector2(0, rect.size.y)]
+	if get_room(cell + Vector2i.UP) != type:
+		draw_line(corners[0], corners[1], edge_color, 2.0)
+	if get_room(cell + Vector2i.RIGHT) != type:
+		draw_line(corners[1], corners[2], edge_color, 2.0)
+	if get_room(cell + Vector2i.DOWN) != type:
+		draw_line(corners[2], corners[3], edge_color, 2.0)
+	if get_room(cell + Vector2i.LEFT) != type:
+		draw_line(corners[3], corners[0], edge_color, 2.0)
+
+	var center := rect.get_center()
+	match type:
+		Rooms.Type.TREASURY:
+			# Un tas d'or qui grossit avec la quantité stockée (0 à 5 pièces).
+			var coins := ceili(5.0 * stored_gold.get(cell, 0) / Rooms.TREASURY_CAPACITY)
+			var offsets := [Vector2(0, 4), Vector2(-6, 6), Vector2(6, 6), Vector2(-3, -1), Vector2(3, -1)]
+			for i in coins:
+				draw_circle(center + offsets[i], 4.0, GOLD_COLOR)
+		Rooms.Type.LAIR:
+			# Un petit lit de paille.
+			draw_rect(Rect2(center - Vector2(9, 6), Vector2(18, 12)), Color("a1887f"))
+			draw_rect(Rect2(center - Vector2(9, 6), Vector2(6, 12)), Color("d7ccc8"))
+		Rooms.Type.FARM:
+			# Un champignon dessiné par unité de nourriture.
+			var spots := [Vector2(-7, 4), Vector2(6, 6), Vector2(0, -5)]
+			for i in food.get(cell, 0):
+				var base: Vector2 = center + spots[i]
+				draw_rect(Rect2(base - Vector2(1.5, 0), Vector2(3, 5)), Color("efebe9"))
+				draw_circle(base, 4.0, Color("e57373"))

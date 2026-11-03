@@ -23,11 +23,13 @@ func _ready() -> void:
 
 func build_theme() -> Theme:
 	# Police nette, sans lissage : elle reste « pixel » comme les images du jeu.
-	FONT.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	FONT.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	# (On passe par une variable : Godot interdit de modifier une constante.)
+	var font: FontFile = FONT
+	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 
 	var theme := Theme.new()
-	theme.default_font = FONT
+	theme.default_font = font
 	theme.default_font_size = 18
 
 	# Les panneaux : fond sombre, bordure de bois.

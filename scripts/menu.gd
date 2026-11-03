@@ -29,11 +29,14 @@ func _ready() -> void:
 		continue_button.disabled = true
 	else:
 		var summary: Dictionary = save.get("summary", {})
-		continue_button.text = "Continuer  (vague %d, %d or)" % [
-			int(summary.get("wave", 1)), int(summary.get("gold", 0))]
+		continue_button.text = "Continuer : %s\n(vague %d, %d or)" % [
+			summary.get("level_name", "Partie libre"), int(summary.get("wave", 1)), int(summary.get("gold", 0))]
+		continue_button.custom_minimum_size = Vector2(420, 90)
 		continue_button.tooltip_text = "Sauvegardé le %s" % summary.get("date", "?")
 	column.add_child(continue_button)
-	column.add_child(_make_button("Nouvelle partie", _on_new_game_pressed))
+	column.add_child(_make_button("Campagne", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/level_select.tscn")))
+	column.add_child(_make_button("Partie libre", _on_new_game_pressed))
 	column.add_child(_make_button("Quitter", func() -> void: get_tree().quit()))
 	# Réglages du son, côte à côte.
 	var sound_row := HBoxContainer.new()
@@ -74,6 +77,7 @@ func _on_continue_pressed() -> void:
 
 
 func _on_new_game_pressed() -> void:
+	Levels.current_id = 0 # Partie libre : pas d'objectif.
 	SaveGame.load_requested = false
 	get_tree().change_scene_to_file(GAME_SCENE)
 

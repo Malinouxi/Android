@@ -15,6 +15,7 @@ signal pause_pressed
 signal resume_pressed
 signal save_pressed
 signal menu_pressed
+signal next_level_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
@@ -38,6 +39,7 @@ var _pause_panel: Control
 var _spell_panel: PanelContainer
 var _mana_label: Label
 var _research_label: Label
+var _goal_label: Label
 ## Tous les boutons d'outils : Tool -> Button (main.gd change leur texte).
 var _tool_buttons: Dictionary = {}
 var _minimap: Minimap
@@ -179,6 +181,11 @@ func _build_spell_panel() -> void:
 	column.add_theme_constant_override("separation", 6)
 	_spell_panel.add_child(column)
 
+	_goal_label = _make_label(16)
+	_goal_label.add_theme_color_override("font_color", Color("ffd54a"))
+	_goal_label.custom_minimum_size = Vector2(170, 0)
+	_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_goal_label)
 	_mana_label = _make_label(20)
 	column.add_child(_mana_label)
 	for tool in [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE]:
@@ -233,6 +240,10 @@ func set_mana(mana: float, max_mana: float) -> void:
 	_mana_label.text = "Mana : %d / %d" % [mana, max_mana]
 
 
+func set_goal(text: String) -> void:
+	_goal_label.text = text
+
+
 func set_research(text: String) -> void:
 	_research_label.text = text
 
@@ -279,6 +290,19 @@ func show_game_over(waves_survived: int) -> void:
 	details.text = "Vagues repoussées : %d" % waves_survived
 	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(details)
+	column.add_child(_make_big_button("Rejouer", restart_pressed))
+	column.add_child(_make_big_button("Menu principal", menu_pressed))
+
+
+## L'écran de victoire, avec les étoiles gagnées.
+func show_victory(level_name: String, stars: int, has_next: bool) -> void:
+	var column := _make_center_panel("Victoire !")
+	var details := _make_label(26)
+	details.text = "%s\nÉtoiles : %d / 3 (selon l'état de ton cœur)" % [level_name, stars]
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(details)
+	if has_next:
+		column.add_child(_make_big_button("Niveau suivant", next_level_pressed))
 	column.add_child(_make_big_button("Rejouer", restart_pressed))
 	column.add_child(_make_big_button("Menu principal", menu_pressed))
 

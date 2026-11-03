@@ -6,7 +6,8 @@ extends Node2D
 ##   - le jour de paie ;
 ##   - les vagues de héros et la fin de partie ;
 ##   - la sauvegarde, le chargement et la pause ;
-##   - la mana et les sorts, la recherche et la fabrication des pièges.
+##   - la mana et les sorts, la recherche et la fabrication des pièges ;
+##   - le niveau de campagne en cours : objectif, victoire, maître rival.
 ##
 ## Les différentes parties communiquent par des SIGNAUX : la caméra ne connaît
 ## pas la carte, elle dit juste « on m'a touchée ici ». C'est main.gd qui décide
@@ -80,6 +81,13 @@ var _payday_timer := PAYDAY_INTERVAL
 var _hint_timer := 0.0
 var _hud_timer := 0.0
 
+## Le niveau joué (voir levels.gd) et ses réglages.
+var level: Dictionary = Levels.FREE_PLAY
+var _wave_interval := WAVE_INTERVAL
+var _goal_timer := 0.0
+var _rival_timer := 80.0
+var _rival_squads := 0
+
 var _wave_timer := FIRST_WAVE_DELAY
 var _next_wave := 1
 var _waves_survived := 0
@@ -122,6 +130,10 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_on_restart_pressed)
 	map.heart_changed.connect(_on_heart_changed)
 	map.heart_destroyed.connect(_on_heart_destroyed)
+	map.rival_heart_destroyed.connect(func() -> void:
+		hud.show_message("Le cœur du maître rival est détruit !", 5.0)
+		_check_goal())
+	hud.next_level_pressed.connect(_on_next_level_pressed)
 	map.door_destroyed.connect(func(_cell: Vector2i) -> void:
 		hud.show_message("Les héros ont enfoncé une porte !", 3.0))
 	hud.pause_pressed.connect(_on_pause_pressed)
@@ -151,10 +163,20 @@ func _ready() -> void:
 
 
 func _start_new_game() -> void:
-	map.set_starting_gold(START_GOLD)
+	level = Levels.current()
+	# Chaque niveau a sa propre carte (une « graine » fixe). 0 = carte au hasard.
+	var seed_value: int = level.get("seed", 0)
+	if seed_value == 0:
+		seed_value = randi()
+	map.generate(seed_value, level.get("rival", false), level.get("rival_hp", 1200.0))
+	map.set_starting_gold(level.get("start_gold", START_GOLD))
+	_wave_timer = level.get("first_wave", FIRST_WAVE_DELAY)
+	_wave_interval = level.get("wave_interval", WAVE_INTERVAL)
+	_rival_timer = level.get("rival_interval", 80.0)
 	for i in START_WORKERS:
 		_spawn_worker()
-	hud.show_message("Creuse jusqu'au portail violet pour attirer des créatures. Les héros arriveront par l'entrée grise !", 8.0)
+	var intro: String = level.get("intro", "")
+	hud.show_message(intro + " Creuse jusqu'au portail violet pour attirer des créatures.", 10.0)
 
 
 func _process(delta: float) -> void:
@@ -175,6 +197,11 @@ func _process(delta: float) -> void:
 	_update_portal(delta)
 	_update_payday(delta)
 	_update_waves(delta)
+	_update_rival(delta)
+	_goal_timer -= delta
+	if _goal_timer <= 0.0:
+		_goal_timer = 1.0
+		_check_goal()
 	_check_full_pockets()
 
 	# On rafraîchit l'interface 4 fois par seconde (compte à rebours de la paie...).
@@ -362,7 +389,7 @@ func _update_waves(delta: float) -> void:
 
 
 func _start_wave() -> void:
-	_wave_timer = WAVE_INTERVAL
+	_wave_timer = _wave_interval
 	_wave_warned = false
 	var count := mini(1 + _next_wave, MAX_HEROES_PER_WAVE)
 	var types := Heroes.types_for_wave(_next_wave)
@@ -417,6 +444,101 @@ func _on_heart_destroyed() -> void:
 	Sound.set_music_volume(-20.0)
 	Sound.play("game_over")
 	hud.show_game_over(_waves_survived)
+
+
+# ---------------------------------------------------------------------------
+# Objectif du niveau, victoire et maître rival
+# ---------------------------------------------------------------------------
+
+## Avancement de l'objectif : [valeur actuelle, valeur à atteindre], ou [] en partie libre.
+func _goal_progress() -> Array:
+	if not level.has("goal"):
+		return []
+	var goal: Dictionary = level["goal"]
+	match goal["type"]:
+		"gold":
+			return [map.get_total_gold(), goal["amount"]]
+		"survive":
+			return [_waves_survived, goal["waves"]]
+		"creatures":
+			var count := 0
+			for creature: Creature in creatures_root.get_children():
+				if creature.level >= goal["level"]:
+					count += 1
+			return [count, goal["count"]]
+		"research":
+			return [research.next_index, goal["count"]]
+		"prisoners":
+			return [map.prisoners.size(), goal["count"]]
+		"rival":
+			var damage_done := map.rival_heart_max_hp - map.rival_heart_hp
+			return [roundi(100.0 * damage_done / map.rival_heart_max_hp), 100]
+	return []
+
+
+func _goal_status_text() -> String:
+	var progress := _goal_progress()
+	if progress.is_empty():
+		return "Partie libre"
+	var suffix := " %" if level["goal"]["type"] == "rival" else ""
+	return "Objectif : %s\n(%d%s / %d%s)" % [Levels.goal_text(level), progress[0], suffix, progress[1], suffix]
+
+
+func _check_goal() -> void:
+	if _game_over:
+		return
+	var progress := _goal_progress()
+	if not progress.is_empty() and progress[0] >= progress[1]:
+		_on_victory()
+
+
+## Objectif atteint ! Les étoiles dépendent de l'état du cœur.
+func _on_victory() -> void:
+	_game_over = true # Plus de sauvegarde automatique : la partie est finie.
+	SaveGame.delete()
+	var health := map.heart_hp / DungeonMap.HEART_MAX_HP
+	var stars := 3 if health >= 0.9 else (2 if health >= 0.5 else 1)
+	Levels.record_victory(level.get("id", 0), stars)
+	Engine.time_scale = 1.0
+	get_tree().paused = true
+	Sound.play("discovery")
+	Sound.play("level_up")
+	hud.show_victory(level.get("name", ""), stars, Levels.has_next(level.get("id", 0)))
+
+
+func _on_next_level_pressed() -> void:
+	Levels.current_id = level.get("id", 0) + 1
+	SaveGame.load_requested = false
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
+## Le maître rival envoie régulièrement des troupes de plus en plus nombreuses.
+func _update_rival(delta: float) -> void:
+	if not map.has_rival or map.rival_heart_hp <= 0.0:
+		return
+	_rival_timer -= delta
+	if _rival_timer > 0.0:
+		return
+	_rival_timer = level.get("rival_interval", 80.0)
+	_rival_squads += 1
+	var types: Array[int] = [Heroes.Type.RIVAL_KOBOLD]
+	if _rival_squads >= 3:
+		types.append(Heroes.Type.RIVAL_ORC)
+	if _rival_squads >= 5:
+		types.append(Heroes.Type.RIVAL_WARLOCK)
+	var spawn_cells: Array[Vector2i] = []
+	for direction in DungeonMap.DIRECTIONS:
+		if map.is_walkable(map.rival_heart_cell + direction):
+			spawn_cells.append(map.rival_heart_cell + direction)
+	if spawn_cells.is_empty():
+		return
+	var count := mini(1 + int(_rival_squads * 0.5), 6)
+	for i in count:
+		_add_hero(types.pick_random(), spawn_cells.pick_random())
+	Sound.play("portal", map.cell_to_world(map.rival_heart_cell))
+	hud.show_message("Le maître rival envoie %d de ses créatures vers ton cœur !" % count, 4.0)
 
 
 func _on_restart_pressed() -> void:
@@ -477,8 +599,10 @@ func save_game() -> bool:
 
 	var data := {
 		"version": SaveGame.VERSION,
+		"level_id": level.get("id", 0),
 		"summary": {
 			"wave": _next_wave,
+			"level_name": level.get("name", ""),
 			"gold": map.get_total_gold(),
 			"date": Time.get_datetime_string_from_system(false, true),
 		},
@@ -495,6 +619,8 @@ func save_game() -> bool:
 			"pending_heroes": _pending_heroes,
 			"arrival_timer": _arrival_timer,
 			"portal_connected": _portal_connected,
+			"rival_timer": _rival_timer,
+			"rival_squads": _rival_squads,
 		},
 		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
 		"research": research.to_save(),
@@ -524,7 +650,12 @@ func _load_game(data: Dictionary) -> bool:
 			hero.capture_at(SaveGame.array_to_cell(values["prison"]))
 		hero.hp = float(values["hp"])
 
+	Levels.current_id = int(data.get("level_id", 0))
+	level = Levels.current()
+	_wave_interval = level.get("wave_interval", WAVE_INTERVAL)
 	var state: Dictionary = data["state"]
+	_rival_timer = float(state.get("rival_timer", level.get("rival_interval", 80.0)))
+	_rival_squads = int(state.get("rival_squads", 0))
 	_payday_timer = float(state["payday_timer"])
 	_wave_timer = float(state["wave_timer"])
 	_next_wave = int(state["next_wave"])
@@ -640,6 +771,7 @@ func _refresh_hud() -> void:
 	hud.set_heart(map.heart_hp, DungeonMap.HEART_MAX_HP)
 	hud.set_next_wave(_next_wave, ceili(_wave_timer))
 	hud.set_mana(mana, Spells.MAX_MANA)
+	hud.set_goal(_goal_status_text())
 	var research_text := research.status_text()
 	var workshop_target := _workshop_target()
 	if workshop_target >= 0 and map.count_room_tiles(Rooms.Type.WORKSHOP) > 0:

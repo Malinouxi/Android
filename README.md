@@ -157,6 +157,29 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Nouveaux héros, dès la vague 3 : **Clerc** (soigne les héros proches toutes les 3 s) et **Archer**
   (tire à plus de 3 cases).
 
+**Étape 13 — Campagne et maître rival**
+- Menu principal : **Campagne** (8 niveaux) ou **Partie libre** (sans fin, comme avant).
+- Chaque niveau a **sa propre carte**, son or de départ, le rythme de ses vagues et un **objectif**
+  (affiché en jaune dans le panneau de gauche) :
+
+  | Niveau | Objectif |
+  |--------|----------|
+  | 1. Premiers coups de pioche | Amasser 1500 or |
+  | 2. La première invasion | Repousser 3 vagues |
+  | 3. Une armée digne de ce nom | 5 créatures de niveau 2 ou plus |
+  | 4. Le savoir est une arme | 5 découvertes |
+  | 5. Les geôles | 3 héros prisonniers en même temps |
+  | 6. Le maître voisin | Détruire le cœur rival |
+  | 7. Le siège | Repousser 8 vagues |
+  | 8. Le dernier rival | Détruire un cœur rival plus solide |
+
+- Victoire : **1 à 3 étoiles** selon l'état de ton cœur (3 si plus de 90 % de vie, 2 si plus de 50 %).
+  Le niveau suivant se débloque. Progression enregistrée dans `user://progress.cfg`.
+- **Maître rival** (niveaux 6 et 8) : un donjon ennemi, loin du tien, avec son **cœur bleu** et son
+  territoire teinté de bleu. Il envoie régulièrement des créatures (bleutées) de plus en plus nombreuses,
+  qui creusent jusqu'à ton cœur. Dépose tes créatures près de son cœur (outil *Main*) : elles l'attaquent
+  d'elles-mêmes. Tes ouvriers peuvent aussi lui voler son territoire en le revendiquant.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
@@ -214,6 +237,8 @@ scripts/spells.gd          Catalogue des sorts : mana, effets, recharge de la ma
 scripts/research.gd        La recherche : liste des découvertes et progression
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
+scripts/levels.gd          Les niveaux de la campagne (objectifs, réglages) et la progression
+scripts/level_select.gd    L'écran de choix des niveaux (scène scenes/level_select.tscn)
 scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher, peindre
 scripts/minimap.gd         La mini-carte (en bas à gauche)
@@ -249,6 +274,7 @@ Avancer par petites étapes, chacune jouable :
 9. ✅ **Territoire, niveaux des créatures, sorts, bibliothèque et atelier** (mécaniques classiques du
    genre, conçues pour ce jeu et le tactile).
 10. ✅ **Son** : ambiance et effets sonores originaux, positionnés sur la carte.
-11. Niveaux avec objectifs, équilibrage.
+11. ✅ Confort tactile, nouveau contenu, campagne de 8 niveaux, maître rival.
+12. Équilibrage, tutoriel, export APK.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

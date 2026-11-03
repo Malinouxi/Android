@@ -40,6 +40,8 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 	attack_damage = info["damage"]
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
+	if info.get("rival", false):
+		self_modulate = DungeonMap.RIVAL_TINT # Les troupes du rival sont teintées de bleu.
 	setup(dungeon_map, cell)
 
 

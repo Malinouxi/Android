@@ -16,6 +16,7 @@ const COLORS := {
 	DungeonMap.Tile.HEART: Color("ff3030"),
 	DungeonMap.Tile.PORTAL: Color("b040ff"),
 	DungeonMap.Tile.ENTRANCE: Color("cfd8dc"),
+	DungeonMap.Tile.RIVAL_HEART: Color("40a0ff"),
 }
 const CLAIMED_COLOR := Color("8a3442")
 
@@ -58,6 +59,8 @@ func _refresh_image() -> void:
 					color = Rooms.color(map.rooms[cell]).lightened(0.25)
 				elif map.is_claimed(cell):
 					color = CLAIMED_COLOR
+				elif map.rival_claimed.has(cell):
+					color = Color("2a4a8a")
 			_image.set_pixel(x, y, color)
 	_texture.update(_image)
 

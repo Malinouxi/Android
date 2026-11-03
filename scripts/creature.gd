@@ -25,7 +25,7 @@ static var research_needed := false
 static var workshop_needed := false
 
 enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING,
-		GOING_TO_WORK, WORKING }
+		GOING_TO_WORK, WORKING, RAIDING }
 
 const STATE_NAMES := {
 	State.WANDER: "se promène",
@@ -36,6 +36,7 @@ const STATE_NAMES := {
 	State.LEAVING: "s'en va, furieuse",
 	State.FIGHTING: "se bat",
 	State.GOING_TO_WORK: "va travailler",
+	State.RAIDING: "attaque le cœur rival",
 	State.WORKING: "travaille",
 }
 const WORK_NAMES := {
@@ -64,6 +65,7 @@ const TIRED_LEVEL := 25.0    ## En dessous : elle va dormir.
 const HUNGRY_LEVEL := 65.0   ## Au-dessus : elle va manger.
 const HEAL_WHILE_SLEEPING := 5.0 ## Points de vie regagnés par seconde en dormant.
 const AGGRO_RADIUS := 192.0  ## Distance (pixels) à laquelle elle repère un héros.
+const RAID_RADIUS := 160.0   ## Distance à laquelle elle se jette sur le cœur rival.
 const WAKE_RADIUS := 96.0    ## Un héros plus proche que ça la réveille.
 const NO_CELL := Vector2i(-1, -1)
 
@@ -241,7 +243,34 @@ func _process(delta: float) -> void:
 				_work_tick = 0.0
 		State.WORKING:
 			_process_working(delta)
+		State.RAIDING:
+			_process_raiding(delta)
 	queue_redraw()
+
+
+## Attaque du cœur rival : on se place à côté, puis on frappe.
+func _process_raiding(delta: float) -> void:
+	if not map.has_rival or map.rival_heart_hp <= 0.0:
+		state = State.WANDER
+		return
+	var heart_position := map.cell_to_world(map.rival_heart_cell)
+	if position.distance_to(heart_position) <= attack_range + 16.0:
+		path.clear()
+		if _attack_cooldown <= 0.0:
+			_attack_cooldown = attack_interval
+			show_strike(heart_position)
+			map.damage_rival_heart(attack_damage)
+			gain_xp(attack_damage)
+		return
+	if path.is_empty():
+		# On cherche une case libre à côté du cœur.
+		for direction in DungeonMap.DIRECTIONS:
+			if go_to(map.rival_heart_cell + direction):
+				break
+		if path.is_empty():
+			state = State.WANDER # Inaccessible.
+			return
+	move_along_path(delta)
 
 
 ## Au travail : chaque seconde, un peu d'expérience, de recherche ou de fabrication.
@@ -324,6 +353,11 @@ func _update_combat(delta: float) -> void:
 	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS
 	var enemy := find_nearest_enemy(radius)
 	if enemy == null:
+		# Personne à combattre, mais le cœur du rival est tout près : à l'attaque !
+		if state == State.WANDER and map.has_rival and map.rival_heart_hp > 0.0 \
+				and position.distance_to(map.cell_to_world(map.rival_heart_cell)) <= RAID_RADIUS:
+			path.clear()
+			state = State.RAIDING
 		return
 	if state != State.FIGHTING:
 		map.release_work_spot(self)

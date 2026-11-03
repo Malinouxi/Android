@@ -17,6 +17,8 @@ signal gold_changed
 signal heart_changed
 ## Émis une seule fois, quand le cœur est détruit : la partie est perdue.
 signal heart_destroyed
+## Émis une seule fois, quand le cœur du maître rival est détruit.
+signal rival_heart_destroyed
 ## Émis quand les héros ont cassé une porte.
 signal door_destroyed(cell: Vector2i)
 
@@ -29,6 +31,7 @@ enum Tile {
 	HEART, ## Le cœur du donjon : ce qu'il faudra protéger plus tard.
 	PORTAL, ## Le portail : les créatures arrivent (et repartent) par là.
 	ENTRANCE, ## L'entrée des héros.
+	RIVAL_HEART, ## Le cœur du maître rival (certains niveaux de la campagne).
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -88,6 +91,15 @@ var portal_cell: Vector2i
 ## Position de l'entrée des héros.
 var entrance_cell: Vector2i
 
+## Le maître rival (seulement dans certains niveaux).
+var has_rival := false
+var rival_heart_cell := Vector2i(-1, -1)
+var rival_heart_hp := 0.0
+var rival_heart_max_hp := 1.0
+## Le territoire du rival (teinté de bleu) : Vector2i -> true.
+var rival_claimed: Dictionary = {}
+const RIVAL_TINT := Color(0.55, 0.65, 1.35)
+
 ## Pièges et portes : Vector2i -> { "type": Defenses.Type, "hp", "cooldown", "flash" }.
 var defenses: Dictionary = {}
 ## Le territoire du donjon : les cases de sol revendiquées par les ouvriers (Vector2i -> true).
@@ -134,7 +146,8 @@ func _update_farms(delta: float) -> void:
 # ---------------------------------------------------------------------------
 
 ## Crée une nouvelle carte. La même « graine » (seed) donne toujours la même carte.
-func generate(seed_value: int) -> void:
+## with_rival : ajoute un donjon rival, dont le cœur a rival_hp points de vie.
+func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	# Le « bruit » donne des valeurs qui varient en douceur :
 	# parfait pour faire des amas de roche ou des filons d'or naturels.
 	var rock_noise := FastNoiseLite.new()
@@ -170,8 +183,15 @@ func generate(seed_value: int) -> void:
 		for dx in range(-2, 3):
 			claimed[heart_cell + Vector2i(dx, dy)] = true
 	heart_hp = HEART_MAX_HP
-	portal_cell = _place_gate(rng, Tile.PORTAL, [])
-	entrance_cell = _place_gate(rng, Tile.ENTRANCE, [portal_cell])
+	has_rival = with_rival
+	rival_claimed.clear()
+	var avoid: Array[Vector2i] = []
+	if with_rival:
+		_place_rival(rng, rival_hp)
+		avoid.append(rival_heart_cell)
+	portal_cell = _place_gate(rng, Tile.PORTAL, avoid)
+	avoid.append(portal_cell)
+	entrance_cell = _place_gate(rng, Tile.ENTRANCE, avoid)
 
 	damage.clear()
 	marked.clear()
@@ -207,9 +227,14 @@ func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) 
 			_set_tile(gate + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(gate, tile)
 
-	# On garantit qu'on pourra creuser jusqu'au cœur : sur un chemin en « L »,
-	# la roche indestructible est remplacée par de la terre.
-	var step := gate
+	_carve_to_heart(gate)
+	return gate
+
+
+## On garantit qu'on pourra creuser de cette case jusqu'au cœur : sur un chemin
+## en « L », la roche indestructible est remplacée par de la terre.
+func _carve_to_heart(start: Vector2i) -> void:
+	var step := start
 	while step != heart_cell:
 		if step.x != heart_cell.x:
 			step.x += signi(heart_cell.x - step.x)
@@ -217,7 +242,25 @@ func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) 
 			step.y += signi(heart_cell.y - step.y)
 		if get_tile(step) == Tile.ROCK:
 			_set_tile(step, Tile.EARTH)
-	return gate
+
+
+## Le donjon du rival : le plus loin possible du nôtre, avec son propre territoire.
+func _place_rival(rng: RandomNumberGenerator, max_hp: float) -> void:
+	var best := Vector2i(4, 4)
+	for _attempt in 200:
+		var cell := Vector2i(rng.randi_range(4, WIDTH - 5), rng.randi_range(4, HEIGHT - 5))
+		if _manhattan(cell, heart_cell) > _manhattan(best, heart_cell):
+			best = cell
+	rival_heart_cell = best
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var cell := best + Vector2i(dx, dy)
+			_set_tile(cell, Tile.FLOOR)
+			rival_claimed[cell] = true
+	_set_tile(best, Tile.RIVAL_HEART)
+	rival_heart_max_hp = max_hp
+	rival_heart_hp = max_hp
+	_carve_to_heart(best)
 
 
 func _setup_pathfinding() -> void:
@@ -235,7 +278,7 @@ func _setup_pathfinding() -> void:
 			var cell := Vector2i(x, y)
 			astar.set_point_solid(cell, not is_walkable(cell))
 			var tile := get_tile(cell)
-			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART)
+			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART)
 			if is_diggable(cell):
 				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
 	for cell: Vector2i in defenses:
@@ -275,6 +318,11 @@ func to_save() -> Dictionary:
 		"food": _cells_to_list(food),
 		"defenses": defense_list,
 		"claimed": claimed_list,
+		"has_rival": has_rival,
+		"rival_heart": SaveGame.cell_to_array(rival_heart_cell),
+		"rival_heart_hp": rival_heart_hp,
+		"rival_heart_max_hp": rival_heart_max_hp,
+		"rival_claimed": _cells_to_array_list(rival_claimed),
 	}
 
 
@@ -302,6 +350,13 @@ func load_save(data: Dictionary) -> bool:
 		defenses[SaveGame.array_to_cell(values)] = {
 			"type": int(values[2]), "hp": float(values[3]), "cooldown": 0.0, "flash": 0.0}
 	claimed.clear()
+	has_rival = bool(data.get("has_rival", false))
+	rival_heart_cell = SaveGame.array_to_cell(data.get("rival_heart", [-1, -1]))
+	rival_heart_hp = float(data.get("rival_heart_hp", 0.0))
+	rival_heart_max_hp = float(data.get("rival_heart_max_hp", 1.0))
+	rival_claimed.clear()
+	for values in data.get("rival_claimed", []):
+		rival_claimed[SaveGame.array_to_cell(values)] = true
 	if data.has("claimed"):
 		for values in data["claimed"]:
 			claimed[SaveGame.array_to_cell(values)] = true
@@ -321,6 +376,14 @@ func load_save(data: Dictionary) -> bool:
 	gold_changed.emit()
 	queue_redraw()
 	return true
+
+
+## { case: true } -> [[x, y], ...]
+func _cells_to_array_list(values: Dictionary) -> Array:
+	var result := []
+	for cell: Vector2i in values:
+		result.append(SaveGame.cell_to_array(cell))
+	return result
 
 
 ## { case: nombre } -> [[x, y, nombre], ...]
@@ -490,6 +553,7 @@ func is_claimed(cell: Vector2i) -> bool:
 func claim(cell: Vector2i) -> void:
 	if get_tile(cell) == Tile.FLOOR:
 		claimed[cell] = true
+		rival_claimed.erase(cell) # On peut voler le territoire du rival !
 		reserved.erase(cell)
 		queue_redraw()
 
@@ -789,6 +853,22 @@ func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
 	return best
 
 
+func is_next_to_rival_heart(cell: Vector2i) -> bool:
+	return has_rival and _manhattan(cell, rival_heart_cell) == 1
+
+
+func damage_rival_heart(amount: float) -> void:
+	if not has_rival or rival_heart_hp <= 0.0:
+		return
+	rival_heart_hp = maxf(0.0, rival_heart_hp - amount)
+	Sound.play("heart_hit", cell_to_world(rival_heart_cell), -4.0)
+	queue_redraw()
+	if rival_heart_hp <= 0.0:
+		Sound.play("explosion", cell_to_world(rival_heart_cell))
+		add_effect(cell_to_world(rival_heart_cell), 80.0, Color(0.4, 0.6, 1.0, 0.9))
+		rival_heart_destroyed.emit()
+
+
 func damage_heart(amount: float) -> void:
 	if heart_hp <= 0.0:
 		return
@@ -938,6 +1018,9 @@ func _draw() -> void:
 					# Sol, cœur, portail ou entrée : d'abord le sol en dessous...
 					if rooms.has(cell):
 						_draw_room_tile(cell, rect)
+					elif rival_claimed.has(cell):
+						# Le territoire du rival : les mêmes dalles, teintées de bleu.
+						draw_texture_rect(Art.pick(Art.CLAIMED, cell), rect, false, RIVAL_TINT)
 					else:
 						var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
 						draw_texture_rect(Art.pick(floor_images, cell), rect, false)
@@ -948,6 +1031,8 @@ func _draw() -> void:
 						draw_texture_rect(Art.PORTAL, rect, false)
 					elif tile == Tile.ENTRANCE:
 						draw_texture_rect(Art.ENTRANCE, rect, false)
+					elif tile == Tile.RIVAL_HEART:
+						_draw_rival_heart(rect)
 					if defenses.has(cell):
 						_draw_defense(cell, rect)
 
@@ -983,6 +1068,14 @@ func _draw_defense(cell: Vector2i, rect: Rect2) -> void:
 				draw_rect(bar, Color(0, 0, 0, 0.7))
 				bar.size.x *= defense["hp"] / max_hp
 				draw_rect(bar, Color("ffa726"))
+
+
+func _draw_rival_heart(rect: Rect2) -> void:
+	draw_texture_rect(Art.HEART, rect, false, Color(0.4, 0.55, 1.6))
+	var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
+	draw_rect(bar, Color(0, 0, 0, 0.7))
+	bar.size.x *= rival_heart_hp / rival_heart_max_hp
+	draw_rect(bar, Color("42a5f5"))
 
 
 func _draw_heart(rect: Rect2) -> void:

@@ -36,6 +36,9 @@ var _message_label: Label
 var _message_timer: SceneTreeTimer
 var _hand_label: Label
 var _pause_panel: Control
+## Un Control qui couvre l'écran et contient toute l'interface. Il porte le thème
+## (police pixel, boutons en pierre) : un CanvasLayer ne le reçoit pas tout seul.
+var _root: Control
 var _spell_panel: PanelContainer
 var _mana_label: Label
 var _research_label: Label
@@ -75,6 +78,11 @@ func _ready() -> void:
 	# L'interface continue de marcher quand le jeu est en pause (écran de défaite).
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 10 # Au-dessus des particules (voir la couche FxLayer de main.tscn).
+	_root = Control.new()
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE # Laisse passer les touchers vers la carte.
+	_root.theme = get_tree().root.theme
+	add_child(_root)
 	_build_top_panel()
 	_build_tool_panel()
 	_build_spell_panel()
@@ -85,13 +93,13 @@ func _ready() -> void:
 	_message_label.offset_top = -70
 	_message_label.offset_bottom = -20
 	_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_message_label)
+	_root.add_child(_message_label)
 
 
 func _build_top_panel() -> void:
 	_top_panel = PanelContainer.new()
 	_top_panel.position = Vector2(12, 12)
-	add_child(_top_panel)
+	_root.add_child(_top_panel)
 
 	var rows := VBoxContainer.new()
 	_top_panel.add_child(rows)
@@ -157,7 +165,7 @@ func _build_tool_panel() -> void:
 	_tool_panel.offset_right = -12
 	_tool_panel.offset_top = 130
 	_tool_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	add_child(_tool_panel)
+	_root.add_child(_tool_panel)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
@@ -200,7 +208,7 @@ func _build_tool_panel() -> void:
 func _build_spell_panel() -> void:
 	_spell_panel = PanelContainer.new()
 	_spell_panel.position = Vector2(12, 130)
-	add_child(_spell_panel)
+	_root.add_child(_spell_panel)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	_spell_panel.add_child(column)
@@ -269,7 +277,7 @@ func set_speed(speed: float) -> void:
 ## Crée la mini-carte en bas à gauche (appelé par main.gd, qui connaît la carte).
 func add_minimap(map: DungeonMap, camera: CameraController) -> void:
 	_minimap = Minimap.new()
-	add_child(_minimap)
+	_root.add_child(_minimap)
 	_minimap.setup(map, camera)
 	_minimap.anchor_top = 1.0
 	_minimap.anchor_bottom = 1.0
@@ -375,7 +383,7 @@ func _make_center_panel(title_text: String) -> VBoxContainer:
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	add_child(panel)
+	_root.add_child(panel)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 16)
@@ -420,7 +428,7 @@ func fade_in() -> void:
 	black.color = Color.BLACK
 	black.set_anchors_preset(Control.PRESET_FULL_RECT)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(black)
+	_root.add_child(black)
 	var tween := black.create_tween()
 	tween.tween_property(black, "color:a", 0.0, 0.8)
 	tween.tween_callback(black.queue_free)

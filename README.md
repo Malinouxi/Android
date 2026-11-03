@@ -225,6 +225,14 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Torches** : tout le territoire revendiqué s'éclaire, couloirs compris : une torche (brasero) toutes
   les 4 cases environ, posée au fur et à mesure que les ouvriers revendiquent. Leurs flammes vacillent.
 
+**Étape 17 — Nouveau menu principal**
+- En arrière-plan, un **donjon vivant** en vue isométrique : ouvriers qui creusent, lumière du cœur,
+  torches, caméra qui dérive doucement.
+- Un panneau à gauche : titre, personnages qui sautillent, grands boutons avec icônes
+  (*Continuer* mis en valeur avec une bordure dorée), fenêtre **Réglages** (musique, effets, éclairage),
+  crédits.
+- L'interface en jeu reçoit enfin la police pixel et le style pierre et bois.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de

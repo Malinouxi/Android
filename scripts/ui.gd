@@ -36,8 +36,8 @@ func build_theme() -> Theme:
 	theme.set_stylebox("panel", "PanelContainer", _box(Color(0.11, 0.09, 0.08, 0.92), WOOD, 2, 8))
 
 	# Les boutons : des dalles de pierre avec un bord inférieur plus épais (effet de relief).
-	theme.set_stylebox("normal", "Button", _box(STONE, STONE_DARK, 2, 6, 5))
-	theme.set_stylebox("hover", "Button", _box(STONE_LIGHT, STONE_DARK, 2, 6, 5))
+	theme.set_stylebox("normal", "Button", _box(STONE, WOOD, 2, 6, 4, true))
+	theme.set_stylebox("hover", "Button", _box(STONE_LIGHT, WOOD.lightened(0.2), 2, 6, 4, true))
 	# Enfoncé (ou outil sélectionné) : bordure dorée bien visible.
 	theme.set_stylebox("pressed", "Button", _box(WOOD, GOLD, 3, 6, 3))
 	theme.set_stylebox("hover_pressed", "Button", _box(WOOD.lightened(0.1), GOLD, 3, 6, 3))
@@ -54,12 +54,21 @@ func build_theme() -> Theme:
 	theme.set_constant("icon_max_width", "Button", 34)
 
 	theme.set_color("font_color", "Label", TEXT_COLOR)
+	theme.set_color("font_shadow_color", "Label", Color(0, 0, 0, 0.6))
+	theme.set_constant("shadow_offset_y", "Label", 2)
 	return theme
 
 
 ## Une boîte de couleur avec bordure et coins arrondis.
 ## bottom : épaisseur de la bordure du bas (plus épaisse = effet de relief).
-func _box(background: Color, border: Color, border_width: int, margin: int, bottom := -1) -> StyleBoxFlat:
+## shadow : une petite ombre portée sous la boîte (effet de relief).
+## Le style d'un bouton important (bordure dorée), par exemple « Continuer ».
+func primary_button_style() -> StyleBoxFlat:
+	return _box(Color("4e3b2a"), GOLD, 2, 6, 4, true)
+
+
+func _box(background: Color, border: Color, border_width: int, margin: int, bottom := -1,
+		shadow := false) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = background
 	box.border_color = border
@@ -67,6 +76,10 @@ func _box(background: Color, border: Color, border_width: int, margin: int, bott
 	if bottom >= 0:
 		box.border_width_bottom = bottom
 	box.set_corner_radius_all(4)
+	if shadow:
+		box.shadow_color = Color(0, 0, 0, 0.45)
+		box.shadow_size = 1
+		box.shadow_offset = Vector2(0, 3)
 	box.content_margin_left = margin
 	box.content_margin_right = margin
 	box.content_margin_top = margin * 0.6

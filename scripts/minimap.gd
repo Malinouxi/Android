@@ -85,7 +85,9 @@ func _draw() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	var touched := (event is InputEventScreenTouch and event.pressed) or event is InputEventScreenDrag \
+	# « : bool » obligatoire : Godot ne peut pas deviner le type de event.pressed
+	# (event est un InputEvent général), donc on le lui indique.
+	var touched: bool = (event is InputEventScreenTouch and event.pressed) or event is InputEventScreenDrag \
 			or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
 	if touched and camera != null:
 		camera.center_on(event.position / CELL * DungeonMap.TILE_SIZE)

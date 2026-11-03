@@ -407,6 +407,18 @@ func toggle_mark(cell: Vector2i) -> void:
 	queue_redraw()
 
 
+## Marque (value = true) ou démarque une case, pour la peinture au doigt.
+func set_mark(cell: Vector2i, value: bool) -> void:
+	if not is_diggable(cell) or marked.has(cell) == value:
+		return
+	if value:
+		marked[cell] = true
+	else:
+		marked.erase(cell)
+		reserved.erase(cell)
+	queue_redraw()
+
+
 ## Un ouvrier donne un coup de pioche.
 ## Renvoie { "finished": la case est entièrement creusée, "gold": or arraché }.
 func dig(cell: Vector2i) -> Dictionary:

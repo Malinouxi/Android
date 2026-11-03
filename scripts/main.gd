@@ -95,12 +95,24 @@ var trap_stock := {Defenses.Type.SPIKES: 0, Defenses.Type.RUNE: 0, Defenses.Type
 var _autosave_timer := AUTOSAVE_INTERVAL
 var _game_over := false
 
+# Peinture au doigt (voir camera_controller.gd) : cases déjà traitées pendant ce geste.
+var _paint_active := false
+var _paint_cells := {}
+var _paint_mark := true
+var _paint_failed := false
+
 
 func _ready() -> void:
+	Engine.time_scale = 1.0
 	Sound.reset_music_volume() # Au cas où la défaite l'avait baissée.
 	# On branche les signaux sur nos fonctions.
 	map.gold_changed.connect(_refresh_hud)
 	camera.tapped.connect(_on_camera_tapped)
+	camera.paint_started.connect(_on_paint_started)
+	camera.painted.connect(func(world_position: Vector2) -> void:
+		if _paint_active:
+			_paint_cell(map.world_to_cell(world_position)))
+	camera.paint_ended.connect(func() -> void: _paint_active = false)
 	hud.summon_pressed.connect(_on_summon_pressed)
 	hud.tool_selected.connect(_on_tool_selected)
 	hud.restart_pressed.connect(_on_restart_pressed)
@@ -117,6 +129,8 @@ func _ready() -> void:
 	research.discovered.connect(_on_research_discovered)
 
 	camera.bounds = Rect2(Vector2.ZERO, map.get_pixel_size())
+	camera.paint_mode = true # L'outil de départ est « Creuser ».
+	hud.add_minimap(map, camera)
 	camera.position = map.cell_to_world(map.heart_cell)
 	hud.set_summon_cost(WORKER_COST)
 
@@ -392,6 +406,7 @@ func _on_heart_destroyed() -> void:
 func _on_restart_pressed() -> void:
 	SaveGame.load_requested = false
 	get_tree().paused = false
+	Engine.time_scale = 1.0
 	get_tree().reload_current_scene()
 
 
@@ -415,6 +430,7 @@ func _on_resume_pressed() -> void:
 func _on_menu_pressed() -> void:
 	save_game() # Ne fait rien si la partie est perdue.
 	get_tree().paused = false
+	Engine.time_scale = 1.0
 	get_tree().change_scene_to_file(MENU_SCENE)
 
 
@@ -553,6 +569,11 @@ func _update_payday(delta: float) -> void:
 
 ## Un ordre impossible (pas assez d'or, de mana...) : petit son d'erreur + message.
 func _fail(text: String, duration := 3.0) -> void:
+	# Pendant un geste de peinture, un seul message d'erreur suffit.
+	if _paint_active:
+		if _paint_failed:
+			return
+		_paint_failed = true
 	Sound.play("error")
 	hud.show_message(text, duration)
 
@@ -636,6 +657,8 @@ func _set_tool(tool: int, text: String, name_text: String, unlocked: bool) -> vo
 
 func _on_tool_selected(tool: int) -> void:
 	current_tool = tool
+	# Creuser, construire et démolir se font en glissant le doigt sur la carte.
+	camera.paint_mode = tool == Hud.Tool.DIG or tool == Hud.Tool.DEMOLISH or TOOL_ROOMS.has(tool)
 	if tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
 	elif tool == Hud.Tool.SPELL_HEAL:
@@ -644,6 +667,40 @@ func _on_tool_selected(tool: int) -> void:
 		hud.show_message("Touche un héros pour le foudroyer.", 3.0)
 	elif tool == Hud.Tool.SPELL_HASTE:
 		hud.show_message("Touche une de tes unités pour qu'elle coure plus vite.", 3.0)
+
+
+## Le doigt se pose en mode peinture.
+func _on_paint_started(screen_position: Vector2, world_position: Vector2) -> void:
+	_paint_cells.clear()
+	_paint_failed = false
+	_paint_active = not hud.is_over_ui(screen_position)
+	if not _paint_active:
+		return
+	var cell := map.world_to_cell(world_position)
+	if current_tool == Hud.Tool.DIG:
+		# Toucher une créature affiche son état (au lieu de creuser).
+		var creature := _creature_at(world_position)
+		if creature:
+			hud.show_message(creature.describe(), 5.0)
+			_paint_active = false
+			return
+		# La première case décide : on marque tout... ou on démarque tout.
+		_paint_mark = not map.marked.has(cell)
+		Sound.play("click", null, -8.0)
+	_paint_cell(cell)
+
+
+## Applique l'outil sur une case, une seule fois par geste.
+func _paint_cell(cell: Vector2i) -> void:
+	if _paint_cells.has(cell):
+		return
+	_paint_cells[cell] = true
+	if current_tool == Hud.Tool.DIG:
+		map.set_mark(cell, _paint_mark)
+	elif current_tool == Hud.Tool.DEMOLISH:
+		_demolish(cell)
+	elif TOOL_ROOMS.has(current_tool):
+		_build(cell, TOOL_ROOMS[current_tool])
 
 
 func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> void:

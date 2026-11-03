@@ -40,6 +40,10 @@ var _mana_label: Label
 var _research_label: Label
 ## Tous les boutons d'outils : Tool -> Button (main.gd change leur texte).
 var _tool_buttons: Dictionary = {}
+var _minimap: Minimap
+var _speed_button: Button
+## Vitesses de jeu proposées par le bouton « Vitesse ».
+const SPEEDS := [1.0, 2.0, 3.0]
 ## Un seul bouton enfoncé à la fois, entre la barre d'outils ET les sorts.
 var _tool_group := ButtonGroup.new()
 
@@ -96,6 +100,17 @@ func _build_top_panel() -> void:
 		Sound.play("click")
 		pause_pressed.emit())
 	second_row.add_child(pause_button)
+
+	# Accélérer le temps : Engine.time_scale multiplie le « delta » de tout le jeu.
+	_speed_button = Button.new()
+	_speed_button.custom_minimum_size = Vector2(90, 44)
+	_speed_button.add_theme_font_size_override("font_size", 20)
+	_speed_button.pressed.connect(func() -> void:
+		Sound.play("click")
+		var index := SPEEDS.find(Engine.time_scale)
+		set_speed(SPEEDS[(index + 1) % SPEEDS.size()]))
+	second_row.add_child(_speed_button)
+	set_speed(1.0)
 
 	_summon_button = Button.new()
 	_summon_button.add_theme_font_size_override("font_size", 22)
@@ -192,6 +207,24 @@ func set_tool_state(tool: int, text: String, locked: bool) -> void:
 	var button: Button = _tool_buttons[tool]
 	button.text = text
 	button.disabled = locked
+
+
+func set_speed(speed: float) -> void:
+	Engine.time_scale = speed
+	_speed_button.text = "x%d" % speed
+
+
+## Crée la mini-carte en bas à gauche (appelé par main.gd, qui connaît la carte).
+func add_minimap(map: DungeonMap, camera: CameraController) -> void:
+	_minimap = Minimap.new()
+	add_child(_minimap)
+	_minimap.setup(map, camera)
+	_minimap.anchor_top = 1.0
+	_minimap.anchor_bottom = 1.0
+	_minimap.offset_left = 14
+	_minimap.offset_right = 14 + _minimap.size.x
+	_minimap.offset_top = -14 - _minimap.size.y
+	_minimap.offset_bottom = -14
 
 
 func set_mana(mana: float, max_mana: float) -> void:
@@ -321,7 +354,8 @@ func hide_message() -> void:
 func is_over_ui(screen_position: Vector2) -> bool:
 	return _top_panel.get_global_rect().has_point(screen_position) \
 			or _tool_panel.get_global_rect().has_point(screen_position) \
-			or _spell_panel.get_global_rect().has_point(screen_position)
+			or _spell_panel.get_global_rect().has_point(screen_position) \
+			or (_minimap != null and _minimap.get_global_rect().grow(4).has_point(screen_position))
 
 
 func _defense_label(type: int) -> String:

@@ -137,6 +137,15 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Un même son ne se répète pas trop vite (dix ouvriers qui creusent ne font pas un vacarme).
 - **Musique** et **Effets sonores** se coupent dans le menu principal et le menu de pause (réglage mémorisé).
 
+**Étape 11 — Confort tactile**
+- **Peindre au doigt** : avec *Creuser*, une salle ou *Démolir*, glisse un doigt sur la carte pour traiter
+  toutes les cases survolées. Avec *Creuser*, la première case décide : on marque tout, ou on démarque tout.
+- Avec ces outils, on **déplace la vue avec deux doigts** (et on pince pour zoomer). Avec les autres outils
+  (main, sorts, pièges), un doigt déplace la vue comme avant. Sur PC : clic droit maintenu pour déplacer la vue.
+- **Mini-carte** en bas à gauche : tes unités en vert, les héros en rouge, la zone visible en blanc.
+  Touche-la (ou glisse dessus) pour y emmener la vue.
+- Bouton **x1 / x2 / x3** à côté de *Pause* pour accélérer le temps.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
@@ -195,7 +204,8 @@ scripts/research.gd        La recherche : liste des découvertes et progression
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
-scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
+scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher, peindre
+scripts/minimap.gd         La mini-carte (en bas à gauche)
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
 assets/                    Les images PNG (pixel art 16 x 16) et les sons WAV (assets/sounds/)
 tools/generate_art.py      Le script Python qui dessine toutes les images

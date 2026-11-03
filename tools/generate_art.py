@@ -886,6 +886,190 @@ def make_room_props():
     save(from_ascii(DUMMY, DUMMY_PALETTE), "props", "dummy.png")
 
 
+# ---------------------------------------------------------------------------
+# Icônes de l'interface (étape 16) et torche
+# ---------------------------------------------------------------------------
+
+ICONS = {
+    # La pioche (outil Creuser).
+    "pickaxe": ([
+        "................",
+        "...kkkkkkk......",
+        "..kmMMMMmmkk....",
+        ".kmMkkkkkmmmk...",
+        ".kkk....kwkkmk..",
+        "........kwk.kmk.",
+        ".......kwk...kk.",
+        "......kwk.......",
+        ".....kwk........",
+        "....kwk.........",
+        "...kwk..........",
+        "..kwk...........",
+        ".kwk............",
+        ".kk.............",
+        "................",
+        "................",
+    ], {"k": "#1c1c1c", "m": "#90a4ae", "M": "#eceff1", "w": "#8d6e63"}),
+
+    # Le marteau (outil Démolir).
+    "hammer": ([
+        "................",
+        "..kkkkkkkkkk....",
+        ".kmMMMMMMMMmk...",
+        ".kmmmmmmmmmmk...",
+        ".kmmmmmmmmmmk...",
+        "..kkkkwwkkkk....",
+        "......kwwk......",
+        "......kwwk......",
+        "......kwwk......",
+        "......kwwk......",
+        "......kwwk......",
+        "......kwwk......",
+        "......kWWk......",
+        "......kkkk......",
+        "................",
+        "................",
+    ], {"k": "#1c1c1c", "m": "#78909c", "M": "#cfd8dc", "w": "#8d6e63", "W": "#5d4037"}),
+
+    # Un cœur avec une croix (sort Soin).
+    "heal": ([
+        "................",
+        "................",
+        "..kkk....kkk....",
+        ".krrrk..krrrk...",
+        "krrRrrkkrrrrrk..",
+        "krRrrrrwrrrrrk..",
+        "krrrrrwwwrrrrk..",
+        ".krrrrrwrrrrk...",
+        "..krrrrrrrrk....",
+        "...krrrrrrk.....",
+        "....krrrrk......",
+        ".....krrk.......",
+        "......kk........",
+        "................",
+        "................",
+        "................",
+    ], {"k": "#3b0a0a", "r": "#43a047", "R": "#a5d6a7", "w": "#ffffff"}),
+
+    # L'éclair (sort Éclair).
+    "bolt": ([
+        "................",
+        "........kkkk....",
+        ".......kyyyk....",
+        "......kyyyk.....",
+        ".....kyyyk......",
+        "....kyyyykkkk...",
+        "...kyyyyyyyyk...",
+        "...kkkkyyyyk....",
+        "......kyyyk.....",
+        ".....kyyyk......",
+        "....kyyk........",
+        "...kyyk.........",
+        "...kyk..........",
+        "...kk...........",
+        "................",
+        "................",
+    ], {"k": "#3e2a00", "y": "#ffeb3b"}),
+
+    # Une flèche avec des traits de vitesse (sort Hâte).
+    "haste": ([
+        "................",
+        "................",
+        "..........kk....",
+        "..........kck...",
+        "...kkkkkkkkcck..",
+        "...kcccccccccck.",
+        "...kkkkkkkkcck..",
+        "..........kck...",
+        "..........kk....",
+        "kkkkkk..........",
+        "................",
+        "..kkkkkkk.......",
+        "................",
+        "kkkk............",
+        "................",
+        "................",
+    ], {"k": "#0d3b47", "c": "#4dd0e1"}),
+
+    # Un cristal bleu (la mana).
+    "mana": ([
+        "................",
+        ".......kk.......",
+        "......kbbk......",
+        ".....kbBbbk.....",
+        "....kbBbbbbk....",
+        "...kbBbbbbbbk...",
+        "...kbbbbbbbbk...",
+        "....kbbbbbbk....",
+        ".....kbbbbk.....",
+        "......kbbk......",
+        ".......kk.......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+    ], {"k": "#0d1b4a", "b": "#2979ff", "B": "#bbdefb"}),
+}
+
+# Torche (brasero sur pied) posée au sol du territoire.
+TORCH = [
+    "................",
+    ".......y........",
+    "......yoy.......",
+    ".....yoOoy......",
+    ".....oOWOo......",
+    "......oOo.......",
+    "....kkkkkkkk....",
+    "....kmmmmmmk....",
+    ".....kmmmmk.....",
+    "......kmmk......",
+    ".......kk.......",
+    ".......kk.......",
+    ".......kk.......",
+    "......kkkk......",
+    ".....kkkkkk.....",
+    "................",
+]
+TORCH_PALETTE = {"k": "#1c1410", "m": "#6d4c41", "y": "#ffeb3b", "o": "#ff9800", "O": "#ffcc80", "W": "#ffffff"}
+
+
+def hand_icon():
+    """La main (outil Main), dessinée avec des rectangles puis entourée de noir."""
+    from PIL import ImageDraw
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    skin = hex_color("#ffcc80")
+    draw.rectangle([3, 8, 13, 13], fill=skin)            # paume
+    # Quatre doigts séparés d'un pixel vide (le contour noir dessinera les séparations).
+    for x, top in [(3, 4), (6, 2), (9, 2), (12, 4)]:
+        draw.rectangle([x, top, x + 1, 8], fill=skin)
+    draw.rectangle([1, 9, 2, 11], fill=skin)              # pouce
+    return outline(image, "#3e2723")
+
+
+def outline(image, color):
+    """Ajoute un contour d'un pixel autour de tout ce qui n'est pas transparent."""
+    result = image.copy()
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if image.getpixel((x, y))[3] > 0:
+                continue
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < SIZE and 0 <= ny < SIZE and image.getpixel((nx, ny))[3] > 0:
+                    result.putpixel((x, y), hex_color(color))
+                    break
+    return result
+
+
+def make_icons():
+    for name, (rows, palette) in ICONS.items():
+        save(from_ascii(rows, palette), "icons", name + ".png")
+    save(hand_icon(), "icons", "hand.png")
+    save(from_ascii(TORCH, TORCH_PALETTE), "props", "torch.png")
+
+
 def make_defenses():
     save(spikes(False), "props", "spikes_down.png")
     save(spikes(True), "props", "spikes_up.png")
@@ -899,6 +1083,7 @@ def main():
     make_characters()
     make_defenses()
     make_room_props()
+    make_icons()
     print("Images générées dans", ASSETS)
 
 

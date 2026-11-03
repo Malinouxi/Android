@@ -216,6 +216,15 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Effets** : chiffres de dégâts qui s'envolent (rouges sur tes unités), tremblement d'écran
   (explosions, éclair, porte enfoncée, cœur frappé), fondu au début de la partie.
 
+**Étape 16 — Interface soignée et couloirs éclairés**
+- **Police pixel** « Pixelify Sans » (licence libre OFL, voir `assets/fonts/OFL.txt`).
+- **Thème** pierre et bois pour tous les boutons et panneaux (`scripts/ui.gd`, autoload `Ui`) :
+  l'outil choisi a une **bordure dorée**.
+- **Icônes** sur tous les outils et sorts, et à côté des compteurs (or, ouvriers, créatures, cœur, mana,
+  vague).
+- **Torches** : tout le territoire revendiqué s'éclaire, couloirs compris : une torche (brasero) toutes
+  les 4 cases environ, posée au fur et à mesure que les ouvriers revendiquent. Leurs flammes vacillent.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
@@ -278,6 +287,7 @@ scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/levels.gd          Les niveaux de la campagne (objectifs, réglages) et la progression
 scripts/level_select.gd    L'écran de choix des niveaux (scène scenes/level_select.tscn)
 scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
+scripts/ui.gd              Le thème de l'interface (autoload « Ui ») : police, boutons, panneaux
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher, peindre
 scripts/minimap.gd         La mini-carte (en bas à gauche)
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages

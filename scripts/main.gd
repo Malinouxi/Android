@@ -120,7 +120,9 @@ var _screen_tap := Vector2.ZERO
 
 ## Éclairage (voir _setup_lighting).
 const DARKNESS := Color(0.42, 0.38, 0.48) ## La pénombre du donjon (1, 1, 1 = pleine lumière).
-const MAX_TORCHES := 16
+const MAX_TORCHES := 24
+## Écart minimum entre deux torches, en cases.
+const TORCH_SPACING := 4
 var _canvas_modulate: CanvasModulate
 var _lights_root: Node2D
 var _heart_light: PointLight2D
@@ -895,28 +897,47 @@ func _update_lighting(delta: float) -> void:
 	_heart_light.energy = 1.2 + 0.35 * sin(Time.get_ticks_msec() / 1000.0 * beat_speed)
 	if _rival_light != null and map.rival_heart_hp <= 0.0:
 		_rival_light.energy = 0.0
+	# Les flammes vacillent un peu (chaque torche à son rythme).
+	var time := Time.get_ticks_msec() / 1000.0
+	for cell: Vector2i in _torches:
+		_torches[cell].energy = 0.85 + 0.12 * sin(time * 7.0 + cell.x * 1.7 + cell.y * 2.3)
 	_torch_timer -= delta
 	if _torch_timer <= 0.0:
-		_torch_timer = 3.0
+		_torch_timer = 1.5
 		_refresh_torches()
 		_apply_lighting_setting()
 
 
-## Des torches éclairent le territoire revendiqué : une sur une grille de 5 x 5 cases.
+## Des torches éclairent le territoire revendiqué, couloirs compris : on parcourt
+## les cases dans l'ordre où elles ont été revendiquées (en partant du cœur), et on
+## pose une torche sur chaque case à au moins TORCH_SPACING cases des autres.
+## L'ordre ne change jamais : les torches déjà posées restent à leur place.
 func _refresh_torches() -> void:
-	var wanted := {}
+	var chosen: Array[Vector2i] = []
 	for cell: Vector2i in map.claimed:
-		if wanted.size() >= MAX_TORCHES:
+		if chosen.size() >= MAX_TORCHES:
 			break
-		if cell.x % 5 == 2 and cell.y % 5 == 2 and map.is_walkable(cell):
-			wanted[cell] = true
+		if map.get_tile(cell) != DungeonMap.Tile.FLOOR:
+			continue
+		var far_enough := true
+		for other in chosen:
+			if maxi(absi(other.x - cell.x), absi(other.y - cell.y)) < TORCH_SPACING:
+				far_enough = false
+				break
+		if far_enough:
+			chosen.append(cell)
+
+	var wanted := {}
+	for cell in chosen:
+		wanted[cell] = true
 	for cell: Vector2i in _torches.keys():
 		if not wanted.has(cell):
 			_torches[cell].queue_free()
 			_torches.erase(cell)
 	for cell: Vector2i in wanted:
 		if not _torches.has(cell):
-			_torches[cell] = _make_light(map.cell_to_world(cell), Color(1.0, 0.75, 0.45), 150.0, 0.9)
+			_torches[cell] = _make_light(map.cell_to_world(cell), Color(1.0, 0.72, 0.4), 150.0, 0.9)
+	map.set_torches(wanted) # Pour dessiner le brasero sur chaque case.
 
 
 func _apply_lighting_setting() -> void:

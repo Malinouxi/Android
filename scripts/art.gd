@@ -57,6 +57,7 @@ const PORTAL := preload("res://assets/props/portal.png")
 const ENTRANCE := preload("res://assets/props/entrance.png")
 const BED := preload("res://assets/props/bed.png")
 const MUSHROOM := preload("res://assets/props/mushroom.png")
+const TORCH := preload("res://assets/props/torch.png")
 # --- Défenses ---
 const SPIKES_DOWN := preload("res://assets/props/spikes_down.png")
 const SPIKES_UP := preload("res://assets/props/spikes_up.png")

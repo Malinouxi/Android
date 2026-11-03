@@ -110,6 +110,8 @@ var claimed: Dictionary = {}
 var work_spots: Dictionary = {}
 ## Cellules de prison occupées : case -> héros prisonnier (voir hero.gd).
 var prisoners: Dictionary = {}
+## Cases où brûle une torche (choisies par main.gd) : Vector2i -> true.
+var torch_cells: Dictionary = {}
 
 var _farm_timer := 0.0
 var _trap_timer := 0.0
@@ -1052,6 +1054,14 @@ func _is_wall(cell: Vector2i) -> bool:
 	return tile == Tile.EARTH or tile == Tile.GOLD or tile == Tile.ROCK
 
 
+## Change les torches, et redessine seulement si quelque chose a changé.
+func set_torches(cells: Dictionary) -> void:
+	if cells == torch_cells:
+		return
+	torch_cells = cells
+	_redraw_all()
+
+
 ## Le SOL. Godot appelle _draw() quand on demande queue_redraw().
 ## Chaque image 16 x 16 (voir art.gd) remplit un carré de 32 x 32... que la
 ## transformation isométrique transforme en losange.
@@ -1182,6 +1192,10 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 			_:
 				if Art.ROOM_PROPS.has(type):
 					_billboard(layer, Art.ROOM_PROPS[type], center, 1.0)
+
+	# Une torche, sauf si la case est occupée par un meuble ou une défense.
+	if torch_cells.has(cell) and not rooms.has(cell) and not defenses.has(cell):
+		_billboard(layer, Art.TORCH, center, 0.8)
 
 	if has_door(cell):
 		_billboard(layer, Art.DOOR, center, 1.1)

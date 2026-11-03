@@ -44,6 +44,27 @@ var _goal_label: Label
 var _tool_buttons: Dictionary = {}
 var _minimap: Minimap
 var _speed_button: Button
+
+## L'icône de chaque outil et sort (des images 16 x 16, agrandies sur les boutons).
+const TOOL_ICONS := {
+	Tool.DIG: preload("res://assets/icons/pickaxe.png"),
+	Tool.HAND: preload("res://assets/icons/hand.png"),
+	Tool.DEMOLISH: preload("res://assets/icons/hammer.png"),
+	Tool.TREASURY: preload("res://assets/props/gold_pile_3.png"),
+	Tool.LAIR: preload("res://assets/props/bed.png"),
+	Tool.FARM: preload("res://assets/props/mushroom.png"),
+	Tool.LIBRARY: preload("res://assets/props/bookshelf.png"),
+	Tool.WORKSHOP: preload("res://assets/props/anvil.png"),
+	Tool.TRAINING: preload("res://assets/props/dummy.png"),
+	Tool.PRISON: preload("res://assets/props/prison_bars.png"),
+	Tool.TEMPLE: preload("res://assets/props/altar.png"),
+	Tool.SPIKES: preload("res://assets/props/spikes_up.png"),
+	Tool.RUNE: preload("res://assets/props/rune.png"),
+	Tool.DOOR: preload("res://assets/props/door.png"),
+	Tool.SPELL_HEAL: preload("res://assets/icons/heal.png"),
+	Tool.SPELL_LIGHTNING: preload("res://assets/icons/bolt.png"),
+	Tool.SPELL_HASTE: preload("res://assets/icons/haste.png"),
+}
 ## Vitesses de jeu proposées par le bouton « Vitesse ».
 const SPEEDS := [1.0, 2.0, 3.0]
 ## Un seul bouton enfoncé à la fois, entre la barre d'outils ET les sorts.
@@ -82,19 +103,19 @@ func _build_top_panel() -> void:
 	rows.add_child(second_row)
 
 	_gold_label = _make_label(24)
-	row.add_child(_gold_label)
+	row.add_child(_with_icon(preload("res://assets/props/gold_pile_3.png"), _gold_label))
 	_treasury_label = _make_label(18)
 	row.add_child(_treasury_label)
 	_workers_label = _make_label(24)
-	row.add_child(_workers_label)
+	row.add_child(_with_icon(preload("res://assets/units/worker_0.png"), _workers_label))
 	_creatures_label = _make_label(24)
-	row.add_child(_creatures_label)
+	row.add_child(_with_icon(preload("res://assets/units/kobold_0.png"), _creatures_label))
 	_heart_label = _make_label(20)
-	second_row.add_child(_heart_label)
+	second_row.add_child(_with_icon(preload("res://assets/props/heart.png"), _heart_label))
 	_payday_label = _make_label(20)
 	second_row.add_child(_payday_label)
 	_wave_label = _make_label(20)
-	second_row.add_child(_wave_label)
+	second_row.add_child(_with_icon(preload("res://assets/props/entrance.png"), _wave_label))
 	var pause_button := Button.new()
 	pause_button.text = "Pause"
 	pause_button.custom_minimum_size = Vector2(110, 44)
@@ -119,6 +140,8 @@ func _build_top_panel() -> void:
 	_summon_button.add_theme_font_size_override("font_size", 22)
 	# Un bouton de 64 px de haut est facile à toucher avec le doigt.
 	_summon_button.custom_minimum_size = Vector2(0, 64)
+	_summon_button.icon = preload("res://assets/units/worker_0.png")
+	_summon_button.expand_icon = true
 	_summon_button.pressed.connect(func() -> void:
 		Sound.play("click")
 		summon_pressed.emit())
@@ -188,13 +211,27 @@ func _build_spell_panel() -> void:
 	_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_goal_label)
 	_mana_label = _make_label(20)
-	column.add_child(_mana_label)
+	column.add_child(_with_icon(preload("res://assets/icons/mana.png"), _mana_label))
 	for tool in [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE]:
 		column.add_child(_make_tool_button(tool, ""))
 	_research_label = _make_label(16)
 	_research_label.custom_minimum_size = Vector2(170, 0)
 	_research_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_research_label)
+
+
+## Une petite icône suivie d'un texte (pour les compteurs du haut et la mana).
+func _with_icon(texture: Texture2D, label: Label) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var picture := TextureRect.new()
+	picture.texture = texture
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.custom_minimum_size = Vector2(28, 28)
+	box.add_child(picture)
+	box.add_child(label)
+	return box
 
 
 func _make_tool_button(tool: int, text: String) -> Button:
@@ -209,6 +246,11 @@ func _make_tool_button(tool: int, text: String) -> Button:
 		Sound.play("click")
 		tool_selected.emit(tool))
 	_tool_buttons[tool] = button
+	if TOOL_ICONS.has(tool):
+		# expand_icon : l'icône s'agrandit à la hauteur du bouton (voir aussi ui.gd).
+		button.icon = TOOL_ICONS[tool]
+		button.expand_icon = true
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	return button
 
 
@@ -238,7 +280,7 @@ func add_minimap(map: DungeonMap, camera: CameraController) -> void:
 
 
 func set_mana(mana: float, max_mana: float) -> void:
-	_mana_label.text = "Mana : %d / %d" % [mana, max_mana]
+	_mana_label.text = "%d / %d" % [mana, max_mana]
 
 
 func set_goal(text: String) -> void:
@@ -258,17 +300,17 @@ func set_hand(names: Array[String], capacity: int) -> void:
 
 
 func set_gold(total: int, stored: int, capacity: int) -> void:
-	_gold_label.text = "Or : %d" % total
+	_gold_label.text = "%d or" % total
 	_treasury_label.text = "Trésor : %d / %d" % [stored, capacity]
 
 
 func set_workers(count: int) -> void:
-	_workers_label.text = "Ouvriers : %d" % count
+	_workers_label.text = "%d" % count
 
 
 ## count = créatures présentes, beds = nombre de lits (cases de Repaire).
 func set_creatures(count: int, beds: int) -> void:
-	_creatures_label.text = "Créatures : %d / %d lits" % [count, beds]
+	_creatures_label.text = "%d / %d lits" % [count, beds]
 
 
 func set_payday(seconds_left: int) -> void:
@@ -276,12 +318,12 @@ func set_payday(seconds_left: int) -> void:
 
 
 func set_heart(hp: float, max_hp: float) -> void:
-	_heart_label.text = "Cœur : %d / %d" % [hp, max_hp]
+	_heart_label.text = "%d / %d" % [hp, max_hp]
 
 
 ## wave = numéro de la prochaine vague, seconds_left = temps avant son arrivée.
 func set_next_wave(wave: int, seconds_left: int) -> void:
-	_wave_label.text = "Vague %d dans %d s" % [wave, seconds_left]
+	_wave_label.text = "Vague %d : %d s" % [wave, seconds_left]
 
 
 ## Écran de fin de partie, avec un bouton pour rejouer.

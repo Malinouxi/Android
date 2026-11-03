@@ -42,7 +42,11 @@ const TOOL_ROOMS := {
 	Hud.Tool.LIBRARY: Rooms.Type.LIBRARY,
 	Hud.Tool.WORKSHOP: Rooms.Type.WORKSHOP,
 	Hud.Tool.TRAINING: Rooms.Type.TRAINING,
+	Hud.Tool.PRISON: Rooms.Type.PRISON,
+	Hud.Tool.TEMPLE: Rooms.Type.TEMPLE,
 }
+## Points de recherche par seconde qu'apporte chaque prisonnier interrogé.
+const PRISONER_RESEARCH := 1.0
 ## Quel sort lance chaque bouton du panneau de gauche.
 const TOOL_SPELLS := {
 	Hud.Tool.SPELL_HEAL: Spells.Type.HEAL,
@@ -164,6 +168,8 @@ func _process(delta: float) -> void:
 	# On dit aux créatures s'il reste quelque chose à chercher ou à fabriquer.
 	Creature.research_needed = not research.is_done()
 	Creature.workshop_needed = _workshop_target() >= 0
+	# Les prisonniers interrogés font avancer la recherche.
+	research.add_points(map.prisoners.size() * PRISONER_RESEARCH * delta)
 
 	_hint_timer -= delta
 	_update_portal(delta)
@@ -238,6 +244,8 @@ func _on_creature_worked(room_type: int, amount: float) -> void:
 		research.add_points(amount)
 	elif room_type == Rooms.Type.WORKSHOP:
 		_add_workshop_points(amount)
+	elif room_type == Rooms.Type.TEMPLE:
+		mana = minf(Spells.MAX_MANA, mana + amount)
 
 
 func _on_research_discovered(item: Dictionary) -> void:
@@ -375,8 +383,16 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	var hero := Hero.new()
 	hero.setup_hero(map, cell, type)
 	hero.died.connect(_on_hero_died)
+	hero.captured.connect(_on_hero_captured)
 	heroes_root.add_child(hero)
 	return hero
+
+
+## Un héros vaincu finit en Prison : il rapporte sa rançon, et sera interrogé.
+func _on_hero_captured(hero: Hero) -> void:
+	var stored := map.add_gold_to_treasury(hero.reward())
+	hud.show_message("%s capturé ! +%d or de rançon. Interrogé, il fera avancer la recherche." %
+			[hero.display_name(), stored], 4.0)
 
 
 ## Un héros vaincu rapporte une rançon, rangée au trésor s'il y a de la place.
@@ -504,6 +520,8 @@ func _load_game(data: Dictionary) -> bool:
 		creature.load_save(values)
 	for values in data["heroes"]:
 		var hero := _add_hero(int(values["type"]), SaveGame.array_to_cell(values["cell"]))
+		if values.has("prison"):
+			hero.capture_at(SaveGame.array_to_cell(values["prison"]))
 		hero.hp = float(values["hp"])
 
 	var state: Dictionary = data["state"]

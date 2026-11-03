@@ -13,6 +13,8 @@ enum Type {
 	LIBRARY,  ## Bibliothèque : les créatures y font de la recherche.
 	WORKSHOP, ## Atelier : les créatures y fabriquent pièges et portes.
 	TRAINING, ## Salle d'entraînement : les créatures y gagnent de l'expérience.
+	PRISON,   ## Prison : les héros vaincus y sont capturés (et interrogés).
+	TEMPLE,   ## Temple : les créatures y prient (humeur, soin, mana).
 }
 
 const INFO := {
@@ -22,10 +24,12 @@ const INFO := {
 	Type.LIBRARY: {"name": "Bibliothèque", "cost": 70, "color": Color("2d4363")},
 	Type.WORKSHOP: {"name": "Atelier", "cost": 80, "color": Color("47423c")},
 	Type.TRAINING: {"name": "Entraînement", "cost": 90, "color": Color("5e352a")},
+	Type.PRISON: {"name": "Prison", "cost": 60, "color": Color("34343b")},
+	Type.TEMPLE: {"name": "Temple", "cost": 100, "color": Color("4a3a6a")},
 }
 
 ## Les salles où les créatures viennent travailler (voir creature.gd).
-const WORK_ROOMS := [Type.LIBRARY, Type.WORKSHOP, Type.TRAINING]
+const WORK_ROOMS := [Type.LIBRARY, Type.WORKSHOP, Type.TRAINING, Type.TEMPLE]
 
 ## Or que peut contenir une case de trésor.
 const TREASURY_CAPACITY := 400

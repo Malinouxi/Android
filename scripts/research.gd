@@ -12,9 +12,11 @@ signal discovered(item: Dictionary)
 const ITEMS := [
 	{"name": "Atelier", "kind": "room", "id": Rooms.Type.WORKSHOP, "points": 80},
 	{"name": "Pointes", "kind": "defense", "id": Defenses.Type.SPIKES, "points": 60},
+	{"name": "Prison", "kind": "room", "id": Rooms.Type.PRISON, "points": 100},
 	{"name": "Salle d'entraînement", "kind": "room", "id": Rooms.Type.TRAINING, "points": 120},
 	{"name": "Sort Éclair", "kind": "spell", "id": Spells.Type.LIGHTNING, "points": 150},
 	{"name": "Porte", "kind": "defense", "id": Defenses.Type.DOOR, "points": 180},
+	{"name": "Temple", "kind": "room", "id": Rooms.Type.TEMPLE, "points": 200},
 	{"name": "Sort Hâte", "kind": "spell", "id": Spells.Type.HASTE, "points": 220},
 	{"name": "Rune explosive", "kind": "defense", "id": Defenses.Type.RUNE, "points": 260},
 ]

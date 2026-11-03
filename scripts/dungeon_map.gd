@@ -94,6 +94,8 @@ var defenses: Dictionary = {}
 var claimed: Dictionary = {}
 ## Postes de travail occupés dans les salles : case -> créature (voir creature.gd).
 var work_spots: Dictionary = {}
+## Cellules de prison occupées : case -> héros prisonnier (voir hero.gd).
+var prisoners: Dictionary = {}
 
 var _farm_timer := 0.0
 var _trap_timer := 0.0
@@ -180,6 +182,7 @@ func generate(seed_value: int) -> void:
 	beds.clear()
 	defenses.clear()
 	work_spots.clear()
+	prisoners.clear()
 	_effects.clear()
 	_setup_pathfinding()
 	queue_redraw()
@@ -312,6 +315,7 @@ func load_save(data: Dictionary) -> bool:
 	reserved.clear()
 	beds.clear() # Les créatures rechargées reprendront un lit.
 	work_spots.clear()
+	prisoners.clear()
 	_effects.clear()
 	_setup_pathfinding()
 	gold_changed.emit()
@@ -560,6 +564,7 @@ func remove_room(cell: Vector2i) -> int:
 	food.erase(cell)
 	beds.erase(cell) # La créature qui dormait là n'a plus de lit.
 	work_spots.erase(cell)
+	prisoners.erase(cell) # Le prisonnier s'évadera (voir hero.gd).
 	var lost: int = stored_gold.get(cell, 0)
 	stored_gold.erase(cell)
 	for other: Vector2i in stored_gold:
@@ -602,6 +607,14 @@ func find_work_spot(creature: Node, room_type: int, from_cell: Vector2i) -> Dict
 		release_work_spot(creature)
 		work_spots[best["target"]] = creature
 	return best
+
+
+## Une case de Prison libre, ou (-1, -1) s'il n'y en a pas.
+func find_free_prison_cell() -> Vector2i:
+	for cell: Vector2i in rooms:
+		if rooms[cell] == Rooms.Type.PRISON and not prisoners.has(cell):
+			return cell
+	return Vector2i(-1, -1)
 
 
 func release_work_spot(creature: Node) -> void:

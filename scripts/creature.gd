@@ -42,6 +42,7 @@ const WORK_NAMES := {
 	Rooms.Type.LIBRARY: "étudie",
 	Rooms.Type.WORKSHOP: "fabrique des pièges",
 	Rooms.Type.TRAINING: "s'entraîne",
+	Rooms.Type.TEMPLE: "prie",
 }
 
 const MAX_LEVEL := 5
@@ -50,6 +51,9 @@ const LEVEL_STAT_BONUS := 0.2
 const LEVEL_SALARY_BONUS := 0.25
 const TRAINING_XP := 5.0     ## Expérience gagnée par seconde d'entraînement.
 const WORK_DURATION := 25.0  ## Durée maximale d'une séance de travail, en secondes.
+const TEMPLE_HAPPINESS := 4.0 ## Humeur gagnée par seconde de prière.
+const TEMPLE_HEAL := 3.0      ## Points de vie regagnés par seconde de prière.
+const TEMPLE_MANA := 0.5      ## Mana donnée au maître par seconde de prière.
 
 const ENERGY_LOSS := 1.2     ## Énergie perdue par seconde (100 -> 0 en ~80 s).
 const ENERGY_GAIN := 12.0    ## Énergie regagnée par seconde en dormant.
@@ -130,8 +134,10 @@ func _apply_level() -> void:
 
 
 ## Chaque coup porté rapporte autant d'expérience que de dégâts.
-func _on_hit_landed(damage_dealt: float) -> void:
+func _on_hit_landed(target: Unit, damage_dealt: float) -> void:
 	gain_xp(damage_dealt)
+	if type == Creatures.Type.SPIDER:
+		target.apply_slow(Creatures.SPIDER_SLOW_TIME)
 
 
 ## Ce qu'il faut pour recréer la créature au chargement (voir main.gd).
@@ -257,6 +263,11 @@ func _process_working(delta: float) -> void:
 			Rooms.Type.WORKSHOP:
 				# Les Orques sont les meilleurs artisans.
 				worked.emit(_work_room, 3.0 if type == Creatures.Type.ORC else 2.0)
+			Rooms.Type.TEMPLE:
+				# Prier rend heureux, soigne, et donne un peu de mana au maître.
+				happiness = minf(100.0, happiness + TEMPLE_HAPPINESS)
+				heal(TEMPLE_HEAL)
+				worked.emit(_work_room, TEMPLE_MANA)
 	var stop_training := _work_room == Rooms.Type.TRAINING and level >= MAX_LEVEL
 	var stop_research := _work_room == Rooms.Type.LIBRARY and not research_needed
 	var stop_workshop := _work_room == Rooms.Type.WORKSHOP and not workshop_needed
@@ -276,6 +287,10 @@ func _start_work() -> bool:
 		options.append(Rooms.Type.WORKSHOP)
 	if level < MAX_LEVEL and map.count_room_tiles(Rooms.Type.TRAINING) > 0:
 		options.append(Rooms.Type.TRAINING)
+	if map.count_room_tiles(Rooms.Type.TEMPLE) > 0:
+		options.append(Rooms.Type.TEMPLE)
+		if happiness < 60.0:
+			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Mécontente : elle va prier.
 	if options.is_empty():
 		return false
 	var room: int = options.pick_random()

@@ -32,6 +32,8 @@ const ROOM_FLOORS := {
 	Rooms.Type.LIBRARY: preload("res://assets/tiles/room_library.png"),
 	Rooms.Type.WORKSHOP: preload("res://assets/tiles/room_workshop.png"),
 	Rooms.Type.TRAINING: preload("res://assets/tiles/room_training.png"),
+	Rooms.Type.PRISON: preload("res://assets/tiles/room_prison.png"),
+	Rooms.Type.TEMPLE: preload("res://assets/tiles/room_temple.png"),
 }
 ## Le sol revendiqué par ton donjon.
 const CLAIMED := [
@@ -44,7 +46,10 @@ const ROOM_PROPS := {
 	Rooms.Type.LIBRARY: preload("res://assets/props/bookshelf.png"),
 	Rooms.Type.WORKSHOP: preload("res://assets/props/anvil.png"),
 	Rooms.Type.TRAINING: preload("res://assets/props/dummy.png"),
+	Rooms.Type.TEMPLE: preload("res://assets/props/altar.png"),
 }
+## Les barreaux, dessinés par-dessus un héros prisonnier.
+const PRISON_BARS := preload("res://assets/props/prison_bars.png")
 
 # --- Objets et décor ---
 const HEART := preload("res://assets/props/heart.png")
@@ -76,6 +81,10 @@ const UNITS := {
 	"adventurer": [preload("res://assets/units/adventurer_0.png"), preload("res://assets/units/adventurer_1.png")],
 	"thief": [preload("res://assets/units/thief_0.png"), preload("res://assets/units/thief_1.png")],
 	"knight": [preload("res://assets/units/knight_0.png"), preload("res://assets/units/knight_1.png")],
+	"spider": [preload("res://assets/units/spider_0.png"), preload("res://assets/units/spider_1.png")],
+	"demon": [preload("res://assets/units/demon_0.png"), preload("res://assets/units/demon_1.png")],
+	"cleric": [preload("res://assets/units/cleric_0.png"), preload("res://assets/units/cleric_1.png")],
+	"archer": [preload("res://assets/units/archer_0.png"), preload("res://assets/units/archer_1.png")],
 }
 
 

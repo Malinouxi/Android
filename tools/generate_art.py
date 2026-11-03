@@ -175,6 +175,10 @@ def make_tiles():
     save(pattern_tile("#4a2a22", "#5e352a", lambda x, y: y % 4 == 3 or (x + (y // 4) * 4) % 8 == 0),
          "tiles", "room_training.png")
 
+    save(pattern_tile("#26262b", "#34343b", lambda x, y: x % 5 == 0 or y % 5 == 0), "tiles", "room_prison.png")
+    save(pattern_tile("#2e2440", "#4a3a6a", lambda x, y: (x % 8 == 3 and y % 8 == 3) or (x + y) % 16 == 0),
+         "tiles", "room_temple.png")
+
     claimed_rng = random.Random(7)
     for i in range(3):
         save(claimed_tile(claimed_rng), "tiles", "claimed_%d.png" % i)
@@ -455,6 +459,90 @@ CHARACTERS = {
 }
 
 
+# Nouvelles créatures et nouveaux héros (étape 12).
+CHARACTERS.update({
+    # L'araignée géante : noire et violette, huit pattes, yeux rouges.
+    "spider": ([
+        "................",
+        "................",
+        "..k..........k..",
+        "...k..kkkk..k...",
+        "k...kkppppkk...k",
+        ".k..kppppppk..k.",
+        "..kkkprrrrpkkk..",
+        "....kppppppk....",
+        "kkkkkpPPPPpkkkkk",
+        "....kpPPPPpk....",
+        "..kkkpPPPPpkkk..",
+        ".k..kppppppk..k.",
+        "k...kkppppkk...k",
+        "...k..kkkk..k...",
+        "..k..........k..",
+        "................",
+    ], {"k": "#0d0612", "p": "#3b2350", "P": "#6a3d8f", "r": "#ff1744"}),
+
+    # Le démon : rouge, cornes jaunes, ailes sombres.
+    "demon": ([
+        "..k..........k..",
+        ".kyk........kyk.",
+        ".kyk.kkkkkk.kyk.",
+        "..kkkrrrrrrkkk..",
+        "...krrrrrrrrk...",
+        "...krykrrykrk...",
+        "...krrrrrrrrk...",
+        "..kkrkwwwwkrkk..",
+        "kddkkrrrrrrkkddk",
+        "kdddkrRRRRrkdddk",
+        ".kddkrRRRRrkddk.",
+        "..kkkrrrrrrkkk..",
+        "....krrkkrrk....",
+        "....krrk.krrk...",
+        "....kdk...kdk...",
+        "....kk.....kk...",
+    ], {"k": "#1a0000", "r": "#c62828", "R": "#ef5350", "y": "#ffd54f", "w": "#ffffff", "d": "#4a0e0e"}),
+
+    # Le clerc : robe blanche, croix dorée, bâton.
+    "cleric": ([
+        "..............y.",
+        "......kkkk...yYy",
+        ".....kwwwwk...k.",
+        "....kwwwwwwk..k.",
+        "....kwsssswk..k.",
+        "....kskssksk..k.",
+        "....kwsssswk..k.",
+        "...kkwwwwwwkk.k.",
+        "..kwwwwyywwwwkk.",
+        "..kwkwyyyywkwk..",
+        "..kwkwwyywwkwk..",
+        "..kkkwwyywwkkk..",
+        "....kwwwwwwk....",
+        "....kwwwwwwk....",
+        "....kwwkkwwk....",
+        ".....kk..kk.....",
+    ], {"k": "#263238", "w": "#eceff1", "s": "#ffccbc", "y": "#ffca28", "Y": "#fff59d"}),
+
+    # L'archer : capuche verte et arc.
+    "archer": ([
+        "................",
+        "......kkkk......",
+        ".....kggggk.....",
+        "....kggggggk....",
+        "....kgsssskk.b..",
+        "....kskssksk.kb.",
+        "....kgssssgk..kb",
+        ".....kkssk....kb",
+        "....kggggggk..kb",
+        "...ksgGGGGgsk.kb",
+        "...kskgGGgksk.b.",
+        "....kggggggkkb..",
+        "....kbbbbbbk....",
+        ".....kgk.kgk....",
+        ".....kdk.kdk....",
+        ".....kk...kk....",
+    ], {"k": "#102010", "g": "#2e7d32", "G": "#81c784", "s": "#ffccbc", "b": "#8d6e63", "d": "#3e2723"}),
+})
+
+
 def make_characters():
     for name, (rows, palette) in CHARACTERS.items():
         rows = [r.replace(" ", ".") for r in rows]
@@ -587,7 +675,44 @@ DUMMY = [
 DUMMY_PALETTE = {"k": "#3e2723", "s": "#d4a85a", "r": "#c62828", "w": "#6d4c41"}
 
 
+ALTAR = [
+    "................",
+    "....o......o....",
+    "....y......y....",
+    "....w......w....",
+    "..kkwkkkkkkwkk..",
+    "..kSSSSSSSSSSk..",
+    "..ksssspPssssk..",
+    "..ksssPPPPsssk..",
+    "..ksssspPssssk..",
+    "..kssssssssssk..",
+    "..kkkkkkkkkkkk..",
+    "...kssssssssk...",
+    "...kssssssssk...",
+    "..kkkkkkkkkkkk..",
+    "................",
+    "................",
+]
+ALTAR_PALETTE = {"k": "#1a1426", "S": "#b0bec5", "s": "#78909c", "p": "#7b1fa2", "P": "#ce93d8",
+                 "w": "#eceff1", "y": "#ffca28", "o": "#ff7043"}
+
+
+def prison_bars():
+    """Des barreaux verticaux (posés PAR-DESSUS le prisonnier)."""
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    for y in range(SIZE):
+        for x in (1, 4, 7, 10, 13):
+            image.putpixel((x, y), hex_color("#90a4ae"))
+            image.putpixel((x + 1, y), hex_color("#455a64"))
+    for x in range(SIZE):
+        for y in (0, 1, 14, 15):
+            image.putpixel((x, y), hex_color("#37474f" if y in (1, 14) else "#263238"))
+    return image
+
+
 def make_room_props():
+    save(from_ascii(ALTAR, ALTAR_PALETTE), "props", "altar.png")
+    save(prison_bars(), "props", "prison_bars.png")
     save(from_ascii(BOOKSHELF, BOOKSHELF_PALETTE), "props", "bookshelf.png")
     save(from_ascii(ANVIL, ANVIL_PALETTE), "props", "anvil.png")
     save(from_ascii(DUMMY, DUMMY_PALETTE), "props", "dummy.png")

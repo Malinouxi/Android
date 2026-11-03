@@ -49,6 +49,8 @@ const SOUNDS := {
 	"drop": [preload("res://assets/sounds/drop.wav")],
 	"click": [preload("res://assets/sounds/click.wav")],
 	"game_over": [preload("res://assets/sounds/game_over.wav")],
+	"arrow": [preload("res://assets/sounds/arrow.wav")],
+	"capture": [preload("res://assets/sounds/capture.wav")],
 }
 const AMBIENCE := preload("res://assets/sounds/ambience.wav")
 

@@ -2,7 +2,7 @@ class_name Heroes
 ## Le catalogue des héros qui attaquent le donjon.
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
-enum Type { ADVENTURER, THIEF, KNIGHT }
+enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
@@ -22,7 +22,23 @@ const INFO := {
 		"hp": 220.0, "damage": 14.0, "range": 28.0, "attack_interval": 1.3,
 		"reward": 80, "first_wave": 4,
 	},
+	Type.CLERIC: {
+		# Le clerc soigne les héros proches (voir hero.gd).
+		"name": "Clerc", "sprite": "cleric", "color": Color("eceff1"), "size": 8.0, "speed": 65.0,
+		"hp": 80.0, "damage": 5.0, "range": 26.0, "attack_interval": 1.2,
+		"reward": 60, "first_wave": 3,
+	},
+	Type.ARCHER: {
+		# L'archer tire de loin (portée : un peu plus de 3 cases).
+		"name": "Archer", "sprite": "archer", "color": Color("2e7d32"), "size": 8.0, "speed": 75.0,
+		"hp": 60.0, "damage": 10.0, "range": 110.0, "attack_interval": 1.2,
+		"reward": 50, "first_wave": 3,
+	},
 }
+## Le clerc soigne les héros à moins de CLERIC_HEAL_RADIUS pixels, toutes les CLERIC_HEAL_INTERVAL s.
+const CLERIC_HEAL_AMOUNT := 20.0
+const CLERIC_HEAL_RADIUS := 80.0
+const CLERIC_HEAL_INTERVAL := 3.0
 
 
 static func info(type: int) -> Dictionary:

@@ -7,6 +7,12 @@ extends Unit
 ##   2. sinon il marche vers le cœur. Si le chemin traverse de la terre,
 ##      il la creuse lui-même (lentement) ;
 ##   3. arrivé à côté du cœur, il le frappe.
+##
+## Vaincu, il est CAPTURÉ s'il reste une cellule libre en Prison (sinon il meurt).
+## Le Clerc soigne régulièrement les héros autour de lui.
+
+## Émis quand le héros est capturé (au lieu de mourir).
+signal captured(hero: Hero)
 
 const AGGRO_RADIUS := 128.0  ## Distance (pixels) à laquelle il repère un ennemi.
 const DIG_INTERVAL := 0.6    ## Secondes entre deux coups de pioche.
@@ -18,6 +24,9 @@ var _think_timer := 0.0
 var _dig_timer := 0.0
 ## Porte qui nous a bloqué le passage à cette image, ou (-1, -1).
 var _door_cell := Vector2i(-1, -1)
+## Sa cellule de prison s'il est capturé, sinon (-1, -1).
+var prison_cell := Vector2i(-1, -1)
+var _heal_timer := 0.0
 
 
 ## À appeler juste après Hero.new().
@@ -35,7 +44,47 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 
 
 func to_save() -> Dictionary:
-	return {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp}
+	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp}
+	if is_captured():
+		data["prison"] = SaveGame.cell_to_array(prison_cell)
+	return data
+
+
+func is_captured() -> bool:
+	return prison_cell != Vector2i(-1, -1)
+
+
+## Vaincu : capturé s'il y a une cellule libre, sinon il meurt vraiment.
+func die() -> void:
+	if not is_captured():
+		var cell := map.find_free_prison_cell()
+		if cell != Vector2i(-1, -1):
+			capture_at(cell)
+			Sound.play("capture", position)
+			captured.emit(self)
+			return
+	super()
+
+
+## Enferme le héros dans une cellule : il ne bouge plus et n'est plus un ennemi actif.
+func capture_at(cell: Vector2i) -> void:
+	prison_cell = cell
+	map.prisoners[cell] = self
+	hp = max_hp * 0.3
+	remove_from_group(_group_name(team))
+	add_to_group("prisoners")
+	position = map.cell_to_world(cell)
+	path.clear()
+	_target = null
+
+
+## La cellule a été démolie : le prisonnier s'évade et redevient un héros actif.
+func _escape() -> void:
+	if map.prisoners.get(prison_cell) == self:
+		map.prisoners.erase(prison_cell)
+	prison_cell = Vector2i(-1, -1)
+	remove_from_group("prisoners")
+	add_to_group(_group_name(team))
 
 
 func display_name() -> String:
@@ -47,8 +96,15 @@ func reward() -> int:
 
 
 func _process(delta: float) -> void:
+	if is_captured():
+		if map.get_room(prison_cell) != Rooms.Type.PRISON:
+			_escape()
+		queue_redraw()
+		return
 	update_attack_cooldown(delta)
 	update_effects(delta)
+	if type == Heroes.Type.CLERIC:
+		_cleric_heal(delta)
 
 	# Si notre cible a disparu (morte entre-temps), on l'oublie.
 	if _target != null and not is_instance_valid(_target):
@@ -83,6 +139,24 @@ func _is_blocked(cell: Vector2i) -> bool:
 		_door_cell = cell
 		return true
 	return false
+
+
+## Le clerc soigne les héros blessés autour de lui (lui compris).
+func _cleric_heal(delta: float) -> void:
+	_heal_timer -= delta
+	if _heal_timer > 0.0:
+		return
+	_heal_timer = Heroes.CLERIC_HEAL_INTERVAL
+	var healed := false
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var ally := node as Unit
+		if ally != null and ally.hp < ally.max_hp \
+				and ally.position.distance_to(position) <= Heroes.CLERIC_HEAL_RADIUS:
+			ally.heal(Heroes.CLERIC_HEAL_AMOUNT)
+			healed = true
+	if healed:
+		map.add_effect(position, Heroes.CLERIC_HEAL_RADIUS, Color(1.0, 1.0, 0.6, 0.35))
+		Sound.play("heal", position, -8.0)
 
 
 func _attack_door(cell: Vector2i) -> void:
@@ -134,3 +208,6 @@ func _draw() -> void:
 	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
 	draw_strike()
 	draw_health_bar(-16.0 * sprite_scale - 6.0)
+	if is_captured():
+		# Les barreaux de la cellule, par-dessus le prisonnier.
+		draw_texture_rect(Art.PRISON_BARS, Rect2(-16, -16, 32, 32), false)

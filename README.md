@@ -146,6 +146,17 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   Touche-la (ou glisse dessus) pour y emmener la vue.
 - Bouton **x1 / x2 / x3** à côté de *Pause* pour accélérer le temps.
 
+**Étape 12 — Nouveau contenu**
+- **Prison** (60 or/case, à découvrir) : un héros vaincu y est **capturé** au lieu de mourir, s'il reste une
+  cellule libre. Tu touches sa rançon, et chaque prisonnier interrogé donne **1 point de recherche par seconde**.
+  Démolir sa cellule le libère : il s'évade et redevient un ennemi !
+- **Temple** (100 or/case, à découvrir) : les créatures y **prient** (surtout les mécontentes) : +4 humeur/s,
+  +3 PV/s, et +0,5 mana/s pour toi par créature en prière.
+- Nouvelles créatures : **Araignée** (rapide, ses morsures ralentissent les héros de moitié pendant 3 s ;
+  3 Repaire + 4 Prison) et **Démon** (300 PV, 26 dégâts, salaire 120 ; 8 Repaire + 4 Temple + 4 Entraînement).
+- Nouveaux héros, dès la vague 3 : **Clerc** (soigne les héros proches toutes les 3 s) et **Archer**
+  (tire à plus de 3 cases).
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de

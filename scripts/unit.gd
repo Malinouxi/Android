@@ -38,6 +38,9 @@ var _facing_left := false
 ## Secondes de « Hâte » restantes (sort du maître) : l'unité court plus vite.
 var _haste_left := 0.0
 const HASTE_SPEED_FACTOR := 1.8
+## Secondes de ralentissement restantes (morsure d'araignée).
+var _slow_left := 0.0
+const SLOW_SPEED_FACTOR := 0.5
 
 
 ## Quand l'unité entre dans la scène, on la range dans un « groupe » selon son camp.
@@ -101,6 +104,8 @@ func move_along_path(delta: float) -> bool:
 	elif next_position.x > position.x + 0.5:
 		_facing_left = false
 	var current_speed := speed * (HASTE_SPEED_FACTOR if _haste_left > 0.0 else 1.0)
+	if _slow_left > 0.0:
+		current_speed *= SLOW_SPEED_FACTOR
 	position = position.move_toward(next_position, current_speed * delta)
 	if position == next_position:
 		path.remove_at(0)
@@ -157,6 +162,7 @@ func _on_dropped() -> void:
 ## À appeler à chaque image par toutes les unités : fait s'écouler les effets des sorts.
 func update_effects(delta: float) -> void:
 	_haste_left = maxf(0.0, _haste_left - delta)
+	_slow_left = maxf(0.0, _slow_left - delta)
 
 
 func apply_haste(duration: float) -> void:
@@ -170,8 +176,18 @@ func heal(amount: float) -> void:
 
 ## Appelée chaque fois que l'unité touche un ennemi. Les créatures s'en servent
 ## pour gagner de l'expérience (voir creature.gd).
-func _on_hit_landed(_damage: float) -> void:
+func _on_hit_landed(_target: Unit, _damage: float) -> void:
 	pass
+
+
+func apply_slow(duration: float) -> void:
+	_slow_left = maxf(_slow_left, duration)
+
+
+## Une cible valable : vivante, pas dans la main du maître, pas prisonnière
+## (une unité retirée de son groupe ne compte plus comme ennemie).
+func is_targetable() -> bool:
+	return not is_dead() and not in_hand and is_in_group(_group_name(team))
 
 
 func is_dead() -> bool:
@@ -231,7 +247,7 @@ func fight(target_object, delta: float) -> bool:
 		path.clear()
 		return false
 	var target := target_object as Unit
-	if target == null or target.is_dead() or target.in_hand:
+	if target == null or not target.is_targetable():
 		path.clear()
 		return false
 	if position.distance_to(target.position) <= attack_range:
@@ -240,7 +256,7 @@ func fight(target_object, delta: float) -> bool:
 			_attack_cooldown = attack_interval
 			show_strike(target.position)
 			target.take_damage(attack_damage)
-			_on_hit_landed(attack_damage)
+			_on_hit_landed(target, attack_damage)
 			Sound.play(_attack_sound(), position)
 		return true
 	# Pas encore à portée : on recalcule le chemin seulement si la cible a changé de case.
@@ -256,7 +272,7 @@ func fight(target_object, delta: float) -> bool:
 ## Le son d'une attaque : magie à distance, épée des héros ou coup des créatures.
 func _attack_sound() -> String:
 	if attack_range > 50.0:
-		return "zap"
+		return "arrow" if team == Team.HEROES else "zap"
 	return "sword" if team == Team.HEROES else "punch"
 
 

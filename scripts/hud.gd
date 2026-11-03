@@ -19,7 +19,7 @@ signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
-		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE }
+		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -152,6 +152,8 @@ func _build_tool_panel() -> void:
 		[Tool.LIBRARY, _room_label(Rooms.Type.LIBRARY)],
 		[Tool.WORKSHOP, _room_label(Rooms.Type.WORKSHOP)],
 		[Tool.TRAINING, _room_label(Rooms.Type.TRAINING)],
+		[Tool.PRISON, _room_label(Rooms.Type.PRISON)],
+		[Tool.TEMPLE, _room_label(Rooms.Type.TEMPLE)],
 		[Tool.SPIKES, _defense_label(Defenses.Type.SPIKES)],
 		[Tool.RUNE, _defense_label(Defenses.Type.RUNE)],
 		[Tool.DOOR, _defense_label(Defenses.Type.DOOR)],

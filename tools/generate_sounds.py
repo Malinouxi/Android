@@ -253,6 +253,18 @@ def make_effects():
     save("drop", mix(sine(glide(500, 120, d), d) * envelope(d, 0.002, 0.05),
                      lowpass(noise(d), 0.3) * envelope(d, 0.001, 0.02) * 0.5), 0.5)
 
+    # Flèche de l'archer : un sifflement court puis un « toc ».
+    d = 0.3
+    whistle = highpass(noise(d), 0.4) * envelope(d, 0.01, 0.05) * 0.5
+    thunk = at(sine(glide(260, 120, 0.1), 0.1) * envelope(0.1, 0.001, 0.03), 0.12)
+    save("arrow", mix(whistle, thunk), 0.45)
+
+    # Capture d'un héros : cliquetis de chaînes et une porte de cellule qui claque.
+    chains = mix(*[at(metal(f, 0.25, 0.05) * 0.6, i * 0.07) for i, f in enumerate([700, 950, 820, 1100, 760])])
+    slam = at(mix(sine(glide(140, 60, 0.3), 0.3) * envelope(0.3, 0.002, 0.08),
+                  lowpass(noise(0.3), 0.2) * envelope(0.3, 0.001, 0.04)), 0.38)
+    save("capture", mix(chains, slam), 0.6)
+
     # Clic de bouton.
     d = 0.04
     save("click", sine(1200, d) * envelope(d, 0.001, 0.008), 0.3)
@@ -267,6 +279,8 @@ def make_ambience():
     """Une ambiance de caverne qui tourne en boucle : bourdon grave, souffle d'air
     et gouttes d'eau. Les 2 dernières secondes se fondent dans le début pour que
     la boucle ne s'entende pas."""
+    global rng
+    rng = np.random.default_rng(2024)  # Sa propre graine : ajouter des effets ne la change pas.
     length, overlap = 40.0, 2.0
     d = length + overlap
     t = time(d)

@@ -3,7 +3,7 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON }
 
 ## "requires" : nombre minimum de cases de chaque salle pour attirer la créature.
 ## "salary" : or versé à chaque jour de paie.
@@ -25,7 +25,21 @@ const INFO := {
 		"salary": 70, "requires": {Rooms.Type.LAIR: 6, Rooms.Type.TREASURY: 9},
 		"hp": 80.0, "damage": 18.0, "range": 96.0, "attack_interval": 1.4,
 	},
+	Type.SPIDER: {
+		# L'araignée : rapide, et ses morsures ralentissent les héros.
+		"name": "Araignée", "sprite": "spider", "color": Color("6a3d8f"), "size": 8.0, "speed": 125.0,
+		"salary": 30, "requires": {Rooms.Type.LAIR: 3, Rooms.Type.PRISON: 4},
+		"hp": 70.0, "damage": 7.0, "range": 26.0, "attack_interval": 0.7,
+	},
+	Type.DEMON: {
+		# Le démon : la créature la plus puissante... et la plus chère.
+		"name": "Démon", "sprite": "demon", "color": Color("c62828"), "size": 11.0, "speed": 70.0,
+		"salary": 120, "requires": {Rooms.Type.LAIR: 8, Rooms.Type.TEMPLE: 4, Rooms.Type.TRAINING: 4},
+		"hp": 300.0, "damage": 26.0, "range": 30.0, "attack_interval": 1.2,
+	},
 }
+## Durée (secondes) du ralentissement causé par une morsure d'araignée.
+const SPIDER_SLOW_TIME := 3.0
 
 
 static func info(type: int) -> Dictionary:

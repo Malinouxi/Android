@@ -127,7 +127,10 @@ func _arrive() -> void:
 		state = State.CLAIMING
 		_dig_timer = CLAIM_TIME
 	else: # "deposit"
-		carried_gold -= map.deposit_gold(job["target"], carried_gold)
+		var accepted := map.deposit_gold(job["target"], carried_gold)
+		carried_gold -= accepted
+		if accepted > 0:
+			Sound.play("coins", position, -4.0)
 		_stop_job()
 		_think_timer = 0.1
 
@@ -143,7 +146,11 @@ func _process_digging(delta: float) -> void:
 		return
 	_dig_timer = DIG_INTERVAL
 
+	var target_position := map.cell_to_world(job["target"])
 	var result := map.dig(job["target"])
+	Sound.play("dig", target_position)
+	if result["gold"] > 0:
+		Sound.play("gold", target_position, -3.0)
 	carried_gold += result["gold"]
 	# Case finie, ou poches pleines : on arrête (et on ira vider ses poches).
 	if result["finished"] or is_full():
@@ -160,6 +167,7 @@ func _process_claiming(delta: float) -> void:
 	_dig_timer -= delta
 	if _dig_timer <= 0.0:
 		map.claim(job["target"])
+		Sound.play("claim", position, -6.0)
 		_stop_job()
 		_think_timer = 0.1
 

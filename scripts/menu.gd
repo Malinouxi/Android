@@ -35,6 +35,15 @@ func _ready() -> void:
 	column.add_child(continue_button)
 	column.add_child(_make_button("Nouvelle partie", _on_new_game_pressed))
 	column.add_child(_make_button("Quitter", func() -> void: get_tree().quit()))
+	# Réglages du son, côte à côte.
+	var sound_row := HBoxContainer.new()
+	sound_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	sound_row.add_theme_constant_override("separation", 12)
+	for button in Sound.make_settings_buttons():
+		button.custom_minimum_size = Vector2(250, 56)
+		button.add_theme_font_size_override("font_size", 20)
+		sound_row.add_child(button)
+	column.add_child(sound_row)
 
 	if not save.is_empty():
 		var date_label := _make_label("Dernière sauvegarde : %s" % save.get("summary", {}).get("date", "?"),
@@ -85,5 +94,6 @@ func _make_button(text: String, action: Callable) -> Button:
 	button.text = text
 	button.custom_minimum_size = Vector2(420, 72)
 	button.add_theme_font_size_override("font_size", 28)
+	button.pressed.connect(func() -> void: Sound.play("click"))
 	button.pressed.connect(action)
 	return button

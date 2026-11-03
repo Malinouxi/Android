@@ -11,6 +11,11 @@ run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+; Les autoloads sont créés au démarrage et accessibles partout par leur nom.
+Sound="*res://scripts/sound.gd"
+
 [display]
 
 window/size/viewport_width=1280

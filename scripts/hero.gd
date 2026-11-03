@@ -111,6 +111,7 @@ func _march(delta: float) -> void:
 		if _dig_timer <= 0.0:
 			_dig_timer = DIG_INTERVAL
 			show_strike(map.cell_to_world(next_cell))
+			Sound.play("dig", map.cell_to_world(next_cell))
 			map.dig(next_cell) # L'or éventuel est perdu : les héros ne le rapportent pas !
 		return
 	if not map.is_walkable(next_cell):

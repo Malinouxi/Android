@@ -192,6 +192,7 @@ func take_damage(amount: float) -> void:
 
 ## Les classes filles peuvent compléter die() (libérer un lit...) puis appeler super().
 func die() -> void:
+	Sound.play("death", position, -2.0)
 	remove_from_group(_group_name(team))
 	died.emit(self)
 	queue_free()
@@ -240,6 +241,7 @@ func fight(target_object, delta: float) -> bool:
 			show_strike(target.position)
 			target.take_damage(attack_damage)
 			_on_hit_landed(attack_damage)
+			Sound.play(_attack_sound(), position)
 		return true
 	# Pas encore à portée : on recalcule le chemin seulement si la cible a changé de case.
 	var target_cell := target.current_cell()
@@ -249,6 +251,13 @@ func fight(target_object, delta: float) -> bool:
 			return false
 	move_along_path(delta)
 	return true
+
+
+## Le son d'une attaque : magie à distance, épée des héros ou coup des créatures.
+func _attack_sound() -> String:
+	if attack_range > 50.0:
+		return "zap"
+	return "sword" if team == Team.HEROES else "punch"
 
 
 ## Affiche un trait d'attaque vers une position pendant un court instant.

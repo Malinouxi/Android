@@ -111,7 +111,8 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   mais +25 % de salaire.
 
 *Sorts du maître* (panneau de gauche)
-- La **mana** (max 200) se recharge toute seule : 0,5/s + 1/s par tranche de 40 cases de territoire.
+- La **mana** (max 200) se recharge toute seule : 0,25/s + 1/s par tranche de 120 cases de territoire,
+  1,5/s au maximum.
 
   | Sort | Mana | Effet |
   |------|------|-------|
@@ -126,6 +127,22 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   Ce qui n'est pas encore découvert est grisé avec un « ? ».
 - Les pièges et portes ne s'achètent plus : l'**Atelier les fabrique** (le moins nombreux en priorité,
   9 en stock au maximum). Le bouton indique le stock (« Pointes x2 »). Démolir un piège le remet en stock.
+
+**Étape 10 — Son**
+- Une **ambiance de caverne** en boucle (bourdon grave, souffle d'air, gouttes d'eau, cloche lointaine).
+- Plus de 30 **effets sonores** : pioche, or, pièces, revendication, construction, pièges, portail, coups
+  (poing, épée, magie), morts, pointes, explosion, porte, cœur frappé, cor de guerre des vagues, sorts,
+  passage de niveau, découverte, main du maître, clics, erreurs, défaite.
+- Les sons sont **placés sur la carte** : ce qui se passe loin de l'écran s'entend moins fort.
+- Un même son ne se répète pas trop vite (dix ouvriers qui creusent ne font pas un vacarme).
+- **Musique** et **Effets sonores** se coupent dans le menu principal et le menu de pause (réglage mémorisé).
+
+## Modifier les sons
+
+Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
+formules (ondes, bruit, enveloppes) : change les chiffres et relance `python3 tools/generate_sounds.py`
+(il faut numpy : `pip install numpy`). Tu peux aussi remplacer un WAV par ton propre enregistrement
+(garde le même nom). La liste des sons utilisés est dans `scripts/sound.gd`.
 
 ## Modifier les graphismes
 
@@ -177,10 +194,12 @@ scripts/spells.gd          Catalogue des sorts : mana, effets, recharge de la ma
 scripts/research.gd        La recherche : liste des découvertes et progression
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
+scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
-assets/                    Les images PNG (pixel art 16 x 16)
+assets/                    Les images PNG (pixel art 16 x 16) et les sons WAV (assets/sounds/)
 tools/generate_art.py      Le script Python qui dessine toutes les images
+tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
 ```
 
 Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau
@@ -208,6 +227,7 @@ Avancer par petites étapes, chacune jouable :
 8. ✅ **Menu principal, pause et sauvegarde** (automatique et manuelle).
 9. ✅ **Territoire, niveaux des créatures, sorts, bibliothèque et atelier** (mécaniques classiques du
    genre, conçues pour ce jeu et le tactile).
-10. **Sons**, niveaux avec objectifs, équilibrage.
+10. ✅ **Son** : ambiance et effets sonores originaux, positionnés sur la carte.
+11. Niveaux avec objectifs, équilibrage.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.

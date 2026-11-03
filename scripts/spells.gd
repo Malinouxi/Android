@@ -16,9 +16,11 @@ const INFO := {
 
 const MAX_MANA := 200.0
 const START_MANA := 60.0
-## Mana regagnée par seconde, plus 1 par tranche de TILES_PER_REGEN cases revendiquées.
-const BASE_REGEN := 0.5
-const TILES_PER_REGEN := 40
+## Mana regagnée par seconde, plus 1 par tranche de TILES_PER_REGEN cases revendiquées,
+## sans jamais dépasser MAX_REGEN par seconde.
+const BASE_REGEN := 0.25
+const TILES_PER_REGEN := 120
+const MAX_REGEN := 1.5
 
 
 static func display_name(type: int) -> String:
@@ -30,4 +32,4 @@ static func mana_cost(type: int) -> int:
 
 
 static func regen_per_second(claimed_tiles: int) -> float:
-	return BASE_REGEN + float(claimed_tiles) / TILES_PER_REGEN
+	return minf(MAX_REGEN, BASE_REGEN + float(claimed_tiles) / TILES_PER_REGEN)

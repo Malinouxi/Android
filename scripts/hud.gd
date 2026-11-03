@@ -92,14 +92,18 @@ func _build_top_panel() -> void:
 	pause_button.text = "Pause"
 	pause_button.custom_minimum_size = Vector2(110, 44)
 	pause_button.add_theme_font_size_override("font_size", 20)
-	pause_button.pressed.connect(func() -> void: pause_pressed.emit())
+	pause_button.pressed.connect(func() -> void:
+		Sound.play("click")
+		pause_pressed.emit())
 	second_row.add_child(pause_button)
 
 	_summon_button = Button.new()
 	_summon_button.add_theme_font_size_override("font_size", 22)
 	# Un bouton de 64 px de haut est facile à toucher avec le doigt.
 	_summon_button.custom_minimum_size = Vector2(0, 64)
-	_summon_button.pressed.connect(func() -> void: summon_pressed.emit())
+	_summon_button.pressed.connect(func() -> void:
+		Sound.play("click")
+		summon_pressed.emit())
 	row.add_child(_summon_button)
 
 
@@ -176,7 +180,9 @@ func _make_tool_button(tool: int, text: String) -> Button:
 	button.button_pressed = tool == Tool.DIG
 	button.custom_minimum_size = Vector2(170, 50)
 	button.add_theme_font_size_override("font_size", 18)
-	button.pressed.connect(func() -> void: tool_selected.emit(tool))
+	button.pressed.connect(func() -> void:
+		Sound.play("click")
+		tool_selected.emit(tool))
 	_tool_buttons[tool] = button
 	return button
 
@@ -251,6 +257,8 @@ func show_pause_menu() -> void:
 	column.add_child(_make_big_button("Reprendre", resume_pressed))
 	column.add_child(_make_big_button("Sauvegarder", save_pressed))
 	column.add_child(_make_big_button("Sauvegarder et quitter", menu_pressed))
+	for button in Sound.make_settings_buttons():
+		column.add_child(button)
 
 
 func hide_pause_menu() -> void:
@@ -284,7 +292,9 @@ func _make_big_button(text: String, on_pressed: Signal) -> Button:
 	button.text = text
 	button.custom_minimum_size = Vector2(320, 72)
 	button.add_theme_font_size_override("font_size", 28)
-	button.pressed.connect(func() -> void: on_pressed.emit())
+	button.pressed.connect(func() -> void:
+		Sound.play("click")
+		on_pressed.emit())
 	return button
 
 

@@ -97,6 +97,7 @@ var _game_over := false
 
 
 func _ready() -> void:
+	Sound.reset_music_volume() # Au cas où la défaite l'avait baissée.
 	# On branche les signaux sur nos fonctions.
 	map.gold_changed.connect(_refresh_hud)
 	camera.tapped.connect(_on_camera_tapped)
@@ -196,6 +197,7 @@ func _update_portal(delta: float) -> void:
 
 func _spawn_creature(type: int) -> void:
 	var creature := _add_creature(type, map.portal_cell)
+	Sound.play("portal", map.cell_to_world(map.portal_cell))
 	hud.show_message("%s arrive par le portail ! (salaire : %d or)" % [creature.display_name(), creature.salary()])
 
 
@@ -207,6 +209,7 @@ func _add_creature(type: int, cell: Vector2i) -> Creature:
 	creature.died.connect(_on_creature_died)
 	creature.worked.connect(_on_creature_worked)
 	creature.leveled_up.connect(func(c: Creature) -> void:
+		Sound.play("level_up", c.position)
 		hud.show_message("%s passe au niveau %d !" % [c.display_name(), c.level], 3.0))
 	creatures_root.add_child(creature)
 	return creature
@@ -224,6 +227,7 @@ func _on_creature_worked(room_type: int, amount: float) -> void:
 
 
 func _on_research_discovered(item: Dictionary) -> void:
+	Sound.play("discovery")
 	hud.show_message("Découverte : %s ! Regarde ta barre d'outils." % item["name"], 5.0)
 
 
@@ -251,6 +255,7 @@ func _add_workshop_points(amount: float) -> void:
 	if workshop_points >= cost:
 		workshop_points -= cost
 		trap_stock[target] += 1
+		Sound.play("trap_place", null, -4.0)
 		hud.show_message("L'atelier a fabriqué : %s." % Defenses.display_name(target), 3.0)
 
 
@@ -261,7 +266,7 @@ func _add_workshop_points(amount: float) -> void:
 func _cast_spell(type: int, world_position: Vector2) -> void:
 	var info: Dictionary = Spells.INFO[type]
 	if mana < info["mana"]:
-		hud.show_message("Pas assez de mana : %s coûte %d." % [info["name"], info["mana"]])
+		_fail("Pas assez de mana : %s coûte %d." % [info["name"], info["mana"]])
 		return
 	var cast := false
 	match type:
@@ -279,10 +284,11 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 				targets[0].apply_haste(info["duration"])
 				cast = true
 	if not cast:
-		hud.show_message("Aucune cible ici : touche %s." % (
+		_fail("Aucune cible ici : touche %s." % (
 				"un héros" if type == Spells.Type.LIGHTNING else "une de tes unités"))
 		return
 	mana -= info["mana"]
+	Sound.play(["heal", "lightning", "haste"][type], world_position)
 	map.add_effect(world_position, info.get("radius", 24.0), info["color"])
 
 
@@ -297,6 +303,7 @@ func _units_near(group: String, world_position: Vector2, radius: float) -> Array
 
 
 func _on_creature_left(creature: Creature) -> void:
+	Sound.play("leave", creature.position)
 	hud.show_message("%s, mécontent, quitte ton donjon !" % creature.display_name(), 5.0)
 
 
@@ -319,11 +326,13 @@ func _update_waves(delta: float) -> void:
 		# Plus aucun héros vivant : la vague est repoussée.
 		_wave_in_progress = false
 		_waves_survived += 1
+		Sound.play("discovery")
 		hud.show_message("Vague repoussée ! Bravo, ton donjon tient bon.", 5.0)
 
 	_wave_timer -= delta
 	if _wave_timer <= 10.0 and not _wave_warned:
 		_wave_warned = true
+		Sound.play("horn", null, -12.0)
 		hud.show_message("Des héros approchent de l'entrée grise ! Prépare tes créatures.", 5.0)
 	if _wave_timer > 0.0:
 		return
@@ -339,6 +348,7 @@ func _start_wave() -> void:
 		_pending_heroes.append(types.pick_random())
 	_hero_spawn_timer = 0.0
 	_wave_in_progress = true
+	Sound.play("horn")
 	hud.show_message("Vague %d : %d héros entrent dans ton donjon !" % [_next_wave, count], 5.0)
 	_next_wave += 1
 
@@ -360,6 +370,7 @@ func _on_hero_died(unit: Unit) -> void:
 	var hero := unit as Hero
 	var stored := map.add_gold_to_treasury(hero.reward())
 	if stored > 0:
+		Sound.play("coins", null, -6.0)
 		hud.show_message("%s vaincu ! +%d or de rançon." % [hero.display_name(), stored], 3.0)
 	else:
 		hud.show_message("%s vaincu ! Sa rançon est perdue : pas de place au Trésor." % hero.display_name(), 3.0)
@@ -373,6 +384,8 @@ func _on_heart_destroyed() -> void:
 	_game_over = true
 	SaveGame.delete() # Une partie perdue ne se reprend pas !
 	get_tree().paused = true # Tout s'arrête, sauf l'interface (voir hud.gd).
+	Sound.set_music_volume(-20.0)
+	Sound.play("game_over")
 	hud.show_game_over(_waves_survived)
 
 
@@ -527,14 +540,22 @@ func _update_payday(delta: float) -> void:
 			unpaid += 1
 
 	if unpaid > 0:
+		Sound.play("error")
 		hud.show_message("Jour de paie : pas assez d'or ! %d créature(s) non payée(s), elles sont furieuses." % unpaid, 6.0)
 	elif total_paid > 0:
+		Sound.play("coins")
 		hud.show_message("Jour de paie : %d or versés à tes créatures." % total_paid)
 
 
 # ---------------------------------------------------------------------------
 # Messages d'aide
 # ---------------------------------------------------------------------------
+
+## Un ordre impossible (pas assez d'or, de mana...) : petit son d'erreur + message.
+func _fail(text: String, duration := 3.0) -> void:
+	Sound.play("error")
+	hud.show_message(text, duration)
+
 
 ## Affiche un conseil, mais pas trop souvent.
 func _hint(text: String) -> void:
@@ -671,11 +692,12 @@ func _use_hand(cell: Vector2i, world_position: Vector2) -> void:
 
 	if unit != null:
 		if hand.size() >= HAND_CAPACITY:
-			hud.show_message("Ta main est pleine : dépose d'abord quelqu'un.")
+			_fail("Ta main est pleine : dépose d'abord quelqu'un.")
 		elif not unit.can_be_picked_up():
-			hud.show_message("Elle a décidé de partir : impossible de la retenir !")
+			_fail("Elle a décidé de partir : impossible de la retenir !")
 		else:
 			unit.pick_up()
+			Sound.play("pickup")
 			hand.append(unit)
 			_refresh_hand()
 		return
@@ -683,10 +705,11 @@ func _use_hand(cell: Vector2i, world_position: Vector2) -> void:
 	if hand.is_empty():
 		return
 	if not map.is_connected_to_heart(cell):
-		hud.show_message("Dépose-la sur un sol relié à ton donjon.")
+		_fail("Dépose-la sur un sol relié à ton donjon.")
 		return
 	var dropped: Unit = hand.pop_back()
 	dropped.drop_at(cell)
+	Sound.play("drop", map.cell_to_world(cell))
 	_refresh_hand()
 
 
@@ -700,28 +723,30 @@ func _refresh_hand() -> void:
 func _build(cell: Vector2i, room_type: int) -> void:
 	if not map.can_build_room(cell):
 		if not map.is_walkable(cell):
-			hud.show_message("On ne construit que sur du sol déjà creusé.")
+			_fail("On ne construit que sur du sol déjà creusé.")
 		elif not map.is_claimed(cell):
-			hud.show_message("Ce sol n'est pas encore à toi : tes ouvriers doivent d'abord le revendiquer.")
+			_fail("Ce sol n'est pas encore à toi : tes ouvriers doivent d'abord le revendiquer.")
 		return
 	var cost := Rooms.cost(room_type)
 	if not map.spend_gold(cost):
-		hud.show_message("Pas assez d'or : %s coûte %d par case." % [Rooms.display_name(room_type), cost])
+		_fail("Pas assez d'or : %s coûte %d par case." % [Rooms.display_name(room_type), cost])
 		return
 	map.build_room(cell, room_type)
+	Sound.play("build", map.cell_to_world(cell))
 
 
 ## Les pièges et portes ne s'achètent pas : on pose ceux fabriqués par l'Atelier.
 func _place_defense(cell: Vector2i, type: int) -> void:
 	if not map.can_place_defense(cell):
-		hud.show_message("Les pièges et les portes se posent sur le sol revendiqué des couloirs.")
+		_fail("Les pièges et les portes se posent sur le sol revendiqué des couloirs.")
 		return
 	if trap_stock[type] <= 0:
-		hud.show_message("Aucun(e) %s en stock : construis un Atelier, tes créatures en fabriqueront." %
+		_fail("Aucun(e) %s en stock : construis un Atelier, tes créatures en fabriqueront." %
 				Defenses.display_name(type))
 		return
 	trap_stock[type] -= 1
 	map.place_defense(cell, type)
+	Sound.play("trap_place", map.cell_to_world(cell))
 
 
 func _demolish(cell: Vector2i) -> void:
@@ -729,17 +754,20 @@ func _demolish(cell: Vector2i) -> void:
 		# Le piège retourne dans le stock (une porte abîmée est réparée au passage).
 		trap_stock[map.defenses[cell]["type"]] += 1
 		map.remove_defense(cell)
+		Sound.play("build", map.cell_to_world(cell), -6.0)
 		return
 	if map.get_room(cell) == Rooms.Type.NONE:
 		return
 	var lost := map.remove_room(cell)
+	Sound.play("build", map.cell_to_world(cell), -6.0)
 	if lost > 0:
 		hud.show_message("Plus de place dans le trésor : %d or perdu !" % lost)
 
 
 func _on_summon_pressed() -> void:
 	if not map.spend_gold(WORKER_COST):
-		hud.show_message("Pas assez d'or ! Creuse les filons dorés.")
+		_fail("Pas assez d'or ! Creuse les filons dorés.")
 		return
 	_spawn_worker()
+	Sound.play("portal", map.cell_to_world(map.heart_cell), -6.0)
 	_refresh_hud()

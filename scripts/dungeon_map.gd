@@ -672,9 +672,11 @@ func damage_door(cell: Vector2i, amount: float) -> void:
 	if not has_door(cell):
 		return
 	defenses[cell]["hp"] -= amount
+	Sound.play("door_hit", cell_to_world(cell))
 	queue_redraw()
 	if defenses[cell]["hp"] <= 0.0:
 		remove_defense(cell)
+		Sound.play("door_break", cell_to_world(cell))
 		door_destroyed.emit(cell)
 
 
@@ -705,6 +707,7 @@ func _update_traps(delta: float) -> void:
 					defense["cooldown"] = info["rearm_time"]
 					defense["flash"] = 0.4
 					hero.take_damage(info["damage"])
+					Sound.play("spikes", cell_to_world(cell))
 					queue_redraw()
 			Defenses.Type.RUNE:
 				_explode(cell, info["damage"], info["radius"])
@@ -715,6 +718,7 @@ func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 	var center := cell_to_world(cell)
 	remove_defense(cell)
 	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
+	Sound.play("explosion", center)
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Unit
 		if hero.position.distance_to(center) <= radius:
@@ -765,6 +769,7 @@ func damage_heart(amount: float) -> void:
 		return
 	heart_hp = maxf(0.0, heart_hp - amount)
 	heart_changed.emit()
+	Sound.play("heart_hit", cell_to_world(heart_cell))
 	queue_redraw()
 	if heart_hp <= 0.0:
 		heart_destroyed.emit()

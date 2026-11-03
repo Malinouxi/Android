@@ -75,6 +75,8 @@ var astar := AStarGrid2D.new()
 var hero_astar := AStarGrid2D.new()
 ## Points de vie du cœur.
 var heart_hp := HEART_MAX_HP
+## Moment du dernier coup reçu par le cœur (sa lumière bat plus vite, voir main.gd).
+var last_heart_hit_msec := -100000
 
 ## Les salles construites : Vector2i -> Rooms.Type.
 var rooms: Dictionary = {}
@@ -116,6 +118,7 @@ var _effects: Array = []
 
 
 func _ready() -> void:
+	_create_layers()
 	generate(randi())
 
 
@@ -138,7 +141,7 @@ func _update_farms(delta: float) -> void:
 			food[cell] += 1
 			changed = true
 	if changed:
-		queue_redraw()
+		_redraw_all()
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +208,7 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	prisoners.clear()
 	_effects.clear()
 	_setup_pathfinding()
-	queue_redraw()
+	_redraw_all()
 
 
 ## Place une « porte » (portail ou entrée des héros) assez loin du cœur,
@@ -374,7 +377,7 @@ func load_save(data: Dictionary) -> bool:
 	_effects.clear()
 	_setup_pathfinding()
 	gold_changed.emit()
-	queue_redraw()
+	_redraw_all()
 	return true
 
 
@@ -471,7 +474,7 @@ func toggle_mark(cell: Vector2i) -> void:
 		reserved.erase(cell)
 	else:
 		marked[cell] = true
-	queue_redraw()
+	_redraw_all()
 
 
 ## Marque (value = true) ou démarque une case, pour la peinture au doigt.
@@ -483,7 +486,7 @@ func set_mark(cell: Vector2i, value: bool) -> void:
 	else:
 		marked.erase(cell)
 		reserved.erase(cell)
-	queue_redraw()
+	_redraw_all()
 
 
 ## Un ouvrier donne un coup de pioche.
@@ -503,7 +506,7 @@ func dig(cell: Vector2i) -> Dictionary:
 		damage.erase(cell)
 		marked.erase(cell)
 		reserved.erase(cell)
-	queue_redraw()
+	_redraw_all()
 	return {"finished": finished, "gold": gold}
 
 
@@ -555,7 +558,7 @@ func claim(cell: Vector2i) -> void:
 		claimed[cell] = true
 		rival_claimed.erase(cell) # On peut voler le territoire du rival !
 		reserved.erase(cell)
-		queue_redraw()
+		_redraw_all()
 
 
 ## Cherche une case de sol pas encore revendiquée, collée au territoire.
@@ -616,7 +619,7 @@ func build_room(cell: Vector2i, type: int) -> void:
 		stored_gold[cell] = 0
 	elif type == Rooms.Type.FARM:
 		food[cell] = 0
-	queue_redraw()
+	_redraw_all()
 
 
 ## Démolit la salle d'une case. L'or qu'elle contenait est déplacé dans les
@@ -636,7 +639,7 @@ func remove_room(cell: Vector2i) -> int:
 		stored_gold[other] += moved
 		lost -= moved
 	gold_changed.emit()
-	queue_redraw()
+	_redraw_all()
 	return lost
 
 
@@ -702,7 +705,7 @@ func take_food(cell: Vector2i) -> bool:
 	if food.get(cell, 0) <= 0:
 		return false
 	food[cell] -= 1
-	queue_redraw()
+	_redraw_all()
 	return true
 
 
@@ -740,7 +743,7 @@ func place_defense(cell: Vector2i, type: int) -> void:
 	}
 	if type == Defenses.Type.DOOR:
 		hero_astar.set_point_weight_scale(cell, HERO_DOOR_WEIGHT)
-	queue_redraw()
+	_redraw_all()
 
 
 func remove_defense(cell: Vector2i) -> void:
@@ -749,7 +752,7 @@ func remove_defense(cell: Vector2i) -> void:
 	if defenses[cell]["type"] == Defenses.Type.DOOR:
 		hero_astar.set_point_weight_scale(cell, 1.0)
 	defenses.erase(cell)
-	queue_redraw()
+	_redraw_all()
 
 
 func has_door(cell: Vector2i) -> bool:
@@ -762,10 +765,12 @@ func damage_door(cell: Vector2i, amount: float) -> void:
 		return
 	defenses[cell]["hp"] -= amount
 	Sound.play("door_hit", cell_to_world(cell))
-	queue_redraw()
+	_redraw_all()
 	if defenses[cell]["hp"] <= 0.0:
 		remove_defense(cell)
 		Sound.play("door_break", cell_to_world(cell))
+		Fx.burst("dust", cell_to_world(cell), Color("8d6e63"))
+		Fx.shake(4.0)
 		door_destroyed.emit(cell)
 
 
@@ -777,7 +782,7 @@ func _update_traps(delta: float) -> void:
 		if defense["flash"] > 0.0:
 			defense["flash"] -= delta
 			if defense["flash"] <= 0.0:
-				queue_redraw() # Les pointes rentrent.
+				_redraw_all() # Les pointes rentrent.
 
 	_trap_timer -= delta
 	if _trap_timer > 0.0:
@@ -797,7 +802,7 @@ func _update_traps(delta: float) -> void:
 					defense["flash"] = 0.4
 					hero.take_damage(info["damage"])
 					Sound.play("spikes", cell_to_world(cell))
-					queue_redraw()
+					_redraw_all()
 			Defenses.Type.RUNE:
 				_explode(cell, info["damage"], info["radius"])
 
@@ -808,6 +813,9 @@ func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 	remove_defense(cell)
 	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
 	Sound.play("explosion", center)
+	Fx.burst("smoke", center)
+	Fx.flash_light(center, Color(1.0, 0.6, 0.2), 200.0, 0.5)
+	Fx.shake(8.0, 0.35)
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Unit
 		if hero.position.distance_to(center) <= radius:
@@ -817,7 +825,7 @@ func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 ## Affiche un cercle de couleur qui grandit et s'efface (explosion, sort...).
 func add_effect(center: Vector2, radius: float, color: Color) -> void:
 	_effects.append({"position": center, "radius": radius, "time": EFFECT_TIME, "color": color})
-	queue_redraw()
+	_effects_layer.queue_redraw()
 
 
 func _update_effects(delta: float) -> void:
@@ -826,7 +834,7 @@ func _update_effects(delta: float) -> void:
 	for explosion in _effects:
 		explosion["time"] -= delta
 	_effects = _effects.filter(func(e: Dictionary) -> bool: return e["time"] > 0.0)
-	queue_redraw()
+	_effects_layer.queue_redraw()
 
 
 # ---------------------------------------------------------------------------
@@ -862,9 +870,11 @@ func damage_rival_heart(amount: float) -> void:
 		return
 	rival_heart_hp = maxf(0.0, rival_heart_hp - amount)
 	Sound.play("heart_hit", cell_to_world(rival_heart_cell), -4.0)
-	queue_redraw()
+	_redraw_all()
 	if rival_heart_hp <= 0.0:
 		Sound.play("explosion", cell_to_world(rival_heart_cell))
+		Fx.burst("smoke", cell_to_world(rival_heart_cell))
+		Fx.shake(10.0, 0.5)
 		add_effect(cell_to_world(rival_heart_cell), 80.0, Color(0.4, 0.6, 1.0, 0.9))
 		rival_heart_destroyed.emit()
 
@@ -875,7 +885,9 @@ func damage_heart(amount: float) -> void:
 	heart_hp = maxf(0.0, heart_hp - amount)
 	heart_changed.emit()
 	Sound.play("heart_hit", cell_to_world(heart_cell))
-	queue_redraw()
+	Fx.shake(3.0, 0.15)
+	last_heart_hit_msec = Time.get_ticks_msec()
+	_redraw_all()
 	if heart_hp <= 0.0:
 		heart_destroyed.emit()
 
@@ -917,7 +929,7 @@ func spend_gold(amount: int) -> bool:
 		remaining -= taken
 	heart_gold -= remaining
 	gold_changed.emit()
-	queue_redraw()
+	_redraw_all()
 	return true
 
 
@@ -930,7 +942,7 @@ func add_gold_to_treasury(amount: int) -> int:
 		remaining -= accepted
 	if remaining < amount:
 		gold_changed.emit()
-		queue_redraw()
+		_redraw_all()
 	return amount - remaining
 
 
@@ -942,7 +954,7 @@ func deposit_gold(cell: Vector2i, amount: int) -> int:
 	stored_gold[cell] += accepted
 	if accepted > 0:
 		gold_changed.emit()
-		queue_redraw()
+		_redraw_all()
 	return accepted
 
 
@@ -994,103 +1006,83 @@ func _sort_by_distance(cells: Array[Vector2i], from_cell: Vector2i) -> void:
 
 
 # ---------------------------------------------------------------------------
-# Affichage
+# Affichage (vue isométrique, voir iso.gd)
 # ---------------------------------------------------------------------------
+## Le dessin est réparti en plusieurs « couches » :
+##   - ce nœud (DungeonMap) dessine le SOL : dalles, salles, pièges posés à plat ;
+##   - une couche par DIAGONALE (les cases où x + y = d) dessine les MURS en relief
+##     et les OBJETS debout (cœur, lits, portes...). Les diagonales du fond sont
+##     dessinées d'abord (z_index plus petit), celles de devant par-dessus, et les
+##     personnages s'intercalent au bon endroit (voir Iso.depth_z) ;
+##   - une couche d'EFFETS (cercles des explosions et des sorts) par-dessus tout.
+## Ces couches sont de simples Node2D : on branche leur signal « draw » sur une
+## fonction d'ici, qui dessine sur elles.
 
-## Godot appelle _draw() quand on demande queue_redraw().
-## Chaque case est une petite image 16 x 16 (voir art.gd) affichée en 32 x 32.
+var _wall_layers: Array[Node2D] = []
+var _effects_layer: Node2D
+
+const WALL_SHADE_SOUTH := Color(0.78, 0.78, 0.78) ## Face avant-gauche du mur.
+const WALL_SHADE_EAST := Color(0.55, 0.55, 0.55)  ## Face avant-droite, plus sombre.
+
+
+func _create_layers() -> void:
+	for d in WIDTH + HEIGHT - 1:
+		var layer := Node2D.new()
+		layer.z_index = d * 4 + 2
+		layer.draw.connect(_draw_diagonal.bind(layer, d))
+		add_child(layer)
+		_wall_layers.append(layer)
+	_effects_layer = Node2D.new()
+	_effects_layer.z_index = 1000
+	_effects_layer.draw.connect(_draw_effects)
+	add_child(_effects_layer)
+
+
+## Demande à toutes les couches de se redessiner.
+func _redraw_all() -> void:
+	queue_redraw()
+	for layer in _wall_layers:
+		layer.queue_redraw()
+
+
+func _is_wall(cell: Vector2i) -> bool:
+	if not is_inside(cell):
+		return true
+	var tile := get_tile(cell)
+	return tile == Tile.EARTH or tile == Tile.GOLD or tile == Tile.ROCK
+
+
+## Le SOL. Godot appelle _draw() quand on demande queue_redraw().
+## Chaque image 16 x 16 (voir art.gd) remplit un carré de 32 x 32... que la
+## transformation isométrique transforme en losange.
 func _draw() -> void:
 	var size := Vector2(TILE_SIZE, TILE_SIZE)
 	for y in HEIGHT:
 		for x in WIDTH:
 			var cell := Vector2i(x, y)
+			if _is_wall(cell):
+				continue
 			var rect := Rect2(Vector2(cell * TILE_SIZE), size)
-			var tile := get_tile(cell)
-
-			match tile:
-				Tile.EARTH:
-					draw_texture_rect(Art.pick(Art.EARTH, cell), rect, false)
-				Tile.GOLD:
-					draw_texture_rect(Art.pick(Art.GOLD, cell), rect, false)
-				Tile.ROCK:
-					draw_texture_rect(Art.pick(Art.ROCK, cell), rect, false)
-				_:
-					# Sol, cœur, portail ou entrée : d'abord le sol en dessous...
-					if rooms.has(cell):
-						_draw_room_tile(cell, rect)
-					elif rival_claimed.has(cell):
-						# Le territoire du rival : les mêmes dalles, teintées de bleu.
-						draw_texture_rect(Art.pick(Art.CLAIMED, cell), rect, false, RIVAL_TINT)
-					else:
-						var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
-						draw_texture_rect(Art.pick(floor_images, cell), rect, false)
-					# ... puis l'objet par-dessus.
-					if tile == Tile.HEART:
-						_draw_heart(rect)
-					elif tile == Tile.PORTAL:
-						draw_texture_rect(Art.PORTAL, rect, false)
-					elif tile == Tile.ENTRANCE:
-						draw_texture_rect(Art.ENTRANCE, rect, false)
-					elif tile == Tile.RIVAL_HEART:
-						_draw_rival_heart(rect)
-					if defenses.has(cell):
-						_draw_defense(cell, rect)
-
-			# Plus la case a pris de coups, plus elle s'assombrit.
-			if damage.has(cell) and DIG_HITS.has(tile):
-				var ratio: float = float(damage[cell]) / DIG_HITS[tile]
-				draw_rect(rect, Color(0, 0, 0, ratio * 0.5))
-
-			# Les cases marquées « à creuser » sont entourées de jaune.
-			if marked.has(cell):
-				draw_rect(rect.grow(-2), MARK_COLOR, false, 2.0)
-
-	# Les effets par-dessus tout : un cercle qui grandit et s'efface.
-	for effect in _effects:
-		var progress: float = 1.0 - effect["time"] / EFFECT_TIME
-		var color: Color = effect["color"]
-		color.a *= 1.0 - progress
-		draw_circle(effect["position"], effect["radius"] * (0.4 + 0.6 * progress), color)
+			if rooms.has(cell):
+				_draw_room_floor(cell, rect)
+			elif rival_claimed.has(cell):
+				# Le territoire du rival : les mêmes dalles, teintées de bleu.
+				draw_texture_rect(Art.pick(Art.CLAIMED, cell), rect, false, RIVAL_TINT)
+			else:
+				var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
+				draw_texture_rect(Art.pick(floor_images, cell), rect, false)
+			# Les pièges sont posés à plat sur le sol.
+			if defenses.has(cell):
+				var defense: Dictionary = defenses[cell]
+				if defense["type"] == Defenses.Type.SPIKES:
+					draw_texture_rect(Art.SPIKES_UP if defense["flash"] > 0.0 else Art.SPIKES_DOWN, rect, false)
+				elif defense["type"] == Defenses.Type.RUNE:
+					draw_texture_rect(Art.RUNE, rect, false)
 
 
-func _draw_defense(cell: Vector2i, rect: Rect2) -> void:
-	var defense: Dictionary = defenses[cell]
-	match defense["type"]:
-		Defenses.Type.SPIKES:
-			draw_texture_rect(Art.SPIKES_UP if defense["flash"] > 0.0 else Art.SPIKES_DOWN, rect, false)
-		Defenses.Type.RUNE:
-			draw_texture_rect(Art.RUNE, rect, false)
-		Defenses.Type.DOOR:
-			draw_texture_rect(Art.DOOR, rect, false)
-			var max_hp: float = Defenses.INFO[Defenses.Type.DOOR]["hp"]
-			if defense["hp"] < max_hp:
-				var bar := Rect2(rect.position + Vector2(2, -6), Vector2(TILE_SIZE - 4, 4))
-				draw_rect(bar, Color(0, 0, 0, 0.7))
-				bar.size.x *= defense["hp"] / max_hp
-				draw_rect(bar, Color("ffa726"))
-
-
-func _draw_rival_heart(rect: Rect2) -> void:
-	draw_texture_rect(Art.HEART, rect, false, Color(0.4, 0.55, 1.6))
-	var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
-	draw_rect(bar, Color(0, 0, 0, 0.7))
-	bar.size.x *= rival_heart_hp / rival_heart_max_hp
-	draw_rect(bar, Color("42a5f5"))
-
-
-func _draw_heart(rect: Rect2) -> void:
-	draw_texture_rect(Art.HEART, rect, false)
-	if heart_hp < HEART_MAX_HP:
-		var bar := Rect2(rect.position + Vector2(0, -8), Vector2(TILE_SIZE, 5))
-		draw_rect(bar, Color(0, 0, 0, 0.7))
-		bar.size.x *= heart_hp / HEART_MAX_HP
-		draw_rect(bar, Color("e53935"))
-
-
-func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
+func _draw_room_floor(cell: Vector2i, rect: Rect2) -> void:
 	var type := get_room(cell)
 	draw_texture_rect(Art.ROOM_FLOORS[type], rect, false)
-
 	# Un bord clair seulement là où la salle s'arrête : on voit sa forme.
 	var edge_color := Rooms.color(type).lightened(0.35)
 	var corners := [rect.position, rect.position + Vector2(rect.size.x, 0),
@@ -1104,18 +1096,121 @@ func _draw_room_tile(cell: Vector2i, rect: Rect2) -> void:
 	if get_room(cell + Vector2i.LEFT) != type:
 		draw_line(corners[3], corners[0], edge_color, 2.0)
 
-	match type:
-		Rooms.Type.TREASURY:
-			# Un tas d'or qui grossit avec la quantité stockée (0 à 5 pièces).
-			var coins := ceili(5.0 * stored_gold.get(cell, 0) / Rooms.TREASURY_CAPACITY)
-			if coins > 0:
-				draw_texture_rect(Art.GOLD_PILES[mini(coins, 5) - 1], rect, false)
-		Rooms.Type.LAIR:
-			draw_texture_rect(Art.BED, rect, false)
-		Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP, Rooms.Type.TRAINING:
-			draw_texture_rect(Art.ROOM_PROPS[type], rect, false)
-		Rooms.Type.FARM:
-			# Un champignon (8 x 8 pixels, affiché en 16 x 16) par unité de nourriture.
-			var spots := [Vector2(1, 14), Vector2(15, 15), Vector2(8, 2)]
-			for i in food.get(cell, 0):
-				draw_texture_rect(Art.MUSHROOM, Rect2(rect.position + spots[i], Vector2(16, 16)), false)
+
+## Une diagonale : les murs en relief et les objets debout des cases où x + y = d.
+func _draw_diagonal(layer: Node2D, d: int) -> void:
+	for x in range(maxi(0, d - HEIGHT + 1), mini(WIDTH - 1, d) + 1):
+		var cell := Vector2i(x, d - x)
+		if _is_wall(cell):
+			_draw_wall(layer, cell)
+		else:
+			_draw_standing_objects(layer, cell)
+	layer.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## Un mur en relief : deux faces visibles (seulement si la case voisine est vide)
+## et le dessus, remonté de WALL_HEIGHT pixels à l'écran.
+func _draw_wall(layer: Node2D, cell: Vector2i) -> void:
+	layer.draw_set_transform_matrix(Transform2D.IDENTITY)
+	var tile := get_tile(cell)
+	var images: Array = Art.ROCK
+	if tile == Tile.EARTH:
+		images = Art.EARTH
+	elif tile == Tile.GOLD:
+		images = Art.GOLD
+	var texture: Texture2D = Art.pick(images, cell)
+	var p := Vector2(cell * TILE_SIZE)
+	var s := float(TILE_SIZE)
+	var up := Iso.UP * Iso.WALL_HEIGHT
+
+	if not _is_wall(cell + Vector2i.DOWN):
+		_draw_face(layer, texture, p + Vector2(0, s), p + Vector2(s, s), up, WALL_SHADE_SOUTH)
+	if not _is_wall(cell + Vector2i.RIGHT):
+		_draw_face(layer, texture, p + Vector2(s, s), p + Vector2(s, 0), up, WALL_SHADE_EAST)
+
+	var top := Rect2(p + up, Vector2(s, s))
+	layer.draw_texture_rect(texture, top, false)
+	layer.draw_rect(top, Color(0, 0, 0, 0.25), false, 1.0)
+	# Plus le mur a pris de coups, plus il s'assombrit.
+	if damage.has(cell) and DIG_HITS.has(tile):
+		var ratio: float = float(damage[cell]) / DIG_HITS[tile]
+		layer.draw_rect(top, Color(0, 0, 0, ratio * 0.5))
+	# Les murs marqués « à creuser » sont entourés de jaune.
+	if marked.has(cell):
+		layer.draw_rect(top.grow(-2), MARK_COLOR, false, 2.0)
+
+
+## Une face verticale de mur : un quadrilatère entre l'arête au sol (a -> b) et
+## la même arête remontée de « up », recouvert par la texture assombrie.
+func _draw_face(layer: Node2D, texture: Texture2D, a: Vector2, b: Vector2, up: Vector2, shade: Color) -> void:
+	var points := PackedVector2Array([a, b, b + up, a + up])
+	var uvs := PackedVector2Array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+	layer.draw_polygon(points, PackedColorArray([shade]), uvs, texture)
+
+
+## Les objets debout sur une case de sol : cœur, portail, entrée, meubles, portes...
+func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
+	var center := cell_to_world(cell)
+	match get_tile(cell):
+		Tile.HEART:
+			_billboard(layer, Art.HEART, center, 1.1)
+			if heart_hp < HEART_MAX_HP:
+				_draw_bar(layer, -38.0, heart_hp / HEART_MAX_HP, Color("e53935"))
+		Tile.RIVAL_HEART:
+			_billboard(layer, Art.HEART, center, 1.1, Color(0.4, 0.55, 1.6))
+			_draw_bar(layer, -38.0, rival_heart_hp / rival_heart_max_hp, Color("42a5f5"))
+		Tile.PORTAL:
+			_billboard(layer, Art.PORTAL, center, 1.2)
+		Tile.ENTRANCE:
+			_billboard(layer, Art.ENTRANCE, center, 1.3)
+
+	if rooms.has(cell):
+		var type := get_room(cell)
+		match type:
+			Rooms.Type.TREASURY:
+				# Un tas d'or qui grossit avec la quantité stockée (0 à 5 pièces).
+				var coins := ceili(5.0 * stored_gold.get(cell, 0) / Rooms.TREASURY_CAPACITY)
+				if coins > 0:
+					_billboard(layer, Art.GOLD_PILES[mini(coins, 5) - 1], center, 0.9)
+			Rooms.Type.LAIR:
+				_billboard(layer, Art.BED, center, 0.9)
+			Rooms.Type.FARM:
+				# Un petit champignon par unité de nourriture, à trois endroits de la case.
+				var spots := [Vector2(-8, 6), Vector2(7, -6), Vector2(4, 9)]
+				for i in food.get(cell, 0):
+					_billboard(layer, Art.MUSHROOM, center + spots[i], 0.5)
+			_:
+				if Art.ROOM_PROPS.has(type):
+					_billboard(layer, Art.ROOM_PROPS[type], center, 1.0)
+
+	if has_door(cell):
+		_billboard(layer, Art.DOOR, center, 1.1)
+		var max_hp: float = Defenses.INFO[Defenses.Type.DOOR]["hp"]
+		if defenses[cell]["hp"] < max_hp:
+			_draw_bar(layer, -36.0, defenses[cell]["hp"] / max_hp, Color("ffa726"))
+
+
+## Dessine une image « debout » (non inclinée), posée au sol en `center`.
+## Après l'appel, la transformation reste celle de l'objet (pour dessiner sa barre).
+func _billboard(layer: Node2D, texture: Texture2D, center: Vector2, scale_factor := 1.0,
+		modulate_color := Color.WHITE) -> void:
+	layer.draw_set_transform_matrix(Iso.billboard(center))
+	var size := Vector2(32, 32) * scale_factor
+	layer.draw_texture_rect(texture, Rect2(Vector2(-size.x / 2, -size.y + 6), size), false, modulate_color)
+
+
+## Une barre de vie au-dessus de l'objet qu'on vient de dessiner avec _billboard.
+func _draw_bar(layer: Node2D, y: float, ratio: float, color: Color) -> void:
+	var bar := Rect2(-16, y, 32, 5)
+	layer.draw_rect(bar, Color(0, 0, 0, 0.7))
+	bar.size.x *= clampf(ratio, 0.0, 1.0)
+	layer.draw_rect(bar, color)
+
+
+## Les effets : un cercle au sol qui grandit et s'efface (une ellipse, en vue isométrique).
+func _draw_effects() -> void:
+	for effect in _effects:
+		var progress: float = 1.0 - effect["time"] / EFFECT_TIME
+		var color: Color = effect["color"]
+		color.a *= 1.0 - progress
+		_effects_layer.draw_circle(effect["position"], effect["radius"] * (0.4 + 0.6 * progress), color)

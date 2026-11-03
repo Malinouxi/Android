@@ -64,6 +64,10 @@ const DEFAULT_INTERVAL_MS := 40
 
 var music_enabled := true
 var sfx_enabled := true
+## Réglage graphique (rangé ici avec les autres réglages) : éclairage dynamique.
+var lighting_enabled := true
+## Transformation carte -> écran (vue isométrique) pour placer les sons ; main.gd la règle.
+var world_transform := Transform2D.IDENTITY
 
 var _world_players: Array[AudioStreamPlayer2D] = []
 var _ui_players: Array[AudioStreamPlayer] = []
@@ -124,7 +128,8 @@ func play(sound_name: String, world_position: Variant = null, volume_db := 0.0) 
 	else:
 		var player := _world_players[_next_world]
 		_next_world = (_next_world + 1) % _world_players.size()
-		player.global_position = world_position
+		var map_position: Vector2 = world_position
+		player.global_position = world_transform * map_position
 		player.stream = stream
 		player.volume_db = volume_db
 		player.pitch_scale = pitch
@@ -164,7 +169,13 @@ func make_settings_buttons() -> Array[Button]:
 	return [
 		_make_toggle("Musique", func() -> bool: return music_enabled, set_music_enabled),
 		_make_toggle("Effets sonores", func() -> bool: return sfx_enabled, set_sfx_enabled),
+		_make_toggle("Éclairage", func() -> bool: return lighting_enabled, set_lighting_enabled),
 	]
+
+
+func set_lighting_enabled(enabled: bool) -> void:
+	lighting_enabled = enabled
+	_save_settings()
 
 
 func _make_toggle(label: String, is_on: Callable, set_on: Callable) -> Button:
@@ -187,10 +198,12 @@ func _load_settings() -> void:
 	if config.load(SETTINGS_PATH) == OK:
 		music_enabled = config.get_value("audio", "music", true)
 		sfx_enabled = config.get_value("audio", "sfx", true)
+		lighting_enabled = config.get_value("graphics", "lighting", true)
 
 
 func _save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("audio", "music", music_enabled)
 	config.set_value("audio", "sfx", sfx_enabled)
+	config.set_value("graphics", "lighting", lighting_enabled)
 	config.save(SETTINGS_PATH)

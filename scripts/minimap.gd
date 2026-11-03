@@ -78,10 +78,16 @@ func _draw() -> void:
 	for node in get_tree().get_nodes_in_group("heroes"):
 		draw_rect(Rect2((node as Node2D).position * scale_factor - Vector2.ONE, Vector2(3, 3)), Color("ff1744"))
 
-	# Le cadre de ce qui est visible à l'écran.
-	var view_size := get_viewport_rect().size / camera.zoom
-	var view := Rect2((camera.position - view_size / 2) * scale_factor, view_size * scale_factor)
-	draw_rect(view.intersection(area), Color.WHITE, false, 1.0)
+	# Le cadre de ce qui est visible à l'écran. En vue isométrique, l'écran
+	# (un rectangle) correspond à un losange sur la carte vue de dessus.
+	var half := get_viewport_rect().size / camera.zoom / 2
+	var to_map := camera.world_transform.affine_inverse()
+	var outline := PackedVector2Array()
+	for corner in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y),
+			Vector2(-half.x, half.y), Vector2(-half.x, -half.y)]:
+		var map_point: Vector2 = to_map * (camera.position + corner)
+		outline.append((map_point * scale_factor).clamp(Vector2.ZERO, size))
+	draw_polyline(outline, Color.WHITE, 1.0)
 
 
 func _gui_input(event: InputEvent) -> void:

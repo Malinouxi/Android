@@ -63,10 +63,13 @@ const TOOL_DEFENSES := {
 	Hud.Tool.DOOR: Defenses.Type.DOOR,
 }
 
-@onready var map: DungeonMap = $DungeonMap
-@onready var workers_root: Node2D = $Workers
-@onready var creatures_root: Node2D = $Creatures
-@onready var heroes_root: Node2D = $Heroes
+## Le monde incliné en vue isométrique (voir iso.gd) : la carte et toutes les unités.
+@onready var world_root: Node2D = $World
+@onready var map: DungeonMap = $World/DungeonMap
+@onready var workers_root: Node2D = $World/Workers
+@onready var creatures_root: Node2D = $World/Creatures
+@onready var heroes_root: Node2D = $World/Heroes
+@onready var effects_root: Node2D = $FxLayer/Effects
 @onready var camera: CameraController = $Camera
 @onready var hud: Hud = $HUD
 
@@ -112,18 +115,37 @@ var _paint_active := false
 var _paint_cells := {}
 var _paint_mark := true
 var _paint_failed := false
+## Position à l'écran du dernier toucher (pour savoir quel personnage est touché).
+var _screen_tap := Vector2.ZERO
+
+## Éclairage (voir _setup_lighting).
+const DARKNESS := Color(0.42, 0.38, 0.48) ## La pénombre du donjon (1, 1, 1 = pleine lumière).
+const MAX_TORCHES := 16
+var _canvas_modulate: CanvasModulate
+var _lights_root: Node2D
+var _heart_light: PointLight2D
+var _rival_light: PointLight2D
+var _torches := {} ## case -> lumière
+var _torch_timer := 0.0
 
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
+	# La vue isométrique : tout le monde est incliné par cette transformation.
+	world_root.transform = Iso.TRANSFORM
+	camera.world_transform = Iso.TRANSFORM
+	Sound.world_transform = Iso.TRANSFORM
+	Fx.layer = effects_root
+	Fx.world = world_root
+	Fx.camera = camera
 	Sound.reset_music_volume() # Au cas où la défaite l'avait baissée.
 	# On branche les signaux sur nos fonctions.
 	map.gold_changed.connect(_refresh_hud)
 	camera.tapped.connect(_on_camera_tapped)
 	camera.paint_started.connect(_on_paint_started)
-	camera.painted.connect(func(world_position: Vector2) -> void:
+	camera.painted.connect(func(screen_world_position: Vector2) -> void:
 		if _paint_active:
-			_paint_cell(map.world_to_cell(world_position)))
+			_paint_cell(map.world_to_cell(_to_map(screen_world_position))))
 	camera.paint_ended.connect(func() -> void: _paint_active = false)
 	hud.summon_pressed.connect(_on_summon_pressed)
 	hud.tool_selected.connect(_on_tool_selected)
@@ -144,10 +166,10 @@ func _ready() -> void:
 	hud.menu_pressed.connect(_on_menu_pressed)
 	research.discovered.connect(_on_research_discovered)
 
-	camera.bounds = Rect2(Vector2.ZERO, map.get_pixel_size())
+	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
 	hud.add_minimap(map, camera)
-	camera.position = map.cell_to_world(map.heart_cell)
+	camera.center_on(map.cell_to_world(map.heart_cell))
 	hud.set_summon_cost(WORKER_COST)
 
 	# Le menu a demandé de continuer la partie sauvegardée ?
@@ -160,6 +182,8 @@ func _ready() -> void:
 	if not loaded:
 		_start_new_game()
 	_refresh_hud()
+	_setup_lighting()
+	hud.fade_in()
 
 
 func _start_new_game() -> void:
@@ -180,6 +204,7 @@ func _start_new_game() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_lighting(delta)
 	_autosave_timer -= delta
 	if _autosave_timer <= 0.0:
 		_autosave_timer = AUTOSAVE_INTERVAL
@@ -339,6 +364,11 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 	mana -= info["mana"]
 	Sound.play(["heal", "lightning", "haste"][type], world_position)
 	map.add_effect(world_position, info.get("radius", 24.0), info["color"])
+	var spell_color: Color = info["color"]
+	Fx.burst("magic", world_position, Color(spell_color, 1.0))
+	Fx.flash_light(world_position, Color(spell_color, 1.0), 160.0)
+	if type == Spells.Type.LIGHTNING:
+		Fx.shake(6.0)
 
 
 ## Les unités d'un groupe (« dungeon » ou « heroes ») à moins de radius pixels.
@@ -820,7 +850,98 @@ func _on_tool_selected(tool: int) -> void:
 
 
 ## Le doigt se pose en mode peinture.
+# ---------------------------------------------------------------------------
+# Éclairage
+# ---------------------------------------------------------------------------
+## Un CanvasModulate assombrit tout le monde du jeu (pas l'interface) ; des
+## PointLight2D l'éclairent par endroits. Les lumières sont posées dans le monde
+## incliné : leur halo rond devient une ellipse au sol, comme il se doit.
+## L'éclairage se coupe dans les réglages (pour les téléphones modestes).
+
+func _setup_lighting() -> void:
+	if Fx.light_texture == null:
+		Fx.light_texture = Fx.make_light_texture()
+	_canvas_modulate = CanvasModulate.new()
+	_canvas_modulate.color = DARKNESS
+	add_child(_canvas_modulate)
+	_lights_root = Node2D.new()
+	world_root.add_child(_lights_root)
+	_heart_light = _make_light(map.cell_to_world(map.heart_cell), Color(1.0, 0.4, 0.35), 260.0, 1.3)
+	_make_light(map.cell_to_world(map.portal_cell), Color(0.75, 0.4, 1.0), 200.0, 1.1)
+	_make_light(map.cell_to_world(map.entrance_cell), Color(0.8, 0.85, 1.0), 170.0, 0.8)
+	if map.has_rival:
+		_rival_light = _make_light(map.cell_to_world(map.rival_heart_cell), Color(0.4, 0.6, 1.0), 240.0, 1.2)
+	_refresh_torches()
+	_apply_lighting_setting()
+
+
+func _make_light(map_position: Vector2, color: Color, radius: float, energy: float) -> PointLight2D:
+	var light := PointLight2D.new()
+	light.texture = Fx.light_texture
+	light.texture_scale = radius / 128.0
+	light.color = color
+	light.energy = energy
+	light.position = map_position
+	_lights_root.add_child(light)
+	return light
+
+
+func _update_lighting(delta: float) -> void:
+	if _heart_light == null:
+		return
+	# Le cœur « bat » : sa lumière pulse, bien plus vite s'il vient d'être frappé.
+	var attacked := Time.get_ticks_msec() - map.last_heart_hit_msec < 3000
+	var beat_speed := 10.0 if attacked else 3.0
+	_heart_light.energy = 1.2 + 0.35 * sin(Time.get_ticks_msec() / 1000.0 * beat_speed)
+	if _rival_light != null and map.rival_heart_hp <= 0.0:
+		_rival_light.energy = 0.0
+	_torch_timer -= delta
+	if _torch_timer <= 0.0:
+		_torch_timer = 3.0
+		_refresh_torches()
+		_apply_lighting_setting()
+
+
+## Des torches éclairent le territoire revendiqué : une sur une grille de 5 x 5 cases.
+func _refresh_torches() -> void:
+	var wanted := {}
+	for cell: Vector2i in map.claimed:
+		if wanted.size() >= MAX_TORCHES:
+			break
+		if cell.x % 5 == 2 and cell.y % 5 == 2 and map.is_walkable(cell):
+			wanted[cell] = true
+	for cell: Vector2i in _torches.keys():
+		if not wanted.has(cell):
+			_torches[cell].queue_free()
+			_torches.erase(cell)
+	for cell: Vector2i in wanted:
+		if not _torches.has(cell):
+			_torches[cell] = _make_light(map.cell_to_world(cell), Color(1.0, 0.75, 0.45), 150.0, 0.9)
+
+
+func _apply_lighting_setting() -> void:
+	_canvas_modulate.visible = Sound.lighting_enabled
+	_lights_root.visible = Sound.lighting_enabled
+
+
+## La caméra donne des positions « à l'écran » (dans le monde incliné) :
+## on les ramène en coordonnées de la carte, vues de dessus.
+func _to_map(screen_world_position: Vector2) -> Vector2:
+	return world_root.to_local(screen_world_position)
+
+
+## Les limites de la caméra : le losange de la carte, vu à l'écran.
+func _iso_bounds() -> Rect2:
+	var size := map.get_pixel_size()
+	var bounds := Rect2(Iso.TRANSFORM * Vector2.ZERO, Vector2.ZERO)
+	for corner in [Vector2(size.x, 0), Vector2(0, size.y), size]:
+		bounds = bounds.expand(Iso.TRANSFORM * corner)
+	return bounds
+
+
 func _on_paint_started(screen_position: Vector2, world_position: Vector2) -> void:
+	_screen_tap = world_position
+	world_position = _to_map(world_position)
 	_paint_cells.clear()
 	_paint_failed = false
 	_paint_active = not hud.is_over_ui(screen_position)
@@ -854,6 +975,8 @@ func _paint_cell(cell: Vector2i) -> void:
 
 
 func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> void:
+	_screen_tap = world_position
+	world_position = _to_map(world_position)
 	if hud.is_over_ui(screen_position):
 		return
 	var cell := map.world_to_cell(world_position)
@@ -883,9 +1006,14 @@ func _creature_at(world_position: Vector2) -> Creature:
 
 
 ## L'unité (pas déjà dans la main) sous le doigt, parmi les enfants de root.
-func _unit_at(world_position: Vector2, root: Node) -> Unit:
+## On compare à l'écran : le personnage est dessiné debout, AU-DESSUS de sa
+## position au sol, donc on vise le milieu de son corps.
+func _unit_at(_map_position: Vector2, root: Node) -> Unit:
 	for unit: Unit in root.get_children():
-		if not unit.in_hand and unit.position.distance_to(world_position) < 16.0:
+		if unit.in_hand:
+			continue
+		var body_center := world_root.to_global(unit.position) + Vector2(0, -14)
+		if body_center.distance_to(_screen_tap) < 22.0:
 			return unit
 	return null
 
@@ -940,6 +1068,7 @@ func _build(cell: Vector2i, room_type: int) -> void:
 		return
 	map.build_room(cell, room_type)
 	Sound.play("build", map.cell_to_world(cell))
+	Fx.burst("dust", map.cell_to_world(cell))
 
 
 ## Les pièges et portes ne s'achètent pas : on pose ceux fabriqués par l'Atelier.

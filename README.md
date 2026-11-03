@@ -201,6 +201,21 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   | Paladin | 6 | armure, se soigne en continu (3 PV/s) |
   | Géant | 8 | 520 PV, défonce les portes 4 fois plus vite |
 
+**Étape 15 — Vue isométrique, éclairage et effets**
+- **Vue isométrique** : le sol en losanges, les murs de terre, d'or et de roche en **blocs en relief**
+  (dessus + deux faces ombrées). Personnages et objets (cœur, lits, portes, étagères...) restent debout
+  et passent derrière les murs qui sont devant eux.
+  Astuce de code : toute la logique reste « vue de dessus » ; seul le nœud `World` est incliné
+  (voir `scripts/iso.gd`), et les personnages annulent cette inclinaison pour rester debout.
+- **Éclairage** : le donjon est dans la pénombre. Le cœur rouge pulse (plus vite quand il est attaqué),
+  le portail, l'entrée et le cœur rival brillent, des torches éclairent ton territoire, et les sorts
+  et explosions font des éclairs. Réglage **Éclairage : oui/non** dans les menus (à couper sur un
+  téléphone modeste).
+- **Particules** : poussière en creusant et en construisant, pièces, étincelles des coups, fumée des
+  morts et explosions, scintillement de la revendication, magie des sorts.
+- **Effets** : chiffres de dégâts qui s'envolent (rouges sur tes unités), tremblement d'écran
+  (explosions, éclair, porte enfoncée, cœur frappé), fondu au début de la partie.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
@@ -257,6 +272,8 @@ scripts/defenses.gd        Catalogue des pièges et portes : nom, prix, dégâts
 scripts/spells.gd          Catalogue des sorts : mana, effets, recharge de la mana
 scripts/research.gd        La recherche : liste des découvertes et progression
 scripts/art.gd             Toutes les images du jeu (chargées depuis assets/)
+scripts/iso.gd             La vue isométrique : transformation du monde, personnages debout
+scripts/fx.gd              Effets visuels : particules, chiffres de dégâts, tremblements, éclairs
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/levels.gd          Les niveaux de la campagne (objectifs, réglages) et la progression
 scripts/level_select.gd    L'écran de choix des niveaux (scène scenes/level_select.tscn)

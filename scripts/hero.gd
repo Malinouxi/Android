@@ -77,6 +77,7 @@ func capture_at(cell: Vector2i) -> void:
 	remove_from_group(_group_name(team))
 	add_to_group("prisoners")
 	position = map.cell_to_world(cell)
+	z_index = Iso.depth_z(position, DungeonMap.TILE_SIZE)
 	path.clear()
 	_target = null
 
@@ -190,6 +191,7 @@ func _march(delta: float) -> void:
 			_dig_timer = DIG_INTERVAL / Heroes.info(type).get("dig_speed", 1.0) # Le Nain creuse vite.
 			show_strike(map.cell_to_world(next_cell))
 			Sound.play("dig", map.cell_to_world(next_cell))
+			Fx.burst("dust", map.cell_to_world(next_cell))
 			map.dig(next_cell) # L'or éventuel est perdu : les héros ne le rapportent pas !
 		return
 	if not map.is_walkable(next_cell):

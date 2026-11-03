@@ -30,6 +30,11 @@ const TAP_MAX_DISTANCE := 14.0
 var bounds := Rect2()
 ## Mode peinture activé ou non (voir plus haut).
 var paint_mode := false
+## La transformation de la carte vers l'écran (la vue isométrique, voir iso.gd).
+var world_transform := Transform2D.IDENTITY
+
+var _shake_strength := 0.0
+var _shake_time := 0.0
 
 var _touches: Dictionary = {}  # numéro du doigt -> position à l'écran
 var _drag_distance := 0.0
@@ -64,9 +69,24 @@ func move_by(screen_relative: Vector2) -> void:
 
 
 ## Centre la vue sur un point de la carte (utilisé par la mini-carte).
-func center_on(world_position: Vector2) -> void:
-	position = world_position
+func center_on(map_position: Vector2) -> void:
+	position = world_transform * map_position
 	_clamp_position()
+
+
+## Tremblement d'écran : on décale la vue au hasard pendant un court instant.
+func shake(strength: float, duration: float) -> void:
+	_shake_strength = maxf(_shake_strength, strength)
+	_shake_time = maxf(_shake_time, duration)
+
+
+func _process(delta: float) -> void:
+	if _shake_time > 0.0:
+		_shake_time -= delta
+		offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake_strength
+		if _shake_time <= 0.0:
+			_shake_strength = 0.0
+			offset = Vector2.ZERO
 
 
 func _on_touch(event: InputEventScreenTouch) -> void:

@@ -53,6 +53,7 @@ var _tool_group := ButtonGroup.new()
 func _ready() -> void:
 	# L'interface continue de marcher quand le jeu est en pause (écran de défaite).
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	layer = 10 # Au-dessus des particules (voir la couche FxLayer de main.tscn).
 	_build_top_panel()
 	_build_tool_panel()
 	_build_spell_panel()
@@ -369,6 +370,18 @@ func show_message(text: String, duration := 3.0) -> void:
 	await this_timer.timeout
 	if _message_timer == this_timer: # Pas remplacé entre-temps par un autre message.
 		_message_label.text = ""
+
+
+## Fondu au noir qui s'éclaircit au début de la partie.
+func fade_in() -> void:
+	var black := ColorRect.new()
+	black.color = Color.BLACK
+	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(black)
+	var tween := black.create_tween()
+	tween.tween_property(black, "color:a", 0.0, 0.8)
+	tween.tween_callback(black.queue_free)
 
 
 func hide_message() -> void:

@@ -131,6 +131,7 @@ func _arrive() -> void:
 		carried_gold -= accepted
 		if accepted > 0:
 			Sound.play("coins", position, -4.0)
+			Fx.burst("coins", position)
 		_stop_job()
 		_think_timer = 0.1
 
@@ -149,8 +150,10 @@ func _process_digging(delta: float) -> void:
 	var target_position := map.cell_to_world(job["target"])
 	var result := map.dig(job["target"])
 	Sound.play("dig", target_position)
+	Fx.burst("dust", target_position)
 	if result["gold"] > 0:
 		Sound.play("gold", target_position, -3.0)
+		Fx.burst("coins", target_position)
 	carried_gold += result["gold"]
 	# Case finie, ou poches pleines : on arrête (et on ira vider ses poches).
 	if result["finished"] or is_full():
@@ -168,6 +171,7 @@ func _process_claiming(delta: float) -> void:
 	if _dig_timer <= 0.0:
 		map.claim(job["target"])
 		Sound.play("claim", position, -6.0)
+		Fx.burst("claim", position)
 		_stop_job()
 		_think_timer = 0.1
 
@@ -212,7 +216,7 @@ func _draw() -> void:
 		draw_arc(Vector2(8, 6), 4.0, 0.0, TAU, 12, Color("8d6e00"), 1.0)
 	# Pendant qu'il creuse : une pioche qui se balance vers la case visée.
 	if state == State.DIGGING and not job.is_empty():
-		var direction := map.cell_to_world(job["target"]) - position
+		var direction := Iso.to_screen_vector(map.cell_to_world(job["target"]) - position)
 		var angle := direction.angle() + sin(_swing) * 0.7
 		var tip := Vector2.from_angle(angle) * 17.0
 		draw_line(Vector2.ZERO, tip, Color("8d6e63"), 3.0)

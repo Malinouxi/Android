@@ -170,6 +170,8 @@ func _on_dropped() -> void:
 
 ## À appeler à chaque image par toutes les unités : fait s'écouler les effets des sorts.
 func update_effects(delta: float) -> void:
+	# Ordre d'affichage selon la position (voir iso.gd) : devant/derrière les murs.
+	z_index = Iso.depth_z(position, DungeonMap.TILE_SIZE)
 	_haste_left = maxf(0.0, _haste_left - delta)
 	_slow_left = maxf(0.0, _slow_left - delta)
 	if regen > 0.0:
@@ -219,7 +221,9 @@ func load_abilities(info: Dictionary) -> void:
 func take_damage(amount: float) -> void:
 	if is_dead():
 		return
-	hp -= amount * (1.0 - armor)
+	var damage_taken := amount * (1.0 - armor)
+	hp -= damage_taken
+	Fx.number(position, damage_taken, Color("ff8a80") if team == Team.DUNGEON else Color.WHITE)
 	# Petit flash blanc : un « Tween » fait revenir la couleur normale en douceur.
 	modulate = Color(2.5, 2.5, 2.5)
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.2)
@@ -231,6 +235,7 @@ func take_damage(amount: float) -> void:
 ## Les classes filles peuvent compléter die() (libérer un lit...) puis appeler super().
 func die() -> void:
 	Sound.play("death", position, -2.0)
+	Fx.burst("smoke", position, Color(0.5, 0.45, 0.5, 0.7))
 	remove_from_group(_group_name(team))
 	died.emit(self)
 	queue_free()
@@ -280,6 +285,7 @@ func fight(target_object, delta: float) -> bool:
 			target.take_damage(attack_damage)
 			_on_hit_landed(target, attack_damage)
 			_apply_hit_abilities(target)
+			Fx.burst("sparks", target.position)
 			Sound.play(_attack_sound(), position)
 		return true
 	# Pas encore à portée : on recalcule le chemin seulement si la cible a changé de case.
@@ -336,19 +342,25 @@ func draw_sprite(frames: Array, sprite_scale := 1.0) -> void:
 	if not path.is_empty():
 		frame = frames[int(Time.get_ticks_msec() / 150.0) % frames.size()]
 
-	# L'ombre : un cercle aplati. Bleue sous les héros, pour les repérer d'un coup d'œil.
-	var shadow := Color(0.2, 0.45, 1.0, 0.6) if team == Team.HEROES else Color(0, 0, 0, 0.35)
-	draw_set_transform(Vector2(0, 11 * sprite_scale), 0.0, Vector2(1.0, 0.35))
-	draw_circle(Vector2.ZERO, 10.0 * sprite_scale, shadow)
-
-	# draw_set_transform avec une échelle de -1 en x = effet miroir.
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0 if _facing_left else 1.0, 1.0))
-	var size := Vector2(32, 32) * sprite_scale
-	draw_texture_rect(frame, Rect2(-size / 2 - Vector2(0, 2), size), false)
+	# 1. L'ombre, posée AU SOL : un cercle dans l'espace de la carte, que la vue
+	#    isométrique aplatit toute seule en ellipse. Bleue sous les ennemis.
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	var shadow := Color(0.2, 0.45, 1.0, 0.6) if team == Team.HEROES else Color(0, 0, 0, 0.4)
+	draw_circle(Vector2.ZERO, 9.0 * sprite_scale, shadow)
 	if _haste_left > 0.0:
-		# Un cercle bleu clair autour d'une unité accélérée.
-		draw_arc(Vector2.ZERO, 14.0 * sprite_scale, 0.0, TAU, 20, Color(0.3, 0.9, 1.0, 0.8), 1.5)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		# Un anneau bleu clair au sol autour d'une unité accélérée.
+		draw_arc(Vector2.ZERO, 13.0 * sprite_scale, 0.0, TAU, 24, Color(0.3, 0.9, 1.0, 0.8), 1.5)
+
+	# 2. Le personnage, DEBOUT : on annule l'inclinaison (Iso.UNSKEW), et une
+	#    échelle de -1 en x le retourne en miroir quand il va vers la gauche.
+	var flip := Transform2D(0.0, Vector2(-1.0 if _facing_left else 1.0, 1.0), 0.0, Vector2.ZERO)
+	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO) * flip)
+	var size := Vector2(32, 32) * sprite_scale
+	draw_texture_rect(frame, Rect2(-size.x / 2, -size.y + 4, size.x, size.y), false)
+
+	# 3. Pour la suite (barres, textes...), l'origine est placée au centre du
+	#    personnage, comme avant la vue isométrique.
+	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, -size.y / 2 + 4)))
 
 
 ## Barre de vie rouge, affichée seulement si l'unité est blessée.
@@ -362,7 +374,8 @@ func draw_health_bar(y: float) -> void:
 
 func draw_strike() -> void:
 	if _strike_timer > 0.0:
-		draw_line(Vector2.ZERO, _strike_offset, Color(1, 1, 0.8, 0.9), 2.0)
+		# Le coup part du centre du personnage vers celui de la cible, à l'écran.
+		draw_line(Vector2.ZERO, Iso.to_screen_vector(_strike_offset), Color(1, 1, 0.8, 0.9), 2.0)
 
 
 static func _group_name(unit_team: Team) -> String:

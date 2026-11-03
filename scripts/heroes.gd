@@ -2,10 +2,14 @@ class_name Heroes
 ## Le catalogue des héros qui attaquent le donjon.
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
-enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK }
+enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK,
+		DWARF, MAGE, PALADIN, GIANT }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
+## Capacités facultatives : les mêmes que les créatures (voir creatures.gd), plus
+##   "dig_speed" (vitesse de creusage, 3.0 = 3 fois plus vite) et
+##   "door_damage" (multiplie les dégâts infligés aux portes).
 const INFO := {
 	Type.ADVENTURER: {
 		"name": "Aventurier", "sprite": "adventurer", "color": Color("42a5f5"), "size": 8.0, "speed": 70.0,
@@ -51,6 +55,30 @@ const INFO := {
 		"name": "Sorcier rival", "sprite": "warlock", "size": 8.0, "speed": 82.0, "rival": true,
 		"hp": 90.0, "damage": 18.0, "range": 96.0, "attack_interval": 1.4,
 		"reward": 70, "first_wave": 999,
+	},
+	Type.DWARF: {
+		# Le nain : petit et costaud, il creuse 3 fois plus vite que les autres.
+		"name": "Nain", "sprite": "dwarf", "size": 7.0, "speed": 60.0,
+		"hp": 130.0, "damage": 10.0, "range": 26.0, "attack_interval": 1.0,
+		"reward": 50, "first_wave": 2, "dig_speed": 3.0, "armor": 0.1,
+	},
+	Type.MAGE: {
+		# La magicienne : boules de feu à distance, qui touchent plusieurs cibles.
+		"name": "Magicienne", "sprite": "mage", "size": 8.0, "speed": 65.0,
+		"hp": 70.0, "damage": 14.0, "range": 100.0, "attack_interval": 1.6,
+		"reward": 70, "first_wave": 4, "splash": 48.0, "attack_sound": "zap",
+	},
+	Type.PALADIN: {
+		# Le paladin : armure dorée, et il se soigne en continu.
+		"name": "Paladin", "sprite": "paladin", "size": 9.0, "speed": 55.0,
+		"hp": 260.0, "damage": 13.0, "range": 28.0, "attack_interval": 1.2,
+		"reward": 110, "first_wave": 6, "armor": 0.25, "regen": 3.0,
+	},
+	Type.GIANT: {
+		# Le géant : énorme et lent ; il défonce les portes 4 fois plus vite.
+		"name": "Géant", "sprite": "giant", "size": 13.0, "speed": 45.0,
+		"hp": 520.0, "damage": 24.0, "range": 34.0, "attack_interval": 1.8,
+		"reward": 160, "first_wave": 8, "door_damage": 4.0, "armor": 0.1,
 	},
 }
 ## Le clerc soigne les héros à moins de CLERIC_HEAL_RADIUS pixels, toutes les CLERIC_HEAL_INTERVAL s.

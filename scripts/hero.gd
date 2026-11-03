@@ -40,6 +40,7 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 	attack_damage = info["damage"]
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
+	load_abilities(info)
 	if info.get("rival", false):
 		self_modulate = DungeonMap.RIVAL_TINT # Les troupes du rival sont teintées de bleu.
 	setup(dungeon_map, cell)
@@ -166,7 +167,8 @@ func _attack_door(cell: Vector2i) -> void:
 		return
 	_attack_cooldown = attack_interval
 	show_strike(map.cell_to_world(cell))
-	map.damage_door(cell, attack_damage)
+	# Certains héros (le Géant) cassent les portes bien plus vite.
+	map.damage_door(cell, attack_damage * Heroes.info(type).get("door_damage", 1.0))
 
 
 func _march(delta: float) -> void:
@@ -185,7 +187,7 @@ func _march(delta: float) -> void:
 		# La case suivante est de la terre : on creuse.
 		_dig_timer -= delta
 		if _dig_timer <= 0.0:
-			_dig_timer = DIG_INTERVAL
+			_dig_timer = DIG_INTERVAL / Heroes.info(type).get("dig_speed", 1.0) # Le Nain creuse vite.
 			show_strike(map.cell_to_world(next_cell))
 			Sound.play("dig", map.cell_to_world(next_cell))
 			map.dig(next_cell) # L'or éventuel est perdu : les héros ne le rapportent pas !

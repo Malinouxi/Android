@@ -103,6 +103,7 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	attack_damage = info["damage"]
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
+	load_abilities(info)
 	setup(dungeon_map, cell)
 	energy = randf_range(60.0, 100.0)
 	hunger = randf_range(0.0, 30.0)
@@ -136,10 +137,9 @@ func _apply_level() -> void:
 
 
 ## Chaque coup porté rapporte autant d'expérience que de dégâts.
-func _on_hit_landed(target: Unit, damage_dealt: float) -> void:
+func _on_hit_landed(_target: Unit, damage_dealt: float) -> void:
 	gain_xp(damage_dealt)
-	if type == Creatures.Type.SPIDER:
-		target.apply_slow(Creatures.SPIDER_SLOW_TIME)
+	# (Les capacités comme le ralentissement de l'araignée sont gérées par unit.gd.)
 
 
 ## Ce qu'il faut pour recréer la créature au chargement (voir main.gd).

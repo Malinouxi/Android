@@ -180,6 +180,27 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   qui creusent jusqu'à ton cœur. Dépose tes créatures près de son cœur (outil *Main*) : elles l'attaquent
   d'elles-mêmes. Tes ouvriers peuvent aussi lui voler son territoire en le revendiquant.
 
+**Étape 14 — Plus de monstres et de héros**
+- Des **capacités spéciales** génériques, réglables dans les catalogues (`creatures.gd`, `heroes.gd`) :
+  armure, vol de vie, dégâts par ricochet, régénération, ralentissement, creusage rapide, casse-portes.
+- Nouvelles créatures :
+
+  | Créature | Il faut au moins | Capacité |
+  |----------|------------------|----------|
+  | Chauve-souris | 2 Repaire + 2 Champignonnière | très rapide, pas chère (salaire 10), fragile |
+  | Golem | 4 Repaire + 4 Atelier | armure : -35 % de dégâts reçus, lent |
+  | Vampire | 6 Repaire + 6 Prison | se soigne de 35 % des dégâts infligés |
+  | Salamandre | 4 Repaire + 3 Entraînement | souffle de feu à distance, touche les héros autour |
+
+- Nouveaux héros :
+
+  | Héros | Dès la vague | Capacité |
+  |-------|--------------|----------|
+  | Nain | 2 | creuse 3 fois plus vite |
+  | Magicienne | 4 | boules de feu à distance qui touchent plusieurs cibles |
+  | Paladin | 6 | armure, se soigne en continu (3 PV/s) |
+  | Géant | 8 | 520 PV, défonce les portes 4 fois plus vite |
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de

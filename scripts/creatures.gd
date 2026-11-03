@@ -3,11 +3,15 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER }
 
 ## "requires" : nombre minimum de cases de chaque salle pour attirer la créature.
 ## "salary" : or versé à chaque jour de paie.
 ## "hp", "damage", "range" (pixels), "attack_interval" (secondes) : le combat.
+## Capacités spéciales facultatives (voir unit.gd, load_abilities) :
+##   "armor" (part des dégâts ignorés), "lifesteal" (part des dégâts regagnée en vie),
+##   "splash" (rayon des dégâts par ricochet), "regen" (vie par seconde),
+##   "slow" (secondes de ralentissement infligées), "attack_sound" (nom d'un son).
 const INFO := {
 	Type.KOBOLD: {
 		"name": "Kobold", "sprite": "kobold", "color": Color("ff9800"), "size": 7.0, "speed": 105.0,
@@ -29,7 +33,7 @@ const INFO := {
 		# L'araignée : rapide, et ses morsures ralentissent les héros.
 		"name": "Araignée", "sprite": "spider", "color": Color("6a3d8f"), "size": 8.0, "speed": 125.0,
 		"salary": 30, "requires": {Rooms.Type.LAIR: 3, Rooms.Type.PRISON: 4},
-		"hp": 70.0, "damage": 7.0, "range": 26.0, "attack_interval": 0.7,
+		"hp": 70.0, "damage": 7.0, "range": 26.0, "attack_interval": 0.7, "slow": 3.0,
 	},
 	Type.DEMON: {
 		# Le démon : la créature la plus puissante... et la plus chère.
@@ -37,9 +41,32 @@ const INFO := {
 		"salary": 120, "requires": {Rooms.Type.LAIR: 8, Rooms.Type.TEMPLE: 4, Rooms.Type.TRAINING: 4},
 		"hp": 300.0, "damage": 26.0, "range": 30.0, "attack_interval": 1.2,
 	},
+	Type.BAT: {
+		# La chauve-souris : très rapide, pas chère, mais fragile.
+		"name": "Chauve-souris", "sprite": "bat", "color": Color("6d5a85"), "size": 7.0, "speed": 150.0,
+		"salary": 10, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.FARM: 2},
+		"hp": 45.0, "damage": 5.0, "range": 26.0, "attack_interval": 0.6,
+	},
+	Type.GOLEM: {
+		# Le golem de pierre : lent, mais son armure arrête un tiers des coups.
+		"name": "Golem", "sprite": "golem", "color": Color("8d8d8d"), "size": 10.0, "speed": 50.0,
+		"salary": 50, "requires": {Rooms.Type.LAIR: 4, Rooms.Type.WORKSHOP: 4},
+		"hp": 260.0, "damage": 14.0, "range": 28.0, "attack_interval": 1.4, "armor": 0.35,
+	},
+	Type.VAMPIRE: {
+		# Le vampire : il se soigne avec une partie des dégâts qu'il inflige.
+		"name": "Vampire", "sprite": "vampire", "color": Color("b71c1c"), "size": 9.0, "speed": 90.0,
+		"salary": 85, "requires": {Rooms.Type.LAIR: 6, Rooms.Type.PRISON: 6},
+		"hp": 160.0, "damage": 17.0, "range": 28.0, "attack_interval": 1.0, "lifesteal": 0.35,
+	},
+	Type.SALAMANDER: {
+		# La salamandre : son souffle de feu touche aussi les héros autour de la cible.
+		"name": "Salamandre", "sprite": "salamander", "color": Color("e64a19"), "size": 8.0, "speed": 85.0,
+		"salary": 45, "requires": {Rooms.Type.LAIR: 4, Rooms.Type.TRAINING: 3},
+		"hp": 110.0, "damage": 12.0, "range": 64.0, "attack_interval": 1.3, "splash": 40.0,
+		"attack_sound": "zap",
+	},
 }
-## Durée (secondes) du ralentissement causé par une morsure d'araignée.
-const SPIDER_SLOW_TIME := 3.0
 
 
 static func info(type: int) -> Dictionary:

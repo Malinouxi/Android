@@ -543,6 +543,174 @@ CHARACTERS.update({
 })
 
 
+# Encore plus de diversité (étape 14).
+CHARACTERS.update({
+    # Chauve-souris : ailes déployées, petits yeux rouges.
+    "bat": ([
+        "................",
+        "................",
+        "................",
+        "k......kk......k",
+        "kk....kbbk....kk",
+        "kbk..kbbbbk..kbk",
+        "kbbkkbrbbrbkkbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kbBbbbbwwbbbbBbk",
+        ".kBbkbbbbbbkbBk.",
+        "..kk.kbbbbk.kk..",
+        "......kbbk......",
+        ".......kk.......",
+        "................",
+        "................",
+        "................",
+    ], {"k": "#120d18", "b": "#4a3b5c", "B": "#6d5a85", "r": "#ff5252", "w": "#ffffff"}),
+
+    # Golem de pierre : massif, yeux cyan.
+    "golem": ([
+        "................",
+        ".....kkkkkk.....",
+        "....kssssssk....",
+        "....kscsscsk....",
+        "....kssssssk....",
+        "..kkkkSSSSkkkk..",
+        ".kssskssssksssk.",
+        ".ksSskSssSksSsk.",
+        ".kssskssssksssk.",
+        ".kkkkssssssskkk.",
+        "....kssSSssk....",
+        "....ksskkssk....",
+        "...kssk..kssk...",
+        "...kssk..kssk...",
+        "...kSSk..kSSk...",
+        "...kkkk..kkkk...",
+    ], {"k": "#212121", "s": "#8d8d8d", "S": "#bdbdbd", "c": "#4dd0e1"}),
+
+    # Vampire : teint pâle, cape noire doublée de rouge.
+    "vampire": ([
+        "................",
+        "......kkkk......",
+        ".....khhhhk.....",
+        "....khhhhhhk....",
+        "....khsssshk....",
+        "....ksrssrsk....",
+        "....kssssssk....",
+        "...kkksWWskkk...",
+        "..kcckkkkkkcck..",
+        ".kccrrppppprrck.",
+        ".kcrrppppppprck.",
+        ".kcrkppppppkrck.",
+        "..kkkppppppkkk..",
+        "....kppppppk....",
+        "....kkpk.kpkk...",
+        ".....kk...kk....",
+    ], {"k": "#120008", "h": "#212121", "s": "#e0e0e0", "r": "#b71c1c", "W": "#ffffff",
+        "c": "#1a1a2e", "p": "#311b92"}),
+
+    # Salamandre : lézard de feu, queue enflammée.
+    "salamander": ([
+        "................",
+        "......kkkk......",
+        ".....kooook.....",
+        "....koyooyok....",
+        "....kooooook....",
+        ".....krrrrk.....",
+        "....kkooookk....",
+        "...kokoooookok..",
+        "...kokoRRookok..",
+        "....kkooookkk.f.",
+        ".....kooook.kfFf",
+        ".....kok.kokkff.",
+        ".....kOk.kOk.k..",
+        ".....kk...kk....",
+        "................",
+        "................",
+    ], {"k": "#3e0e00", "o": "#e64a19", "O": "#bf360c", "y": "#ffeb3b", "r": "#ffab91",
+        "R": "#ffcc80", "f": "#ff9800", "F": "#ffeb3b"}),
+
+    # Magicienne : chapeau pointu, robe bleue, bâton à orbe.
+    "mage": ([
+        "......k.........",
+        ".....kbk......o.",
+        ".....kbbk....oOo",
+        "....kbbbbk....k.",
+        "...kbbbbbbk...k.",
+        "..kkkkkkkkkk..k.",
+        "....kssssk....k.",
+        "....kskksk....k.",
+        "....kssssk...kk.",
+        "...kbbbbbbk.ks..",
+        "..kbbBbbBbbkk...",
+        "..kbkbBBbkbk....",
+        "...kbbbbbbk.....",
+        "...kbbbbbbk.....",
+        "....kkkkkk......",
+        "................",
+    ], {"k": "#0d1030", "b": "#3949ab", "B": "#9fa8da", "s": "#ffccbc", "o": "#ff7043", "O": "#ffe0b2"}),
+
+    # Nain : petit, casque, grande barbe rousse, hache.
+    "dwarf": ([
+        "................",
+        "................",
+        "................",
+        ".....kkkkkk.....",
+        "....kmmmmmmk....",
+        "...kmmmmmmmmk...",
+        "....kskssksk..k.",
+        "....kssssssk.kak",
+        "...kbbbbbbbbkkak",
+        "...kbbbbbbbbk.k.",
+        "..kgkbbbbbbkgk..",
+        "..kgkrrrrrrkgk..",
+        "...kkrrRRrrkk...",
+        "....kggk.kggk...",
+        "....kddk.kddk...",
+        "....kkk...kkk...",
+    ], {"k": "#1b1b1b", "m": "#9e9e9e", "s": "#ffccbc", "b": "#ff8f00", "g": "#6d4c41",
+        "r": "#4e342e", "R": "#ffca28", "a": "#cfd8dc", "d": "#3e2723"}),
+
+    # Paladin : armure dorée et bouclier bleu.
+    "paladin": ([
+        "......kkkk......",
+        ".....kyyyyk.....",
+        "....kyYYYYyk....",
+        "....kykkkkyk....",
+        "....kyyyyyyk....",
+        "..kkkyyyyyykkk..",
+        ".kbbbkYyyYkyyyk.",
+        ".kbwbkyYYykyYyk.",
+        ".kbbbkyyyykyyyk.",
+        ".kkbkkyyyyykkk..",
+        "...kkyyyyyyk....",
+        "....kyykkyyk....",
+        "....kyyk.kyyk...",
+        "....kddk.kddk...",
+        "....kkk...kkk...",
+        "................",
+    ], {"k": "#3e2a00", "y": "#fbc02d", "Y": "#fff59d", "b": "#1565c0", "w": "#ffffff", "d": "#5d4037"}),
+
+    # Géant : une brute énorme avec une massue.
+    "giant": ([
+        "....kkkkkkk.....",
+        "...khhhhhhhk....",
+        "...ksssssssk....",
+        "...kskssskssk...",
+        "...ksssssssk....",
+        "..kkskkkkskkk...",
+        ".ksskssssskssk..",
+        "kssskggggkssskw.",
+        "ksskkgGGgkkssww.",
+        "kssk.gggg.ksskw.",
+        ".kk.kggggk.kkwk.",
+        "....kgggggk..k..",
+        "....kbbkbbk.....",
+        "....kssk.kssk...",
+        "....kssk.kssk...",
+        "...kkkk...kkkk..",
+    ], {"k": "#2b1a0e", "h": "#4e342e", "s": "#c8a27a", "g": "#558b2f", "G": "#8bc34a",
+        "b": "#3e2723", "w": "#795548"}),
+})
+
+
 def make_characters():
     for name, (rows, palette) in CHARACTERS.items():
         rows = [r.replace(" ", ".") for r in rows]

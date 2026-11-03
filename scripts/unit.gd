@@ -26,6 +26,15 @@ var attack_damage := 0.0
 var attack_range := 26.0     ## Distance d'attaque, en pixels (une case = 32).
 var attack_interval := 1.0   ## Secondes entre deux coups.
 
+## Capacités spéciales (lues dans les catalogues par load_abilities) :
+var armor := 0.0          ## Part des dégâts ignorés (0.3 = -30 % de dégâts reçus).
+var lifesteal := 0.0      ## Part des dégâts infligés regagnée en vie.
+var splash_radius := 0.0  ## Les coups touchent aussi les ennemis à cette distance de la cible.
+var regen := 0.0          ## Vie regagnée par seconde.
+var slow_on_hit := 0.0    ## Secondes de ralentissement infligées à la cible.
+var attack_sound := ""    ## Son d'attaque particulier (sinon choisi automatiquement).
+const SPLASH_FACTOR := 0.5 ## Les ennemis touchés par ricochet prennent 50 % des dégâts.
+
 ## Vrai pendant que le joueur tient l'unité dans sa « main ».
 var in_hand := false
 
@@ -163,6 +172,8 @@ func _on_dropped() -> void:
 func update_effects(delta: float) -> void:
 	_haste_left = maxf(0.0, _haste_left - delta)
 	_slow_left = maxf(0.0, _slow_left - delta)
+	if regen > 0.0:
+		heal(regen * delta)
 
 
 func apply_haste(duration: float) -> void:
@@ -194,10 +205,21 @@ func is_dead() -> bool:
 	return hp <= 0.0
 
 
+## Lit les capacités spéciales facultatives d'une entrée de catalogue
+## (voir creatures.gd et heroes.gd). Une capacité absente vaut 0.
+func load_abilities(info: Dictionary) -> void:
+	armor = info.get("armor", 0.0)
+	lifesteal = info.get("lifesteal", 0.0)
+	splash_radius = info.get("splash", 0.0)
+	regen = info.get("regen", 0.0)
+	slow_on_hit = info.get("slow", 0.0)
+	attack_sound = info.get("attack_sound", "")
+
+
 func take_damage(amount: float) -> void:
 	if is_dead():
 		return
-	hp -= amount
+	hp -= amount * (1.0 - armor)
 	# Petit flash blanc : un « Tween » fait revenir la couleur normale en douceur.
 	modulate = Color(2.5, 2.5, 2.5)
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.2)
@@ -257,6 +279,7 @@ func fight(target_object, delta: float) -> bool:
 			show_strike(target.position)
 			target.take_damage(attack_damage)
 			_on_hit_landed(target, attack_damage)
+			_apply_hit_abilities(target)
 			Sound.play(_attack_sound(), position)
 		return true
 	# Pas encore à portée : on recalcule le chemin seulement si la cible a changé de case.
@@ -270,7 +293,26 @@ func fight(target_object, delta: float) -> bool:
 
 
 ## Le son d'une attaque : magie à distance, épée des héros ou coup des créatures.
+## Effets des capacités spéciales quand on touche une cible.
+func _apply_hit_abilities(target: Unit) -> void:
+	if lifesteal > 0.0:
+		heal(attack_damage * lifesteal)
+	if slow_on_hit > 0.0:
+		target.apply_slow(slow_on_hit)
+	if splash_radius > 0.0:
+		# Les autres ennemis autour de la cible prennent une partie des dégâts.
+		var enemy_group := _group_name(Team.HEROES if team == Team.DUNGEON else Team.DUNGEON)
+		for node in get_tree().get_nodes_in_group(enemy_group):
+			var other := node as Unit
+			if other != null and other != target and other.is_targetable() \
+					and other.position.distance_to(target.position) <= splash_radius:
+				other.take_damage(attack_damage * SPLASH_FACTOR)
+		map.add_effect(target.position, splash_radius, Color(1.0, 0.5, 0.1, 0.6))
+
+
 func _attack_sound() -> String:
+	if attack_sound != "":
+		return attack_sound
 	if attack_range > 50.0:
 		return "arrow" if team == Team.HEROES else "zap"
 	return "sword" if team == Team.HEROES else "punch"

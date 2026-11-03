@@ -85,6 +85,14 @@ const UNITS := {
 	"demon": [preload("res://assets/units/demon_0.png"), preload("res://assets/units/demon_1.png")],
 	"cleric": [preload("res://assets/units/cleric_0.png"), preload("res://assets/units/cleric_1.png")],
 	"archer": [preload("res://assets/units/archer_0.png"), preload("res://assets/units/archer_1.png")],
+	"bat": [preload("res://assets/units/bat_0.png"), preload("res://assets/units/bat_1.png")],
+	"golem": [preload("res://assets/units/golem_0.png"), preload("res://assets/units/golem_1.png")],
+	"vampire": [preload("res://assets/units/vampire_0.png"), preload("res://assets/units/vampire_1.png")],
+	"salamander": [preload("res://assets/units/salamander_0.png"), preload("res://assets/units/salamander_1.png")],
+	"mage": [preload("res://assets/units/mage_0.png"), preload("res://assets/units/mage_1.png")],
+	"dwarf": [preload("res://assets/units/dwarf_0.png"), preload("res://assets/units/dwarf_1.png")],
+	"paladin": [preload("res://assets/units/paladin_0.png"), preload("res://assets/units/paladin_1.png")],
+	"giant": [preload("res://assets/units/giant_0.png"), preload("res://assets/units/giant_1.png")],
 }
 
 

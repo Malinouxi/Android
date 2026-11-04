@@ -811,3 +811,337 @@ def make_all():
     make_tiles()
     make_chests()
     make_characters()
+    make_props_and_icons()
+
+
+# ===========================================================================
+# OBJETS ET ICÔNES EN 32 x 32
+# ===========================================================================
+
+def _draw(sp):
+    return ImageDraw.Draw(sp.image)
+
+
+def prop_heart():
+    sp = Sprite()
+    outer = [(16, 2), (27, 10), (24, 23), (16, 30), (8, 23), (5, 10)]
+    sp.part("polygon", outer, "#c62828", "#ef5350", "#7f1515")
+    d = _draw(sp)
+    d.polygon([(16, 5), (24, 11), (16, 15), (8, 11)], fill=rgb("#e53935"))      # facette du haut
+    d.polygon([(8, 11), (16, 15), (16, 27), (10, 22)], fill=rgb("#b71c1c"))     # facette gauche
+    d.polygon([(24, 11), (16, 15), (16, 27), (22, 22)], fill=rgb("#8e1b1b"))    # facette droite
+    d.line([(10, 10), (14, 7)], fill=rgb("#ffcdd2"))
+    sp.dots([(12, 8), (11, 9)], "#ffffff")
+    return sp.finish()
+
+
+def prop_portal():
+    sp = Sprite()
+    sp.part("ellipse", [2, 1, 29, 30], "#5d5d6a", "#8a8a9a", "#33333c")     # anneau de pierre
+    sp.part("ellipse", [6, 5, 25, 26], "#4a148c", "#6a1b9a", "#2a0a52")     # tourbillon
+    d = _draw(sp)
+    for box, color in (([8, 7, 23, 24], "#7b1fa2"), ([10, 9, 21, 22], "#ab47bc"), ([12, 11, 19, 20], "#ce93d8")):
+        d.arc(box, 200, 520, fill=rgb(color), width=2)
+    d.ellipse([14, 13, 17, 18], fill=rgb("#f3e5f5"))
+    for x, y in ((5, 8), (25, 9), (4, 20), (26, 21), (15, 2)):  # pierres runiques
+        d.point((x, y), fill=rgb("#b388ff"))
+    return sp.finish()
+
+
+def prop_entrance():
+    sp = Sprite()
+    sp.part("rectangle", [3, 6, 28, 31], "#78909c", "#b0bec5", "#455a64")     # piliers et arche
+    sp.part("ellipse", [3, 0, 28, 14], "#78909c", "#b0bec5", "#455a64")
+    sp.part("rectangle", [8, 10, 23, 31], "#5d4037", "#795548", "#3e2723")    # porte en bois
+    sp.part("ellipse", [8, 4, 23, 17], "#5d4037", "#795548", "#3e2723")
+    d = _draw(sp)
+    d.line([(15, 6), (15, 31)], fill=rgb("#2e1d16"))                          # deux battants
+    for y in (13, 22):
+        d.line([(8, y), (23, y)], fill=rgb("#37474f"))                        # ferrures
+        d.point([(10, y), (13, y), (18, y), (21, y)], fill=rgb("#cfd8dc"))
+    d.point([(13, 18), (18, 18)], fill=rgb("#ffca28"))                        # poignées
+    for x in (4, 27):                                                         # torches
+        d.rectangle([x - 1, 9, x, 13], fill=rgb("#4e342e"))
+        d.point([(x - 1, 7), (x, 8), (x - 1, 8)], fill=rgb("#ffb300"))
+    return sp.finish()
+
+
+def prop_bed():
+    sp = Sprite()
+    sp.part("rectangle", [3, 14, 28, 26], "#8d6e63", "#a1887f", "#4e342e")    # cadre
+    sp.part("rectangle", [4, 13, 27, 21], "#c8a165", "#e0c08a", "#8d6e3a")    # paille
+    sp.part("rectangle", [5, 9, 13, 15], "#d7ccc8", "#ffffff", "#a1887f")     # oreiller
+    sp.part("rectangle", [12, 12, 27, 21], "#7e57c2", "#9575cd", "#4527a0")   # couverture
+    d = _draw(sp)
+    for x in range(14, 27, 4):
+        d.line([(x, 13), (x, 20)], fill=rgb("#5e35b1"))
+    sp.part("rectangle", [3, 26, 5, 29], "#5d4037")
+    sp.part("rectangle", [26, 26, 28, 29], "#5d4037")
+    return sp.finish()
+
+
+def prop_mushroom():
+    sp = Sprite()
+    sp.part("rectangle", [12, 16, 19, 29], "#efebe9", "#ffffff", "#bcaaa4")   # pied
+    sp.part("ellipse", [3, 4, 28, 20], "#e53935", "#ef9a9a", "#8e1b1b")       # chapeau
+    d = _draw(sp)
+    for box in ([8, 7, 11, 10], [17, 6, 21, 9], [13, 12, 15, 14], [22, 12, 24, 14], [6, 13, 8, 15]):
+        d.ellipse(box, fill=rgb("#ffffff"))
+    d.line([(6, 18), (25, 18)], fill=rgb("#8e1b1b"))
+    return sp.finish()
+
+
+def prop_gold_pile(count):
+    sp = Sprite()
+    rng = random.Random(count)
+    spots = [(13, 22), (8, 24), (18, 24), (11, 18), (16, 19), (14, 14), (6, 20), (21, 20), (10, 13), (18, 14)]
+    for x, y in spots[:count * 2]:
+        sp.part("ellipse", [x, y, x + 6, y + 4], "#f2b632", "#ffe27a", "#a8741a")
+        if rng.random() < 0.5:
+            sp.dots([(x + 2, y + 1)], "#ffffff")
+    return sp.finish()
+
+
+def prop_spikes(raised):
+    image = Image.new("RGBA", (S, S), rgb("#263238"))
+    d = ImageDraw.Draw(image)
+    d.rectangle([2, 2, 29, 29], fill=rgb("#546e7a"))
+    d.line([(2, 2), (29, 2)], fill=rgb("#78909c"))
+    d.line([(2, 29), (29, 29)], fill=rgb("#37474f"))
+    holes = [(7, 7), (16, 7), (25, 7), (11, 15), (21, 15), (7, 24), (16, 24), (25, 24)]
+    for x, y in holes:
+        d.ellipse([x - 2, y - 1, x + 2, y + 2], fill=rgb("#111111"))
+        if raised:
+            d.polygon([(x - 2, y + 1), (x + 2, y + 1), (x, y - 6)], fill=rgb("#b0bec5"))
+            d.line([(x, y - 6), (x - 2, y + 1)], fill=rgb("#ffffff"))
+            d.line([(x, y - 6), (x + 2, y + 1)], fill=rgb("#607d8b"))
+    for x, y in ((4, 4), (27, 4), (4, 27), (27, 27)):
+        d.point((x, y), fill=rgb("#cfd8dc"))
+    return image
+
+
+def prop_rune():
+    image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.ellipse([2, 2, 29, 29], outline=rgb("#ff6f00"), width=2)
+    d.ellipse([7, 7, 24, 24], outline=rgb("#ffa000"), width=1)
+    d.polygon([(16, 6), (25, 21), (7, 21)], outline=rgb("#ffd54f"))           # triangle
+    d.polygon([(16, 26), (7, 11), (25, 11)], outline=rgb("#ffd54f"))          # étoile à 6 branches
+    d.ellipse([14, 14, 18, 18], fill=rgb("#fff59d"))
+    for angle in range(0, 360, 45):                                           # petites runes autour
+        import math
+        x = 16 + 12.5 * math.cos(math.radians(angle))
+        y = 16 + 12.5 * math.sin(math.radians(angle))
+        d.point((round(x), round(y)), fill=rgb("#fff3e0"))
+    return image
+
+
+def prop_door():
+    sp = Sprite()
+    sp.part("rectangle", [2, 4, 29, 31], "#78909c", "#b0bec5", "#455a64")     # cadre de pierre
+    sp.part("rectangle", [6, 7, 25, 31], "#8d6e63", "#a1887f", "#5d4037")     # porte
+    d = _draw(sp)
+    for x in (10, 15, 20):
+        d.line([(x, 7), (x, 31)], fill=rgb("#5d4037"))                        # planches
+    for y in (11, 25):
+        d.rectangle([6, y, 25, y + 1], fill=rgb("#37474f"))                   # bandes de fer
+        d.point([(8, y), (13, y), (18, y), (23, y)], fill=rgb("#cfd8dc"))
+    d.ellipse([20, 17, 22, 19], fill=rgb("#ffca28"))                          # anneau
+    return sp.finish()
+
+
+def prop_torch():
+    sp = Sprite()
+    sp.part("rectangle", [14, 14, 17, 28], "#5d4037", "#795548", "#3e2723")   # pied
+    sp.part("rectangle", [11, 28, 20, 30], "#4e342e")
+    sp.part("polygon", [(8, 10), (23, 10), (20, 16), (11, 16)], "#6d4c41", "#8d6e63", "#3e2723")  # coupe
+    sp.part("polygon", [(10, 10), (13, 3), (15, 6), (16, 0), (18, 5), (20, 2), (22, 10)], "#ff9800", "#ffcc80", "#e65100")
+    sp.part("polygon", [(13, 10), (15, 5), (17, 8), (19, 5), (19, 10)], "#ffeb3b", "#ffffff", "#ffc107")
+    return sp.finish()
+
+
+def prop_bookshelf():
+    sp = Sprite()
+    sp.part("rectangle", [3, 1, 28, 31], "#6d4c41", "#8d6e63", "#3e2723")
+    d = _draw(sp)
+    colors = ["#c62828", "#1565c0", "#2e7d32", "#f9a825", "#6a1b9a", "#ef6c00"]
+    rng = random.Random(3)
+    for top in (3, 12, 21):
+        d.rectangle([5, top, 26, top + 7], fill=rgb("#2a1c12"))
+        x = 5
+        while x < 26:
+            width = rng.choice([2, 2, 3])
+            height = rng.randint(5, 7)
+            color = rng.choice(colors)
+            d.rectangle([x, top + 7 - height, min(x + width - 1, 26), top + 7], fill=rgb(color))
+            d.line([(x, top + 7 - height), (x, top + 7)], fill=rgb(shade(color, 1.4)))
+            x += width
+        d.line([(4, top + 8), (27, top + 8)], fill=rgb("#8d6e63"))
+    return sp.finish()
+
+
+def prop_anvil():
+    sp = Sprite()
+    sp.part("rectangle", [9, 22, 22, 30], "#795548", "#8d6e63", "#4e342e")    # billot
+    sp.part("polygon", [(3, 11), (24, 11), (29, 13), (24, 16), (20, 16), (19, 22), (12, 22), (11, 16), (5, 16)],
+            "#78909c", "#cfd8dc", "#455a64")
+    sp.part("rectangle", [21, 5, 23, 11], "#8d6e63")                          # marteau posé
+    sp.part("rectangle", [18, 3, 27, 6], "#90a4ae")
+    _draw(sp).point((7, 12), fill=rgb("#ffffff"))
+    return sp.finish()
+
+
+def prop_dummy():
+    sp = Sprite()
+    sp.part("rectangle", [15, 18, 16, 29], "#6d4c41")                         # poteau
+    sp.part("rectangle", [10, 28, 21, 30], "#5d4037")
+    sp.part("rectangle", [5, 11, 26, 14], "#6d4c41", "#8d6e63", "#3e2723")    # bras
+    sp.part("ellipse", [9, 9, 22, 22], "#d4a85a", "#e8c886", "#a0782f")       # corps en paille
+    sp.part("ellipse", [11, 1, 20, 10], "#d4a85a", "#e8c886", "#a0782f")      # tête
+    d = _draw(sp)
+    d.ellipse([12, 12, 19, 19], outline=rgb("#c62828"), width=1)              # cible
+    d.ellipse([14, 14, 17, 17], fill=rgb("#c62828"))
+    d.line([(13, 5), (14, 6)], fill=rgb("#5d4037"))
+    d.line([(18, 5), (17, 6)], fill=rgb("#5d4037"))
+    d.line([(10, 21), (12, 20)], fill=rgb("#a0782f"))                         # brins de paille
+    return sp.finish()
+
+
+def prop_temple_altar():
+    sp = Sprite()
+    sp.part("rectangle", [4, 13, 27, 29], "#78909c", "#b0bec5", "#455a64")
+    sp.part("rectangle", [2, 11, 29, 15], "#90a4ae", "#cfd8dc", "#546e7a")
+    sp.part("rectangle", [11, 14, 20, 27], "#6a1b9a", "#9c27b0", "#4a148c")   # étoffe violette
+    d = _draw(sp)
+    d.line([(15, 17), (15, 23)], fill=rgb("#ffd54f"))
+    d.line([(13, 19), (17, 19)], fill=rgb("#ffd54f"))
+    for x in (5, 25):                                                         # bougies
+        d.rectangle([x, 5, x + 2, 11], fill=rgb("#eceff1"))
+        d.polygon([(x, 5), (x + 1, 1), (x + 2, 5)], fill=rgb("#ffb300"))
+        d.point((x + 1, 3), fill=rgb("#fff59d"))
+    return sp.finish()
+
+
+def prop_prison_bars():
+    image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle([0, 0, 31, 3], fill=rgb("#37474f"))
+    d.rectangle([0, 28, 31, 31], fill=rgb("#37474f"))
+    d.line([(0, 1), (31, 1)], fill=rgb("#78909c"))
+    for x in range(2, 31, 6):
+        d.rectangle([x, 3, x + 1, 28], fill=rgb("#78909c"))
+        d.line([(x, 3), (x, 28)], fill=rgb("#b0bec5"))
+        d.point([(x + 1, 12), (x, 20)], fill=rgb("#8d4e2a"))                   # rouille
+    d.line([(0, 15), (31, 15)], fill=rgb("#546e7a"))
+    return outline(image, OUTLINE)
+
+
+def prop_sacrifice_altar():
+    sp = Sprite()
+    sp.part("rectangle", [5, 18, 26, 30], "#2a2a30", "#3d3d44", "#141418")
+    sp.part("rectangle", [2, 12, 29, 19], "#4a4a52", "#6a6a74", "#25252b")
+    d = _draw(sp)
+    d.line([(6, 15), (25, 15)], fill=rgb("#c62828"))                          # sang
+    d.point([(9, 16), (9, 17), (20, 16)], fill=rgb("#8e1b1b"))
+    d.ellipse([12, 21, 19, 27], outline=rgb("#c62828"))                       # rune rouge
+    d.point((15, 24), fill=rgb("#ff5252"))
+    sp.part("ellipse", [12, 5, 19, 12], "#e0e0e0", "#ffffff", "#9e9e9e")      # crâne
+    d.point([(14, 8), (17, 8)], fill=rgb("#1a1a1a"))
+    d.line([(14, 11), (17, 11)], fill=rgb("#757575"))
+    for x in (3, 27):                                                         # bougies rouges
+        d.rectangle([x, 6, x + 1, 12], fill=rgb("#b71c1c"))
+        d.point([(x, 4), (x + 1, 5)], fill=rgb("#ff5252"))
+    return sp.finish()
+
+
+# --- Icônes de l'interface ---------------------------------------------------------
+
+def icon_pickaxe():
+    sp = Sprite()
+    sp.part("polygon", [(4, 27), (6, 29), (24, 11), (22, 9)], "#8d6e63", "#a1887f", "#5d4037")
+    sp.part("polygon", [(8, 4), (20, 3), (29, 10), (27, 12), (19, 7), (10, 7)], "#90a4ae", "#eceff1", "#546e7a")
+    return sp.finish()
+
+
+def icon_hammer():
+    sp = Sprite()
+    sp.part("rectangle", [14, 12, 17, 30], "#8d6e63", "#a1887f", "#5d4037")
+    sp.part("rectangle", [5, 3, 26, 12], "#78909c", "#cfd8dc", "#455a64")
+    _draw(sp).line([(7, 5), (24, 5)], fill=rgb("#eceff1"))
+    return sp.finish()
+
+
+def icon_heal():
+    sp = Sprite()
+    sp.part("ellipse", [3, 5, 16, 18], "#43a047", "#a5d6a7", "#1b5e20")
+    sp.part("ellipse", [15, 5, 28, 18], "#43a047", "#a5d6a7", "#1b5e20")
+    sp.part("polygon", [(4, 14), (27, 14), (16, 28)], "#43a047", "#66bb6a", "#1b5e20")
+    d = _draw(sp)
+    d.rectangle([14, 9, 17, 20], fill=rgb("#ffffff"))
+    d.rectangle([10, 13, 21, 16], fill=rgb("#ffffff"))
+    return sp.finish()
+
+
+def icon_bolt():
+    sp = Sprite()
+    sp.part("polygon", [(19, 1), (7, 17), (15, 17), (11, 31), (25, 12), (17, 12), (23, 1)],
+            "#ffeb3b", "#fffde7", "#f9a825")
+    return sp.finish()
+
+
+def icon_haste():
+    sp = Sprite()
+    sp.part("polygon", [(8, 13), (20, 13), (20, 7), (30, 16), (20, 25), (20, 19), (8, 19)],
+            "#4dd0e1", "#e0f7fa", "#00838f")
+    d = _draw(sp)
+    for y, x0 in ((10, 1), (16, 0), (22, 2)):
+        d.line([(x0, y), (x0 + 5, y)], fill=rgb("#4dd0e1"))
+    return sp.finish()
+
+
+def icon_mana():
+    sp = Sprite()
+    sp.part("polygon", [(16, 1), (26, 12), (16, 30), (6, 12)], "#2979ff", "#82b1ff", "#0d47a1")
+    d = _draw(sp)
+    d.polygon([(16, 4), (22, 12), (16, 14), (10, 12)], fill=rgb("#448aff"))
+    d.line([(10, 12), (15, 5)], fill=rgb("#e3f2fd"))
+    d.point((12, 10), fill=rgb("#ffffff"))
+    return sp.finish()
+
+
+def icon_hand():
+    sp = Sprite()
+    skin, light, dark = "#ffcc80", "#ffe0b2", "#e0a050"
+    sp.part("rectangle", [7, 15, 25, 28], skin, light, dark)                  # paume
+    for x, top in ((7, 7), (12, 4), (17, 4), (22, 7)):                        # doigts
+        sp.part("rectangle", [x, top, x + 3, 17], skin, light, dark)
+    sp.part("rectangle", [2, 16, 7, 21], skin, light, dark)                   # pouce
+    return sp.finish()
+
+
+def icon_dagger():
+    sp = Sprite()
+    sp.part("polygon", [(27, 2), (29, 4), (14, 19), (12, 17)], "#eceff1", "#ffffff", "#90a4ae")
+    sp.part("rectangle", [9, 17, 15, 19], "#ffca28")
+    sp.part("polygon", [(10, 20), (12, 22), (5, 29), (3, 27)], "#6d4c41", "#8d6e63", "#3e2723")
+    _draw(sp).point([(21, 9), (19, 11)], fill=rgb("#c62828"))
+    return sp.finish()
+
+
+def make_props_and_icons():
+    props = {
+        "heart": prop_heart, "portal": prop_portal, "entrance": prop_entrance, "bed": prop_bed,
+        "mushroom": prop_mushroom, "door": prop_door, "torch": prop_torch, "bookshelf": prop_bookshelf,
+        "anvil": prop_anvil, "dummy": prop_dummy, "altar": prop_temple_altar, "prison_bars": prop_prison_bars,
+        "sacrifice_altar": prop_sacrifice_altar, "rune": prop_rune,
+    }
+    for name, draw in props.items():
+        save(draw(), "props", name + ".png")
+    save(prop_spikes(False), "props", "spikes_down.png")
+    save(prop_spikes(True), "props", "spikes_up.png")
+    for count in range(1, 6):
+        save(prop_gold_pile(count), "props", "gold_pile_%d.png" % count)
+    icons = {"pickaxe": icon_pickaxe, "hammer": icon_hammer, "heal": icon_heal, "bolt": icon_bolt,
+             "haste": icon_haste, "mana": icon_mana, "hand": icon_hand, "dagger": icon_dagger}
+    for name, draw in icons.items():
+        save(draw(), "icons", name + ".png")

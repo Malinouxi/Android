@@ -242,6 +242,12 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Codex des règles**, depuis le menu principal et le menu de pause : articles + tableaux automatiques
   (créatures, héros, salles, défenses, sorts, recherche) + nouveautés de chaque version des règles.
 
+**Étape 19 — Tout en 32 × 32**
+- Toutes les images (94) sont redessinées en **32 × 32** : tuiles, 20 personnages (2 images de marche
+  chacun), objets, pièges, coffres du Trésor et icônes. Générées par `tools/art32.py`.
+- Le Trésor affiche des **coffres** qui se remplissent d'or.
+- Le **codex** s'affiche enfin en plein écran.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,
@@ -284,13 +290,15 @@ formules (ondes, bruit, enveloppes) : change les chiffres et relance `python3 to
 
 ## Modifier les graphismes
 
-Les images sont dans `assets/` (`tiles/`, `props/`, `units/`). Deux façons de les changer :
+Les images sont dans `assets/` (`tiles/`, `props/`, `units/`, `icons/`), toutes en **32 × 32 pixels**.
 
 1. **Dessiner toi-même** : ouvre un PNG dans une appli de pixel art (Pixel Studio, LibreSprite, Aseprite…),
-   garde la taille 16 × 16 et enregistre par-dessus. Godot recharge l'image tout seul.
-2. **Modifier le script** `tools/generate_art.py` : chaque personnage y est dessiné avec des lettres
-   (une lettre = une couleur), puis lance `python3 tools/generate_art.py` (il faut Pillow : `pip install pillow`).
-   Attention : relancer le script écrase les PNG de `assets/`.
+   garde la taille 32 × 32 et enregistre par-dessus. Godot recharge l'image tout seul.
+2. **Modifier le générateur** `tools/art32.py`, puis lancer `python3 tools/generate_art.py`
+   (il faut Pillow et numpy : `pip install pillow numpy`). Attention : ça écrase les PNG de `assets/`.
+   - tuiles : fonctions `earth_tile`, `rock_tile`, `room_...` (bruit lissé + détails) ;
+   - personnages : fonctions `draw_...`, assemblées avec des pièces ombrées (`Sprite.part`) ;
+   - objets et icônes : fonctions `prop_...` et `icon_...`.
 
 La liste des images utilisées par le jeu est dans `scripts/art.gd`.
 
@@ -344,8 +352,9 @@ scripts/ui.gd              Le thème de l'interface (autoload « Ui ») : police
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher, peindre
 scripts/minimap.gd         La mini-carte (en bas à gauche)
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
-assets/                    Les images PNG (pixel art 16 x 16) et les sons WAV (assets/sounds/)
-tools/generate_art.py      Le script Python qui dessine toutes les images
+assets/                    Les images PNG (pixel art 32 x 32) et les sons WAV (assets/sounds/)
+tools/generate_art.py      Lance la génération de toutes les images
+tools/art32.py             Les dessins en 32 x 32 (tuiles, personnages, objets, icônes)
 tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
 ```
 

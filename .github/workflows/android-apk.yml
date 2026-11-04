@@ -99,8 +99,12 @@ jobs:
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           xvfb-run -a -s "-screen 0 1280x720x24" timeout 120 ./godot --path . \
             --rendering-driver opengl3 --resolution 1280x720 -s res://tools/screenshots.gd 2>&1 | tee screenshots.log
-          echo "----- Erreurs de script éventuelles -----"
-          grep -E "SCRIPT ERROR|ERROR:|Parse Error|at: " screenshots.log || echo "Aucune erreur."
+          echo "----- Étapes -----"
+          grep -E "ÉTAPE|CAPTURE" screenshots.log || true
+          echo "----- Premières erreurs (avec contexte) -----"
+          grep -n -m 15 -A 3 -E "SCRIPT ERROR|Parse Error" screenshots.log || echo "Aucune erreur de script."
+          echo "----- Résumé des erreurs (nombre d'apparitions) -----"
+          grep -A 1 -E "SCRIPT ERROR" screenshots.log | grep -v "^--" | paste - - | sort | uniq -c | sort -rn | head -20 || true
 
       - name: Garder les captures d'écran
         uses: actions/upload-artifact@v4

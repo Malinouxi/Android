@@ -39,9 +39,12 @@ func _run() -> void:
 
 	# Un petit combat près du cœur, pour voir les animations d'attaque.
 	var game := current_scene
-	var heart: Vector2i = game.map.heart_cell
+	print("ÉTAPE combat : scène = ", game, ", carte = ", game.get("map"))
+	var map_node: Node = game.get_node("World/DungeonMap")
+	var heart: Vector2i = map_node.heart_cell
 	game._add_hero(Heroes.Type.KNIGHT, heart + Vector2i(1, 1))
 	game._add_creature(Creatures.Type.ORC, heart + Vector2i(-1, 1))
+	print("ÉTAPE combat : unités ajoutées")
 	await _frames(70)
 	_shot("04_combat")
 

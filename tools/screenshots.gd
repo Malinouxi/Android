@@ -23,10 +23,13 @@ func _run() -> void:
 	# On charge le codex au dernier moment : au démarrage de ce script, les autoloads
 	# (Sound, Ui) n'existent pas encore, et le codex en a besoin.
 	var codex: Control = load("res://scripts/codex.gd").new()
-	root.add_child(codex)
+	var layer := CanvasLayer.new()
+	layer.layer = 50 # Par-dessus le panneau du menu.
+	root.add_child(layer)
+	layer.add_child(codex)
 	await _frames(20)
 	_shot("02_codex_menu")
-	codex.queue_free()
+	layer.queue_free()
 
 	Levels.current_id = 1
 	SaveGame.load_requested = false

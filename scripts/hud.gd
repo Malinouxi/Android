@@ -83,7 +83,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 10 # Au-dessus des particules (voir la couche FxLayer de main.tscn).
 	_root = Control.new()
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE # Laisse passer les touchers vers la carte.
 	_root.theme = get_tree().root.theme
 	add_child(_root)
@@ -435,7 +435,7 @@ func show_message(text: String, duration := 3.0) -> void:
 func fade_in() -> void:
 	var black := ColorRect.new()
 	black.color = Color.BLACK
-	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(black)
 	var tween := black.create_tween()

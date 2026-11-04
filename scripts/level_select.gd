@@ -8,12 +8,12 @@ const MENU_SCENE := "res://scenes/menu.tscn"
 func _ready() -> void:
 	var background := ColorRect.new()
 	background.color = Color("1d1916")
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 
 	# Un ScrollContainer : si l'écran est petit, on peut faire défiler la liste.
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 	var center := CenterContainer.new()

@@ -19,17 +19,19 @@ var _text: RichTextLabel
 func _ready() -> void:
 	# Le codex marche aussi pendant la pause (ouvert depuis le menu de pause).
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# « and_offsets » : prend vraiment tout l'écran. (set_anchors_preset seul garde
+	# la taille actuelle d'un contrôle déjà affiché, ici zéro !)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = get_tree().root.theme
 	_articles = _build_articles()
 
 	var veil := ColorRect.new()
 	veil.color = Color(0, 0, 0, 0.75)
-	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(veil)
 
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.offset_left = 30
 	panel.offset_top = 24
 	panel.offset_right = -30

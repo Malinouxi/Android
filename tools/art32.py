@@ -398,7 +398,9 @@ def make_chests():
 # Chaque personnage est assemblé avec des « pièces » (jambes, torse, bras, tête,
 # casque, cape, armes...). Chaque pièce est ombrée toute seule : bord clair en
 # haut et à gauche, bord sombre en bas et à droite. Un contour sombre est ajouté
-# à la fin. Deux images par personnage : step=0 (debout) et step=1 (un pas).
+# à la fin. Chaque dessin reçoit une POSE (voir la classe Pose) : quelle jambe est
+# levée, où sont les bras, le rebond du corps... Une pose vaut aussi 0 ou 1
+# (comme un « pas »), ce qu'utilisent les ailes, pattes et queues des créatures.
 
 OUTLINE = "#120a08"
 
@@ -459,32 +461,61 @@ def eyes(sp, y, color="#ffffff", pupil="#1a1a1a", left=12, right=18, glow=False)
     sp.dots([(left + 1, y + 1), (right, y + 1)], pupil)
 
 
-def humanoid(step, skin, top, legs, boots, *, robe=None, head_drop=0, short=False):
-    """Le corps de base : jambes (ou robe), torse, bras, mains et tête.
+class Pose(int):
+    """Une pose d'animation. C'est aussi un nombre (0 ou 1) pour les dessins de
+    créatures qui l'utilisent comme un « pas » (ailes, pattes, queue)."""
+
+    def __new__(cls, step, lift_left=0, lift_right=0, bob=0, arm_left=0, arm_right=0, kind="walk", frame=0):
+        pose = super().__new__(cls, step)
+        pose.lift_left, pose.lift_right, pose.bob = lift_left, lift_right, bob
+        pose.arm_left, pose.arm_right = arm_left, arm_right
+        pose.kind, pose.frame = kind, frame
+        return pose
+
+
+## Toutes les animations : nom -> liste de poses (une par image).
+ANIMATIONS = {
+    # Marche : pied gauche levé, passage (corps plus haut), pied droit levé, passage.
+    "walk": [Pose(1, lift_left=1, arm_left=1, arm_right=-1, frame=0),
+             Pose(0, bob=-1, frame=1),
+             Pose(1, lift_right=1, arm_left=-1, arm_right=1, frame=2),
+             Pose(0, bob=-1, frame=3)],
+    # Respiration : le corps monte et descend d'un pixel.
+    "idle": [Pose(0, kind="idle", frame=0), Pose(1, bob=-1, arm_left=-1, arm_right=-1, kind="idle", frame=1)],
+    # Attaque : l'élan (bras droit levé), puis la frappe (bras en avant, corps qui plonge).
+    "attack": [Pose(0, bob=-1, arm_right=-5, kind="attack", frame=0),
+               Pose(1, bob=1, arm_right=2, lift_left=1, kind="attack", frame=1)],
+}
+
+
+def humanoid(pose, skin, top, legs, boots, *, robe=None, head_drop=0, short=False):
+    """Le corps de base : jambes (ou robe), torse, bras, mains et tête, dans la pose donnée.
     Renvoie le Sprite et un dictionnaire de repères pour placer les accessoires."""
+    if not isinstance(pose, Pose):
+        pose = Pose(pose, lift_left=int(pose), bob=-int(pose))
     sp = Sprite()
-    bob = -1 if step else 0
-    lift = 1 if step else 0
+    bob, lift_l, lift_r = pose.bob, pose.lift_left, pose.lift_right
     leg_top = 26 if short else 24
     if robe:
         sp.part("polygon", [(10, 15 + bob), (21, 15 + bob), (24, 30), (7, 30)], robe)
-        sp.part("rectangle", [9 + lift, 29, 13 + lift, 30], boots)
-        sp.part("rectangle", [18 - lift, 29, 22 - lift, 30], boots)
+        sp.part("rectangle", [9, 29 - lift_l, 13, 30 - lift_l], boots)
+        sp.part("rectangle", [18, 29 - lift_r, 22, 30 - lift_r], boots)
     else:
-        sp.part("rectangle", [11, leg_top - lift, 14, 29 - lift], legs)
-        sp.part("rectangle", [17, leg_top, 20, 29], legs)
-        sp.part("rectangle", [10, 29 - lift, 14, 30 - lift], boots)
-        sp.part("rectangle", [17, 29, 21, 30], boots)
+        sp.part("rectangle", [11, leg_top - lift_l, 14, 29 - lift_l], legs)
+        sp.part("rectangle", [17, leg_top - lift_r, 20, 29 - lift_r], legs)
+        sp.part("rectangle", [10, 29 - lift_l, 14, 30 - lift_l], boots)
+        sp.part("rectangle", [17, 29 - lift_r, 21, 30 - lift_r], boots)
         sp.part("rectangle", [10, 15 + bob + (3 if short else 0), 21, leg_top + 1 + bob], top)
     arm_y = 16 + bob + (3 if short else 0)
-    sp.part("rectangle", [7, arm_y + lift, 9, arm_y + 6 + lift], top if not robe else robe)
-    sp.part("rectangle", [22, arm_y - lift, 24, arm_y + 6 - lift], top if not robe else robe)
-    sp.part("ellipse", [7, arm_y + 6 + lift, 9, arm_y + 8 + lift], skin)
-    sp.part("ellipse", [22, arm_y + 6 - lift, 24, arm_y + 8 - lift], skin)
+    left_y, right_y = arm_y + pose.arm_left, arm_y + pose.arm_right
+    sp.part("rectangle", [7, left_y, 9, left_y + 6], top if not robe else robe)
+    sp.part("rectangle", [22, right_y, 24, right_y + 6], top if not robe else robe)
+    sp.part("ellipse", [7, left_y + 6, 9, left_y + 8], skin)
+    sp.part("ellipse", [22, right_y + 6, 24, right_y + 8], skin)
     head_y = 3 + bob + head_drop
     sp.part("ellipse", [9, head_y, 22, head_y + 12], skin)
-    return sp, {"bob": bob, "lift": lift, "head_y": head_y, "arm_y": arm_y,
-                "left_hand": (8, arm_y + 7 + lift), "right_hand": (23, arm_y + 7 - lift)}
+    return sp, {"bob": bob, "lift": lift_l, "head_y": head_y, "arm_y": arm_y,
+                "left_hand": (8, left_y + 7), "right_hand": (23, right_y + 7)}
 
 
 def sword(sp, hand, blade="#cfd8dc"):
@@ -606,13 +637,13 @@ def draw_bat(step):
 
 def draw_golem(step):
     sp = Sprite()
-    bob, lift = (-1 if step else 0), (1 if step else 0)
+    bob, lift = step.bob, step.lift_left - step.lift_right
     stone, light, dark = "#8d8d8d", "#bdbdbd", "#5a5a5a"
     sp.part("rectangle", [9, 24 - lift, 14, 30 - lift], stone, light, dark)
     sp.part("rectangle", [17, 24, 22, 30], stone, light, dark)
     sp.part("rectangle", [7, 13 + bob, 24, 25 + bob], stone, light, dark)
-    sp.part("rectangle", [3, 14 + bob + lift, 7, 25 + bob + lift], stone, light, dark)
-    sp.part("rectangle", [24, 14 + bob - lift, 28, 25 + bob - lift], stone, light, dark)
+    sp.part("rectangle", [3, 14 + bob + step.arm_left, 7, 25 + bob + step.arm_left], stone, light, dark)
+    sp.part("rectangle", [24, 14 + bob + step.arm_right, 28, 25 + bob + step.arm_right], stone, light, dark)
     sp.part("rectangle", [10, 3 + bob, 21, 13 + bob], stone, light, dark)
     sp.flat("rectangle", [12, 7 + bob, 13, 8 + bob], "#4dd0e1")
     sp.flat("rectangle", [18, 7 + bob, 19, 8 + bob], "#4dd0e1")
@@ -801,10 +832,38 @@ CHARACTERS_32 = {
 }
 
 
+def add_swoosh(image):
+    """Le trait de mouvement de la frappe : un arc clair devant le personnage."""
+    d = ImageDraw.Draw(image)
+    d.arc([14, 4, 31, 26], 300, 60, fill=(255, 255, 255, 210), width=2)
+    d.arc([12, 2, 31, 28], 310, 40, fill=(207, 216, 220, 140), width=1)
+    return image
+
+
+def shifted(image, dx, dy):
+    """Décale toute l'image (pour les élans des créatures sans bras)."""
+    result = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    result.paste(image, (dx, dy), image)
+    return result
+
+
+## Les créatures sans bras attaquent en se ramassant puis en bondissant.
+LUNGERS = {"spider", "bat", "salamander", "kobold"}
+
+
 def make_characters():
+    """Pour chaque personnage : 4 images de marche, 2 de respiration, 2 d'attaque.
+    Fichiers : units/<nom>_<animation>_<numéro>.png (par exemple knight_walk_2.png)."""
     for name, draw in CHARACTERS_32.items():
-        save(draw(0), "units", "%s_0.png" % name)
-        save(draw(1), "units", "%s_1.png" % name)
+        for animation, poses in ANIMATIONS.items():
+            for pose in poses:
+                image = draw(pose)
+                if animation == "attack":
+                    if name in LUNGERS:
+                        image = shifted(image, -1, -1) if pose.frame == 0 else shifted(image, 2, 1)
+                    if pose.frame == 1:
+                        image = add_swoosh(image)
+                save(image, "units", "%s_%s_%d.png" % (name, animation, pose.frame))
 
 
 def make_all():

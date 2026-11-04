@@ -82,6 +82,27 @@ static func number(map_position: Vector2, value: float, color := Color.WHITE) ->
 	tween.chain().tween_callback(label.queue_free)
 
 
+## Un personnage qui meurt : sa dernière image bascule sur le côté, tombe et s'efface.
+static func death_fall(map_position: Vector2, texture: Texture2D, sprite_scale: float, facing_left: bool,
+		tint: Color) -> void:
+	if not is_ready() or texture == null:
+		return
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.offset = Vector2(0, -12) # On pivote autour des pieds.
+	sprite.scale = Vector2(-1.0 if facing_left else 1.0, 1.0) * sprite_scale
+	sprite.position = to_screen(map_position) + Vector2(0, 2)
+	sprite.modulate = tint
+	layer.add_child(sprite)
+	var tween := sprite.create_tween()
+	tween.set_parallel()
+	tween.tween_property(sprite, "rotation", PI / 2 * (-1.0 if facing_left else 1.0), 0.35) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(sprite, "position:y", sprite.position.y + 6.0, 0.35)
+	tween.tween_property(sprite, "modulate:a", 0.0, 0.6).set_delay(0.5)
+	tween.chain().tween_callback(sprite.queue_free)
+
+
 ## Fait trembler l'écran (strength en pixels).
 static func shake(strength: float, duration := 0.25) -> void:
 	if camera != null and is_instance_valid(camera):

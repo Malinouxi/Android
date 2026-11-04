@@ -619,7 +619,7 @@ func _leave_now() -> void:
 func _draw() -> void:
 	var info := Creatures.info(type)
 	var sprite_scale: float = info["size"] / 8.0 # Taille 8 = image normale (32 pixels).
-	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
+	draw_sprite(info["sprite"], sprite_scale)
 	var radius := 14.0 * sprite_scale
 
 	# Barre d'humeur au-dessus de la tête : verte = contente, rouge = furieuse.

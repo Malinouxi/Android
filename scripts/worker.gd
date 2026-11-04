@@ -148,6 +148,7 @@ func _process_digging(delta: float) -> void:
 	_dig_timer = DIG_INTERVAL
 
 	var target_position := map.cell_to_world(job["target"])
+	play_attack() # Le corps accompagne le coup de pioche.
 	var result := map.dig(job["target"])
 	Sound.play("dig", target_position)
 	Fx.burst("dust", target_position)
@@ -209,7 +210,7 @@ func _stop_job() -> void:
 
 
 func _draw() -> void:
-	draw_sprite(Art.UNITS["worker"], 0.85)
+	draw_sprite("worker", 0.85)
 	# Un petit sac doré quand il transporte de l'or.
 	if carried_gold > 0:
 		draw_circle(Vector2(8, 6), 4.0, Color("ffd54a"))

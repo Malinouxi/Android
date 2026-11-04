@@ -46,6 +46,13 @@ var _strike_offset := Vector2.ZERO
 var _facing_left := false
 ## Secondes de « Hâte » restantes (sort du maître) : l'unité court plus vite.
 var _haste_left := 0.0
+## Animation d'attaque : secondes restantes, et durée totale (élan puis frappe).
+var _attack_animation_left := 0.0
+const ATTACK_ANIMATION_TIME := 0.3
+var _animation_offset := 0.0
+## La dernière image dessinée (pour l'effet de chute à la mort, voir die()).
+var _last_frame: Texture2D
+var _last_scale := 1.0
 const HASTE_SPEED_FACTOR := 1.8
 ## Secondes de ralentissement restantes (morsure d'araignée).
 var _slow_left := 0.0
@@ -56,6 +63,8 @@ const SLOW_SPEED_FACTOR := 0.5
 ## Ainsi chacun peut retrouver ses ennemis avec get_nodes_in_group().
 func _ready() -> void:
 	add_to_group(_group_name(team))
+	# Chaque unité a son propre rythme : elles ne respirent pas toutes en même temps.
+	_animation_offset = randf() * 4.0
 
 
 ## À appeler juste après la création de l'unité.
@@ -173,6 +182,7 @@ func update_effects(delta: float) -> void:
 	# Ordre d'affichage selon la position (voir iso.gd) : devant/derrière les murs.
 	z_index = Iso.depth_z(position, DungeonMap.TILE_SIZE)
 	_haste_left = maxf(0.0, _haste_left - delta)
+	_attack_animation_left = maxf(0.0, _attack_animation_left - delta)
 	_slow_left = maxf(0.0, _slow_left - delta)
 	if regen > 0.0:
 		heal(regen * delta)
@@ -235,6 +245,8 @@ func take_damage(amount: float) -> void:
 ## Les classes filles peuvent compléter die() (libérer un lit...) puis appeler super().
 func die() -> void:
 	Sound.play("death", position, -2.0)
+	# Le personnage bascule et s'efface (une copie de sa dernière image, voir fx.gd).
+	Fx.death_fall(position, _last_frame, _last_scale, _facing_left, self_modulate)
 	Fx.burst("smoke", position, Color(0.5, 0.45, 0.5, 0.7))
 	remove_from_group(_group_name(team))
 	died.emit(self)
@@ -328,19 +340,37 @@ func _attack_sound() -> String:
 func show_strike(world_position: Vector2) -> void:
 	_strike_timer = 0.12
 	_strike_offset = world_position - position
+	play_attack()
+
+
+## Joue l'animation d'attaque (élan puis frappe).
+func play_attack() -> void:
+	_attack_animation_left = ATTACK_ANIMATION_TIME
 
 
 # ---------------------------------------------------------------------------
 # Affichage (utilisé par les _draw() des classes filles)
 # ---------------------------------------------------------------------------
 
-## Dessine le personnage : une ombre au sol, puis l'image (32 x 32 à l'échelle 1).
-## frames = les images d'animation (voir Art.UNITS). On alterne entre elles
-## quand l'unité marche, et on retourne l'image quand elle va vers la gauche.
-func draw_sprite(frames: Array, sprite_scale := 1.0) -> void:
-	var frame: Texture2D = frames[0]
-	if not path.is_empty():
-		frame = frames[int(Time.get_ticks_msec() / 150.0) % frames.size()]
+## Dessine le personnage : une ombre au sol, puis l'image de l'animation en cours
+## (32 x 32 à l'échelle 1). L'animation dépend de ce que fait l'unité :
+##   - « attack » pendant un coup (voir play_attack) ;
+##   - « walk » quand elle marche (4 images, 8 par seconde) ;
+##   - « idle » à l'arrêt (2 images, elle respire doucement).
+## L'image est retournée en miroir quand l'unité va vers la gauche.
+func draw_sprite(sprite_name: String, sprite_scale := 1.0) -> void:
+	var time := Time.get_ticks_msec() / 1000.0 + _animation_offset
+	var animation := "idle"
+	var index := int(time * 2.0) % 2
+	if _attack_animation_left > 0.0:
+		animation = "attack"
+		index = 0 if _attack_animation_left > ATTACK_ANIMATION_TIME * 0.5 else 1
+	elif not path.is_empty():
+		animation = "walk"
+		index = int(time * 8.0) % 4
+	var frame: Texture2D = Art.unit_frames(sprite_name, animation)[index]
+	_last_frame = frame
+	_last_scale = sprite_scale
 
 	# 1. L'ombre, posée AU SOL : un cercle dans l'espace de la carte, que la vue
 	#    isométrique aplatit toute seule en ellipse. Bleue sous les ennemis.

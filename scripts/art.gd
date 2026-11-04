@@ -82,29 +82,24 @@ const GOLD_PILES := [
 	preload("res://assets/props/gold_pile_5.png"),
 ]
 
-# --- Personnages : 2 images chacun pour l'animation de marche ---
-const UNITS := {
-	"worker": [preload("res://assets/units/worker_0.png"), preload("res://assets/units/worker_1.png")],
-	"kobold": [preload("res://assets/units/kobold_0.png"), preload("res://assets/units/kobold_1.png")],
-	"orc": [preload("res://assets/units/orc_0.png"), preload("res://assets/units/orc_1.png")],
-	"warlock": [preload("res://assets/units/warlock_0.png"), preload("res://assets/units/warlock_1.png")],
-	"adventurer": [preload("res://assets/units/adventurer_0.png"), preload("res://assets/units/adventurer_1.png")],
-	"thief": [preload("res://assets/units/thief_0.png"), preload("res://assets/units/thief_1.png")],
-	"knight": [preload("res://assets/units/knight_0.png"), preload("res://assets/units/knight_1.png")],
-	"spider": [preload("res://assets/units/spider_0.png"), preload("res://assets/units/spider_1.png")],
-	"demon": [preload("res://assets/units/demon_0.png"), preload("res://assets/units/demon_1.png")],
-	"cleric": [preload("res://assets/units/cleric_0.png"), preload("res://assets/units/cleric_1.png")],
-	"archer": [preload("res://assets/units/archer_0.png"), preload("res://assets/units/archer_1.png")],
-	"bat": [preload("res://assets/units/bat_0.png"), preload("res://assets/units/bat_1.png")],
-	"golem": [preload("res://assets/units/golem_0.png"), preload("res://assets/units/golem_1.png")],
-	"vampire": [preload("res://assets/units/vampire_0.png"), preload("res://assets/units/vampire_1.png")],
-	"salamander": [preload("res://assets/units/salamander_0.png"), preload("res://assets/units/salamander_1.png")],
-	"mage": [preload("res://assets/units/mage_0.png"), preload("res://assets/units/mage_1.png")],
-	"dwarf": [preload("res://assets/units/dwarf_0.png"), preload("res://assets/units/dwarf_1.png")],
-	"paladin": [preload("res://assets/units/paladin_0.png"), preload("res://assets/units/paladin_1.png")],
-	"giant": [preload("res://assets/units/giant_0.png"), preload("res://assets/units/giant_1.png")],
-	"catcher": [preload("res://assets/units/catcher_0.png"), preload("res://assets/units/catcher_1.png")],
-}
+# --- Personnages : leurs animations ---
+## Nombre d'images de chaque animation (voir tools/art32.py, ANIMATIONS).
+## Fichiers : assets/units/<nom>_<animation>_<numéro>.png
+const ANIMATION_FRAMES := {"walk": 4, "idle": 2, "attack": 2}
+## Les images déjà chargées : "<nom>/<animation>" -> liste d'images.
+static var _unit_cache := {}
+
+
+## Les images d'une animation d'un personnage, par exemple unit_frames("knight", "walk").
+## Elles sont chargées la première fois qu'on les demande, puis gardées en mémoire.
+static func unit_frames(sprite: String, animation: String) -> Array:
+	var key := sprite + "/" + animation
+	if not _unit_cache.has(key):
+		var frames := []
+		for i in ANIMATION_FRAMES[animation]:
+			frames.append(load("res://assets/units/%s_%s_%d.png" % [sprite, animation, i]))
+		_unit_cache[key] = frames
+	return _unit_cache[key]
 
 
 ## Choisit une variante « au hasard » mais toujours la même pour une case donnée

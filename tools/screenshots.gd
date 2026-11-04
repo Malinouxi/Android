@@ -37,10 +37,18 @@ func _run() -> void:
 	await _frames(240)
 	_shot("03_partie")
 
-	var hud := current_scene.get_node("HUD")
+	# Un petit combat près du cœur, pour voir les animations d'attaque.
+	var game := current_scene
+	var heart: Vector2i = game.map.heart_cell
+	game._add_hero(Heroes.Type.KNIGHT, heart + Vector2i(1, 1))
+	game._add_creature(Creatures.Type.ORC, heart + Vector2i(-1, 1))
+	await _frames(70)
+	_shot("04_combat")
+
+	var hud := game.get_node("HUD")
 	hud.codex_pressed.emit()
 	await _frames(20)
-	_shot("04_codex_partie")
+	_shot("05_codex_partie")
 	print("CAPTURES TERMINÉES")
 	quit()
 

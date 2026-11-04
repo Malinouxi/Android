@@ -172,7 +172,7 @@ func _make_gallery() -> Control:
 		frame.custom_minimum_size = Vector2(52, 56)
 		row.add_child(frame)
 		var picture := TextureRect.new()
-		picture.texture = Art.UNITS[names[i]][0]
+		picture.texture = Art.unit_frames(names[i], "idle")[0]
 		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		picture.size = Vector2(48, 48)
 		picture.position = Vector2(0, 8)

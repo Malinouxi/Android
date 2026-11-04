@@ -303,7 +303,7 @@ func _draw() -> void:
 		_draw_lying(info)
 		return
 	var sprite_scale: float = info["size"] / 8.0
-	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
+	draw_sprite(info["sprite"], sprite_scale)
 	draw_strike()
 	draw_health_bar(-16.0 * sprite_scale - 6.0)
 	if is_captured():
@@ -322,7 +322,7 @@ func _draw_lying(info: Dictionary) -> void:
 	var lift_height := -30.0 if carrier != null else -6.0
 	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, lift_height)) * Transform2D(PI / 2, Vector2.ZERO))
 	var size: float = 32.0 * info["size"] / 8.0
-	draw_texture_rect(Art.UNITS[info["sprite"]][0], Rect2(-size / 2, -size / 2, size, size), false)
+	draw_texture_rect(Art.unit_frames(info["sprite"], "idle")[0], Rect2(-size / 2, -size / 2, size, size), false)
 	if knocked_out:
 		# Une barre jaune : le temps qu'il reste pour venir le chercher.
 		draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, -22)))

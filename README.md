@@ -248,6 +248,13 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Le Trésor affiche des **coffres** qui se remplissent d'or.
 - Le **codex** s'affiche enfin en plein écran.
 
+**Étape 20 — Animations**
+- Chaque personnage a 8 images : **marche** (4, avec balancement des bras), **respiration** à l'arrêt (2,
+  chacun à son rythme) et **attaque** (élan puis frappe avec un trait de mouvement).
+- L'attaque se joue à chaque coup, quand un héros creuse ou frappe une porte, et à chaque coup de pioche.
+- À sa **mort**, un personnage bascule, tombe et s'efface.
+- Les poses sont dans `tools/art32.py` (`ANIMATIONS`) ; Godot choisit l'animation dans `unit.gd` (`draw_sprite`).
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

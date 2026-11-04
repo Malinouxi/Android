@@ -20,7 +20,9 @@ func _run() -> void:
 	await _frames(90)
 	_shot("01_menu")
 
-	var codex := Codex.new()
+	# On charge le codex au dernier moment : au démarrage de ce script, les autoloads
+	# (Sound, Ui) n'existent pas encore, et le codex en a besoin.
+	var codex: Control = load("res://scripts/codex.gd").new()
 	root.add_child(codex)
 	await _frames(20)
 	_shot("02_codex_menu")

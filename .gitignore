@@ -15,3 +15,6 @@ android/
 
 # Archives (ex. zip du projet)
 *.zip
+
+# APK construit localement ou par GitHub Actions
+build/

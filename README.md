@@ -242,6 +242,26 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Codex des règles**, depuis le menu principal et le menu de pause : articles + tableaux automatiques
   (créatures, héros, salles, défenses, sorts, recherche) + nouveautés de chaque version des règles.
 
+## APK Android (construit par GitHub)
+
+À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,
+avec Godot 4.7.2 et le réglage d'export `export_presets.cfg`).
+
+- **Où le trouver** : sur la page GitHub du dépôt, rubrique **Releases**, le build le plus récent.
+  Aussi dans l'onglet **Actions** > le dernier build > **Artifacts**.
+- **L'installer** : ouvre la Release depuis ton téléphone, télécharge `SeigneurDesProfondeurs.apk`
+  et ouvre-le. Android demande d'autoriser les « sources inconnues » pour ton navigateur.
+- **Mises à jour** : par défaut, chaque build est signé avec une nouvelle clé de **débogage**.
+  Android refuse alors de remplacer l'appli installée : désinstalle-la d'abord.
+  Pour garder la même clé (et la sauvegarde) d'un build à l'autre :
+  1. crée une clé une seule fois sur ton ordinateur :
+     `keytool -genkeypair -keystore jeu.keystore -alias jeu -keyalg RSA -keysize 2048 -validity 10000`
+  2. convertis-la en texte : `base64 -w0 jeu.keystore` ;
+  3. sur GitHub : *Settings > Secrets and variables > Actions*, ajoute trois secrets :
+     `ANDROID_KEYSTORE_BASE64` (le texte), `ANDROID_KEYSTORE_ALIAS` (`jeu`) et
+     `ANDROID_KEYSTORE_PASSWORD` (ton mot de passe).
+  Ne mets jamais le fichier `.keystore` lui-même dans le dépôt.
+
 ## Faire évoluer les règles (retours des joueurs)
 
 1. **Note les retours** : ce qui est trop facile, trop dur, pas clair, ou les idées.

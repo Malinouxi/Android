@@ -88,6 +88,27 @@ jobs:
           ls -la build
           test -f build/SeigneurDesProfondeurs.apk
 
+      # Des captures d'écran du jeu (menu, codex, partie), pour vérifier l'affichage.
+      # Le rendu se fait sur un écran virtuel (Xvfb) avec OpenGL logiciel.
+      - name: Captures d'écran
+        continue-on-error: true
+        env:
+          SCREENSHOT_DIR: ${{ github.workspace }}/build/screens
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
+          xvfb-run -a -s "-screen 0 1280x720x24" timeout 120 ./godot --path . \
+            --rendering-driver opengl3 --resolution 1280x720 -s res://tools/screenshots.gd 2>&1 | tee screenshots.log
+          echo "----- Erreurs de script éventuelles -----"
+          grep -E "SCRIPT ERROR|ERROR:|Parse Error|at: " screenshots.log || echo "Aucune erreur."
+
+      - name: Garder les captures d'écran
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: build/screens
+          if-no-files-found: warn
+
       - name: Garder l'APK dans les « Artifacts » du build
         uses: actions/upload-artifact@v4
         with:

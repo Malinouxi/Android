@@ -233,6 +233,28 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   crédits.
 - L'interface en jeu reçoit enfin la police pixel et le style pierre et bois.
 
+**Étape 18 — Attrapeurs, sacrifices et codex**
+- Nouvelle créature : l'**Attrapeur de cauchemar** (2 Repaire + 2 Prison). Avec au moins un Attrapeur et
+  une cellule libre, un héros vaincu tombe **assommé** (barre jaune) : un Attrapeur le porte en prison.
+  Personne en 30 s ? Il meurt.
+- **Sacrifices** : l'Atelier fabrique des **Autels de sacrifice** (2 au maximum). Outil **Sacrifier** :
+  touche un prisonnier (poignard rouge), un Attrapeur le conduit à l'autel : 3 fois sa rançon en or.
+- **Codex des règles**, depuis le menu principal et le menu de pause : articles + tableaux automatiques
+  (créatures, héros, salles, défenses, sorts, recherche) + nouveautés de chaque version des règles.
+
+## Faire évoluer les règles (retours des joueurs)
+
+1. **Note les retours** : ce qui est trop facile, trop dur, pas clair, ou les idées.
+2. **Changer un chiffre** (prix, durée, salaire, vagues...) :
+   - réglages généraux : `scripts/rules.gd` (tout est commenté) ;
+   - créatures, héros, salles, pièges, sorts, recherche : leurs catalogues dans `scripts/`.
+     Le codex se met à jour tout seul.
+3. **Expliquer une règle** : ajoute ou modifie un article dans `scripts/codex_content.gd`.
+4. **Noter le changement** : ajoute une ligne dans `CHANGELOG` de `scripts/rules.gd` et augmente `VERSION`.
+   Les joueurs la verront dans *Codex > Nouveautés*.
+5. **Une règle vraiment nouvelle** (un nouveau comportement) demande du code : décris-la, et on l'ajoute
+   ensemble au bon endroit.
+
 ## Modifier les sons
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
@@ -293,6 +315,9 @@ scripts/iso.gd             La vue isométrique : transformation du monde, person
 scripts/fx.gd              Effets visuels : particules, chiffres de dégâts, tremblements, éclairs
 scripts/save_game.gd       Lecture et écriture de la sauvegarde (JSON)
 scripts/levels.gd          Les niveaux de la campagne (objectifs, réglages) et la progression
+scripts/rules.gd           LES RÈGLES : réglages généraux, version des règles, nouveautés
+scripts/codex_content.gd   Les textes du codex (à compléter selon les retours des joueurs)
+scripts/codex.gd           L'écran du codex (articles + tableaux automatiques)
 scripts/level_select.gd    L'écran de choix des niveaux (scène scenes/level_select.tscn)
 scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
 scripts/ui.gd              Le thème de l'interface (autoload « Ui ») : police, boutons, panneaux

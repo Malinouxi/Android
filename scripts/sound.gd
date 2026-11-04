@@ -51,6 +51,7 @@ const SOUNDS := {
 	"game_over": [preload("res://assets/sounds/game_over.wav")],
 	"arrow": [preload("res://assets/sounds/arrow.wav")],
 	"capture": [preload("res://assets/sounds/capture.wav")],
+	"sacrifice": [preload("res://assets/sounds/sacrifice.wav")],
 }
 const AMBIENCE := preload("res://assets/sounds/ambience.wav")
 

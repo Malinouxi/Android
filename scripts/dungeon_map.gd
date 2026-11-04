@@ -757,6 +757,23 @@ func remove_defense(cell: Vector2i) -> void:
 	_redraw_all()
 
 
+func count_defenses(type: int) -> int:
+	var count := 0
+	for cell: Vector2i in defenses:
+		if defenses[cell]["type"] == type:
+			count += 1
+	return count
+
+
+## Les cases où se trouve un autel de sacrifice.
+func altar_cells() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for cell: Vector2i in defenses:
+		if defenses[cell]["type"] == Defenses.Type.ALTAR:
+			result.append(cell)
+	return result
+
+
 func has_door(cell: Vector2i) -> bool:
 	return defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.DOOR
 
@@ -1196,6 +1213,9 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 	# Une torche, sauf si la case est occupée par un meuble ou une défense.
 	if torch_cells.has(cell) and not rooms.has(cell) and not defenses.has(cell):
 		_billboard(layer, Art.TORCH, center, 0.8)
+
+	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.ALTAR:
+		_billboard(layer, Art.SACRIFICE_ALTAR, center, 1.1)
 
 	if has_door(cell):
 		_billboard(layer, Art.DOOR, center, 1.1)

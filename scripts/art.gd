@@ -63,6 +63,7 @@ const SPIKES_DOWN := preload("res://assets/props/spikes_down.png")
 const SPIKES_UP := preload("res://assets/props/spikes_up.png")
 const RUNE := preload("res://assets/props/rune.png")
 const DOOR := preload("res://assets/props/door.png")
+const SACRIFICE_ALTAR := preload("res://assets/props/sacrifice_altar.png")
 
 ## Tas d'or du trésor, de 1 à 5 pièces.
 const GOLD_PILES := [
@@ -94,6 +95,7 @@ const UNITS := {
 	"dwarf": [preload("res://assets/units/dwarf_0.png"), preload("res://assets/units/dwarf_1.png")],
 	"paladin": [preload("res://assets/units/paladin_0.png"), preload("res://assets/units/paladin_1.png")],
 	"giant": [preload("res://assets/units/giant_0.png"), preload("res://assets/units/giant_1.png")],
+	"catcher": [preload("res://assets/units/catcher_0.png"), preload("res://assets/units/catcher_1.png")],
 }
 
 

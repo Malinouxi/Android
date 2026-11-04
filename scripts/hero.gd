@@ -8,11 +8,16 @@ extends Unit
 ##      il la creuse lui-même (lentement) ;
 ##   3. arrivé à côté du cœur, il le frappe.
 ##
-## Vaincu, il est CAPTURÉ s'il reste une cellule libre en Prison (sinon il meurt).
+## Vaincu, il tombe ASSOMMÉ si tu as un Attrapeur de cauchemar et une cellule de
+## Prison libre : un Attrapeur vient le chercher et le porte en prison (voir
+## creature.gd). Personne n'est venu au bout de Rules.CAPTURE_WINDOW secondes ?
+## Il meurt. Sans Attrapeur ou sans cellule libre, il meurt tout de suite.
 ## Le Clerc soigne régulièrement les héros autour de lui.
 
-## Émis quand le héros est capturé (au lieu de mourir).
+## Émis quand le héros arrive en prison.
 signal captured(hero: Hero)
+## Émis quand le héros tombe assommé.
+signal fell(hero: Hero)
 
 const AGGRO_RADIUS := 128.0  ## Distance (pixels) à laquelle il repère un ennemi.
 const DIG_INTERVAL := 0.6    ## Secondes entre deux coups de pioche.
@@ -27,6 +32,19 @@ var _door_cell := Vector2i(-1, -1)
 ## Sa cellule de prison s'il est capturé, sinon (-1, -1).
 var prison_cell := Vector2i(-1, -1)
 var _heal_timer := 0.0
+
+## Assommé au sol, en attente d'un Attrapeur.
+var knocked_out := false
+var _knocked_out_timer := 0.0
+## L'Attrapeur qui le porte en ce moment (ou null).
+var carrier: Node2D = null
+## L'Attrapeur qui vient le chercher (pour que deux Attrapeurs n'y aillent pas ensemble).
+var reserved_by: Node = null
+## Le joueur a demandé de sacrifier ce prisonnier (outil Sacrifier).
+var sacrifice_requested := false
+## Vrai s'il a été sacrifié : sa rançon a déjà été payée, on ne la redonne pas à sa mort.
+var no_ransom := false
+var _dying := false
 
 
 ## À appeler juste après Hero.new().
@@ -50,6 +68,10 @@ func to_save() -> Dictionary:
 	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp}
 	if is_captured():
 		data["prison"] = SaveGame.cell_to_array(prison_cell)
+		data["sacrifice"] = sacrifice_requested
+	elif knocked_out or carrier != null:
+		# Porté par un Attrapeur au moment de la sauvegarde : on le retrouvera assommé.
+		data["knocked_out"] = _knocked_out_timer if knocked_out else Rules.CAPTURE_WINDOW * 0.5
 	return data
 
 
@@ -57,20 +79,71 @@ func is_captured() -> bool:
 	return prison_cell != Vector2i(-1, -1)
 
 
-## Vaincu : capturé s'il y a une cellule libre, sinon il meurt vraiment.
+## Vaincu : assommé si un Attrapeur peut l'emmener en prison, sinon il meurt vraiment.
 func die() -> void:
-	if not is_captured():
-		var cell := map.find_free_prison_cell()
-		if cell != Vector2i(-1, -1):
-			capture_at(cell)
-			Sound.play("capture", position)
-			captured.emit(self)
+	if not _dying and not is_captured() and not knocked_out and carrier == null:
+		var catchers := get_tree().get_nodes_in_group("catchers")
+		if not catchers.is_empty() and map.find_free_prison_cell() != Vector2i(-1, -1):
+			fall_down(Rules.CAPTURE_WINDOW)
+			Sound.play("death", position, -6.0)
+			fell.emit(self)
 			return
 	super()
 
 
+## Tue le héros pour de bon (personne n'est venu le chercher, ou il a été sacrifié).
+func kill() -> void:
+	_dying = true
+	hp = 0.0
+	knocked_out = false
+	carrier = null
+	remove_from_group("knocked_out")
+	remove_from_group("prisoners")
+	if map.prisoners.get(prison_cell) == self:
+		map.prisoners.erase(prison_cell)
+	die()
+
+
+## Tombe assommé au sol pendant `seconds` secondes.
+func fall_down(seconds: float) -> void:
+	knocked_out = true
+	_knocked_out_timer = seconds
+	carrier = null
+	reserved_by = null
+	sacrifice_requested = false
+	hp = max_hp * 0.3
+	remove_from_group(_group_name(team))
+	remove_from_group("prisoners")
+	add_to_group("knocked_out")
+	path.clear()
+	_target = null
+	z_index = Iso.depth_z(position, DungeonMap.TILE_SIZE)
+
+
+## Un Attrapeur le soulève (depuis le sol ou depuis sa cellule de prison).
+func lift(catcher: Node2D) -> void:
+	carrier = catcher
+	reserved_by = catcher
+	knocked_out = false
+	remove_from_group("knocked_out")
+	if is_captured():
+		if map.prisoners.get(prison_cell) == self:
+			map.prisoners.erase(prison_cell)
+		prison_cell = Vector2i(-1, -1)
+		remove_from_group("prisoners")
+
+
+## L'Attrapeur l'a lâché en chemin : il retombe assommé (un autre viendra peut-être).
+func put_down() -> void:
+	fall_down(Rules.CAPTURE_WINDOW * 0.5)
+
+
 ## Enferme le héros dans une cellule : il ne bouge plus et n'est plus un ennemi actif.
 func capture_at(cell: Vector2i) -> void:
+	knocked_out = false
+	carrier = null
+	reserved_by = null
+	remove_from_group("knocked_out")
 	prison_cell = cell
 	map.prisoners[cell] = self
 	hp = max_hp * 0.3
@@ -100,6 +173,22 @@ func reward() -> int:
 
 
 func _process(delta: float) -> void:
+	# Porté par un Attrapeur : il suit son porteur.
+	if carrier != null:
+		if not is_instance_valid(carrier):
+			put_down()
+		else:
+			position = carrier.position
+			z_index = carrier.z_index + 1
+		queue_redraw()
+		return
+	# Assommé : il attend, puis meurt si personne n'est venu.
+	if knocked_out:
+		_knocked_out_timer -= delta
+		if _knocked_out_timer <= 0.0:
+			kill()
+		queue_redraw()
+		return
 	if is_captured():
 		if map.get_room(prison_cell) != Rooms.Type.PRISON:
 			_escape()
@@ -210,6 +299,9 @@ func _attack_heart() -> void:
 
 func _draw() -> void:
 	var info := Heroes.info(type)
+	if knocked_out or carrier != null:
+		_draw_lying(info)
+		return
 	var sprite_scale: float = info["size"] / 8.0
 	draw_sprite(Art.UNITS[info["sprite"]], sprite_scale)
 	draw_strike()
@@ -217,3 +309,22 @@ func _draw() -> void:
 	if is_captured():
 		# Les barreaux de la cellule, par-dessus le prisonnier.
 		draw_texture_rect(Art.PRISON_BARS, Rect2(-16, -16, 32, 32), false)
+		if sacrifice_requested:
+			# Un poignard rouge au-dessus : il sera conduit à l'autel.
+			draw_texture_rect(SACRIFICE_ICON, Rect2(-8, -34, 16, 16), false)
+
+
+const SACRIFICE_ICON := preload("res://assets/icons/dagger.png")
+
+
+## Assommé (couché au sol) ou porté (couché au-dessus de l'Attrapeur).
+func _draw_lying(info: Dictionary) -> void:
+	var lift_height := -30.0 if carrier != null else -6.0
+	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, lift_height)) * Transform2D(PI / 2, Vector2.ZERO))
+	var size: float = 32.0 * info["size"] / 8.0
+	draw_texture_rect(Art.UNITS[info["sprite"]][0], Rect2(-size / 2, -size / 2, size, size), false)
+	if knocked_out:
+		# Une barre jaune : le temps qu'il reste pour venir le chercher.
+		draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, -22)))
+		draw_rect(Rect2(-14, 0, 28, 4), Color(0, 0, 0, 0.7))
+		draw_rect(Rect2(-14, 0, 28 * _knocked_out_timer / Rules.CAPTURE_WINDOW, 4), Color("ffd54a"))

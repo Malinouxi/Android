@@ -13,13 +13,14 @@ extends Node2D
 ## pas la carte, elle dit juste « on m'a touchée ici ». C'est main.gd qui décide
 ## quoi en faire. Ainsi chaque script reste simple et indépendant.
 
+## Les principaux réglages viennent de scripts/rules.gd (les règles du jeu en un seul endroit).
 const START_GOLD := 200
-const START_WORKERS := 3
-const WORKER_COST := 100
+const START_WORKERS := Rules.START_WORKERS
+const WORKER_COST := Rules.WORKER_COST
 ## Secondes entre deux arrivées de créatures (si le donjon les attire).
-const CREATURE_ARRIVAL_DELAY := 20.0
+const CREATURE_ARRIVAL_DELAY := Rules.CREATURE_ARRIVAL_DELAY
 ## Secondes entre deux jours de paie.
-const PAYDAY_INTERVAL := 90.0
+const PAYDAY_INTERVAL := Rules.PAYDAY_INTERVAL
 ## Délai minimum entre deux messages d'aide.
 const HINT_DELAY := 15.0
 ## Secondes avant la première vague de héros, puis entre deux vagues.
@@ -32,7 +33,7 @@ const MAX_HEROES_PER_WAVE := 8
 ## Nombre d'unités que la main du maître peut tenir à la fois.
 const HAND_CAPACITY := 8
 ## Secondes entre deux sauvegardes automatiques.
-const AUTOSAVE_INTERVAL := 60.0
+const AUTOSAVE_INTERVAL := Rules.AUTOSAVE_INTERVAL
 const MENU_SCENE := "res://scenes/menu.tscn"
 
 ## Quelle salle construit chaque outil de la barre.
@@ -47,7 +48,7 @@ const TOOL_ROOMS := {
 	Hud.Tool.TEMPLE: Rooms.Type.TEMPLE,
 }
 ## Points de recherche par seconde qu'apporte chaque prisonnier interrogé.
-const PRISONER_RESEARCH := 1.0
+const PRISONER_RESEARCH := Rules.PRISONER_RESEARCH
 ## Quel sort lance chaque bouton du panneau de gauche.
 const TOOL_SPELLS := {
 	Hud.Tool.SPELL_HEAL: Spells.Type.HEAL,
@@ -55,12 +56,14 @@ const TOOL_SPELLS := {
 	Hud.Tool.SPELL_HASTE: Spells.Type.HASTE,
 }
 ## L'atelier arrête de fabriquer quand le stock total atteint ce nombre.
-const MAX_TRAP_STOCK := 9
+const MAX_TRAP_STOCK := Rules.MAX_TRAP_STOCK
+const MAX_ALTARS := Rules.MAX_ALTARS
 ## Quelle défense pose chaque outil de la barre.
 const TOOL_DEFENSES := {
 	Hud.Tool.SPIKES: Defenses.Type.SPIKES,
 	Hud.Tool.RUNE: Defenses.Type.RUNE,
 	Hud.Tool.DOOR: Defenses.Type.DOOR,
+	Hud.Tool.ALTAR: Defenses.Type.ALTAR,
 }
 
 ## Le monde incliné en vue isométrique (voir iso.gd) : la carte et toutes les unités.
@@ -105,7 +108,7 @@ var mana := Spells.START_MANA
 ## Points de fabrication accumulés par l'Atelier vers le prochain piège.
 var workshop_points := 0.0
 ## Pièges et portes fabriqués, prêts à être posés : Defenses.Type -> nombre.
-var trap_stock := {Defenses.Type.SPIKES: 0, Defenses.Type.RUNE: 0, Defenses.Type.DOOR: 0}
+var trap_stock := {Defenses.Type.SPIKES: 0, Defenses.Type.RUNE: 0, Defenses.Type.DOOR: 0, Defenses.Type.ALTAR: 0}
 
 var _autosave_timer := AUTOSAVE_INTERVAL
 var _game_over := false
@@ -282,6 +285,7 @@ func _add_creature(type: int, cell: Vector2i) -> Creature:
 	creature.left_dungeon.connect(_on_creature_left)
 	creature.died.connect(_on_creature_died)
 	creature.worked.connect(_on_creature_worked)
+	creature.sacrificed.connect(_on_creature_sacrificed)
 	creature.leveled_up.connect(func(c: Creature) -> void:
 		Sound.play("level_up", c.position)
 		hud.show_message("%s passe au niveau %d !" % [c.display_name(), c.level], 3.0))
@@ -310,14 +314,22 @@ func _on_research_discovered(item: Dictionary) -> void:
 ## Le piège que l'atelier fabrique en ce moment : le moins nombreux parmi ceux
 ## déjà découverts. Renvoie -1 s'il n'y a rien à fabriquer.
 func _workshop_target() -> int:
+	# L'autel de sacrifice passe en premier tant qu'on n'en a aucun (posé ou en stock).
+	var altars: int = trap_stock[Defenses.Type.ALTAR] + map.count_defenses(Defenses.Type.ALTAR)
+	if altars == 0:
+		return Defenses.Type.ALTAR
 	var total := 0
 	for type: int in trap_stock:
-		total += trap_stock[type]
-	if total >= MAX_TRAP_STOCK:
-		return -1
+		if type != Defenses.Type.ALTAR:
+			total += trap_stock[type]
 	var best := -1
 	for type: int in trap_stock:
-		if research.is_unlocked("defense", type) and (best < 0 or trap_stock[type] < trap_stock[best]):
+		if type == Defenses.Type.ALTAR:
+			if altars >= MAX_ALTARS:
+				continue
+		elif total >= MAX_TRAP_STOCK or not research.is_unlocked("defense", type):
+			continue
+		if best < 0 or trap_stock[type] < trap_stock[best]:
 			best = type
 	return best
 
@@ -443,8 +455,45 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	hero.setup_hero(map, cell, type)
 	hero.died.connect(_on_hero_died)
 	hero.captured.connect(_on_hero_captured)
+	hero.fell.connect(func(_hero: Hero) -> void:
+		_hint("Un héros est assommé ! Tes Attrapeurs de cauchemar vont l'emmener en prison."))
 	heroes_root.add_child(hero)
 	return hero
+
+
+## Un Attrapeur a conduit un prisonnier à l'autel : le sacrifice rapporte de l'or.
+func _on_creature_sacrificed(hero: Hero) -> void:
+	var gold: int = hero.reward() * Rules.SACRIFICE_GOLD_MULTIPLIER
+	var stored := map.add_gold_to_treasury(gold)
+	Sound.play("sacrifice", hero.position)
+	Fx.burst("magic", hero.position, Color("ff1744"))
+	Fx.flash_light(hero.position, Color(1.0, 0.15, 0.1), 180.0, 0.8)
+	Fx.shake(4.0, 0.3)
+	if stored < gold:
+		hud.show_message("%s est sacrifié : +%d or (%d perdus, plus de place au Trésor)." %
+				[hero.display_name(), stored, gold - stored], 4.0)
+	else:
+		hud.show_message("%s est sacrifié : +%d or !" % [hero.display_name(), stored], 4.0)
+
+
+## Outil Sacrifier : toucher un prisonnier le désigne (ou annule) pour l'autel.
+func _request_sacrifice(world_position: Vector2) -> void:
+	var hero := _unit_at(world_position, heroes_root) as Hero
+	if hero == null or not hero.is_captured():
+		_fail("Touche un héros prisonnier, dans sa cellule.")
+		return
+	if map.altar_cells().is_empty():
+		_fail("Pose d'abord un Autel de sacrifice (l'Atelier le fabrique).")
+		return
+	if get_tree().get_nodes_in_group("catchers").is_empty():
+		_fail("Il faut un Attrapeur de cauchemar pour conduire le prisonnier à l'autel.")
+		return
+	hero.sacrifice_requested = not hero.sacrifice_requested
+	Sound.play("click")
+	if hero.sacrifice_requested:
+		hud.show_message("%s sera conduit à l'autel par un Attrapeur." % hero.display_name())
+	else:
+		hud.show_message("Sacrifice annulé.")
 
 
 ## Un héros vaincu finit en Prison : il rapporte sa rançon, et sera interrogé.
@@ -457,6 +506,8 @@ func _on_hero_captured(hero: Hero) -> void:
 ## Un héros vaincu rapporte une rançon, rangée au trésor s'il y a de la place.
 func _on_hero_died(unit: Unit) -> void:
 	var hero := unit as Hero
+	if hero.no_ransom:
+		return # Sacrifié : l'or a déjà été donné.
 	var stored := map.add_gold_to_treasury(hero.reward())
 	if stored > 0:
 		Sound.play("coins", null, -6.0)
@@ -659,7 +710,7 @@ func save_game() -> bool:
 		"mana": mana,
 		"workshop_points": workshop_points,
 		"trap_stock": [trap_stock[Defenses.Type.SPIKES], trap_stock[Defenses.Type.RUNE],
-				trap_stock[Defenses.Type.DOOR]],
+				trap_stock[Defenses.Type.DOOR], trap_stock[Defenses.Type.ALTAR]],
 	}
 	return SaveGame.write(data)
 
@@ -680,6 +731,9 @@ func _load_game(data: Dictionary) -> bool:
 		var hero := _add_hero(int(values["type"]), SaveGame.array_to_cell(values["cell"]))
 		if values.has("prison"):
 			hero.capture_at(SaveGame.array_to_cell(values["prison"]))
+			hero.sacrifice_requested = bool(values.get("sacrifice", false))
+		elif values.has("knocked_out"):
+			hero.fall_down(float(values["knocked_out"]))
 		hero.hp = float(values["hp"])
 
 	Levels.current_id = int(data.get("level_id", 0))
@@ -706,6 +760,7 @@ func _load_game(data: Dictionary) -> bool:
 	trap_stock[Defenses.Type.SPIKES] = int(stock[0])
 	trap_stock[Defenses.Type.RUNE] = int(stock[1])
 	trap_stock[Defenses.Type.DOOR] = int(stock[2])
+	trap_stock[Defenses.Type.ALTAR] = int(stock[3]) if stock.size() > 3 else 0
 
 	var view: Array = data["camera"]
 	camera.position = Vector2(float(view[0]), float(view[1]))
@@ -822,7 +877,11 @@ func _refresh_tools() -> void:
 	for tool: int in TOOL_DEFENSES:
 		var defense: int = TOOL_DEFENSES[tool]
 		var text := "%s x%d" % [Defenses.display_name(defense), trap_stock[defense]]
-		_set_tool(tool, text, Defenses.display_name(defense), research.is_unlocked("defense", defense))
+		var unlocked := research.is_unlocked("defense", defense)
+		if defense == Defenses.Type.ALTAR:
+			unlocked = research.is_unlocked("room", Rooms.Type.WORKSHOP) # L'Atelier le fabrique.
+		_set_tool(tool, text, Defenses.display_name(defense), unlocked)
+	_set_tool(Hud.Tool.SACRIFICE, "Sacrifier", "Sacrifier", research.is_unlocked("room", Rooms.Type.WORKSHOP))
 	for tool: int in TOOL_SPELLS:
 		var spell: int = TOOL_SPELLS[tool]
 		var text := "%s (%d)" % [Spells.display_name(spell), Spells.mana_cost(spell)]
@@ -1011,6 +1070,8 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 				map.toggle_mark(cell)
 		Hud.Tool.HAND:
 			_use_hand(cell, world_position)
+		Hud.Tool.SACRIFICE:
+			_request_sacrifice(world_position)
 		Hud.Tool.DEMOLISH:
 			_demolish(cell)
 		_:

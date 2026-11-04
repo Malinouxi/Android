@@ -265,6 +265,12 @@ def make_effects():
                   lowpass(noise(0.3), 0.2) * envelope(0.3, 0.001, 0.04)), 0.38)
     save("capture", mix(chains, slam), 0.6)
 
+    # Sacrifice : un gong grave et un souffle qui monte.
+    d = 2.0
+    gong = metal(98, d, 0.9) * 0.8
+    rise = lowpass(noise(d), 0.05) * np.linspace(0, 1, int(d * RATE)) ** 2 * np.exp(-np.maximum(0, time(d) - 1.4) * 8) * 2
+    save("sacrifice", mix(gong, rise), 0.6)
+
     # Clic de bouton.
     d = 0.04
     save("click", sine(1200, d) * envelope(d, 0.001, 0.008), 0.3)

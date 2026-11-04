@@ -3,7 +3,7 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER }
 
 ## "requires" : nombre minimum de cases de chaque salle pour attirer la créature.
 ## "salary" : or versé à chaque jour de paie.
@@ -65,6 +65,13 @@ const INFO := {
 		"salary": 45, "requires": {Rooms.Type.LAIR: 4, Rooms.Type.TRAINING: 3},
 		"hp": 110.0, "damage": 12.0, "range": 64.0, "attack_interval": 1.3, "splash": 40.0,
 		"attack_sound": "zap",
+	},
+	Type.CATCHER: {
+		# L'Attrapeur de cauchemar : il ramasse les héros assommés et les porte en prison
+		# (et conduit les prisonniers à l'autel de sacrifice). Voir creature.gd.
+		"name": "Attrapeur de cauchemar", "sprite": "catcher", "color": Color("2f5d6b"), "size": 8.0,
+		"speed": 110.0, "salary": 25, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.PRISON: 2},
+		"hp": 90.0, "damage": 6.0, "range": 26.0, "attack_interval": 1.0, "catcher": true,
 	},
 }
 

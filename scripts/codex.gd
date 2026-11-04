@@ -1,0 +1,223 @@
+class_name Codex
+extends Control
+## Le CODEX : les règles du jeu, à consulter depuis le menu principal ou la pause.
+##
+## À gauche, la liste des articles ; à droite, l'article choisi. Les articles
+## viennent de deux sources :
+##   - les textes écrits à la main (scripts/codex_content.gd) ;
+##   - des tableaux construits AUTOMATIQUEMENT à partir des catalogues du jeu :
+##     ajoute une créature dans creatures.gd, elle apparaît toute seule ici.
+##   - les nouveautés des règles (scripts/rules.gd, CHANGELOG).
+## Usage : var codex := Codex.new() ; add_child(codex) ; codex.closed.connect(...)
+
+signal closed
+
+var _articles: Array = []
+var _text: RichTextLabel
+
+
+func _ready() -> void:
+	# Le codex marche aussi pendant la pause (ouvert depuis le menu de pause).
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	theme = get_tree().root.theme
+	_articles = _build_articles()
+
+	var veil := ColorRect.new()
+	veil.color = Color(0, 0, 0, 0.75)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(veil)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 30
+	panel.offset_top = 24
+	panel.offset_right = -30
+	panel.offset_bottom = -24
+	add_child(panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	panel.add_child(column)
+
+	# En-tête : titre, version des règles, bouton Fermer.
+	var header := HBoxContainer.new()
+	column.add_child(header)
+	var title := Label.new()
+	title.text = "Codex des règles  (version %s)" % Rules.VERSION
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Ui.GOLD)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var close := Button.new()
+	close.text = "Fermer"
+	close.custom_minimum_size = Vector2(150, 50)
+	close.add_theme_font_size_override("font_size", 22)
+	close.pressed.connect(func() -> void:
+		Sound.play("click")
+		closed.emit()
+		queue_free())
+	header.add_child(close)
+
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 14)
+	column.add_child(body)
+
+	# La liste des articles, regroupés par catégorie (défilable).
+	var list_scroll := ScrollContainer.new()
+	list_scroll.custom_minimum_size = Vector2(300, 0)
+	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(list_scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_scroll.add_child(list)
+	var group := ButtonGroup.new()
+	var current_category := ""
+	for i in _articles.size():
+		var article: Dictionary = _articles[i]
+		if article["category"] != current_category:
+			current_category = article["category"]
+			var category_label := Label.new()
+			category_label.text = current_category
+			category_label.add_theme_color_override("font_color", Color("a1887f"))
+			category_label.add_theme_font_size_override("font_size", 16)
+			list.add_child(category_label)
+		var button := Button.new()
+		button.text = article["title"]
+		button.toggle_mode = true
+		button.button_group = group
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size = Vector2(0, 44)
+		button.add_theme_font_size_override("font_size", 18)
+		button.pressed.connect(_show_article.bind(i))
+		list.add_child(button)
+		if i == 0:
+			button.button_pressed = true
+
+	# L'article choisi (texte enrichi, défilable).
+	_text = RichTextLabel.new()
+	_text.bbcode_enabled = true
+	_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_text.add_theme_font_size_override("normal_font_size", 19)
+	_text.add_theme_font_size_override("bold_font_size", 19)
+	_text.add_theme_constant_override("table_h_separation", 18)
+	body.add_child(_text)
+	_show_article(0)
+
+
+func _show_article(index: int) -> void:
+	var article: Dictionary = _articles[index]
+	_text.text = "[font_size=26][color=#ffd54a]%s[/color][/font_size]\n\n%s" % [article["title"], article["text"]]
+	_text.scroll_to_line(0)
+
+
+# ---------------------------------------------------------------------------
+# Les articles
+# ---------------------------------------------------------------------------
+
+func _build_articles() -> Array:
+	var articles: Array = CodexContent.ARTICLES.duplicate()
+	articles.append({"category": "Catalogues", "title": "Créatures", "text": _creatures_table()})
+	articles.append({"category": "Catalogues", "title": "Héros", "text": _heroes_table()})
+	articles.append({"category": "Catalogues", "title": "Salles", "text": _rooms_table()})
+	articles.append({"category": "Catalogues", "title": "Défenses", "text": _defenses_table()})
+	articles.append({"category": "Catalogues", "title": "Sorts", "text": _spells_table()})
+	articles.append({"category": "Catalogues", "title": "Recherche", "text": _research_table()})
+	articles.append({"category": "Règles", "title": "Nouveautés", "text": _changelog()})
+	return articles
+
+
+func _header(columns: Array) -> String:
+	var text := ""
+	for column in columns:
+		text += "[cell][color=#ffd54a]%s[/color][/cell]" % column
+	return text
+
+
+func _cell(value) -> String:
+	return "[cell]%s[/cell]" % str(value)
+
+
+## Le texte des capacités spéciales (voir unit.gd, load_abilities).
+func _abilities(info: Dictionary) -> String:
+	var parts: Array[String] = []
+	if info.has("armor"):
+		parts.append("armure -%d %%" % roundi(info["armor"] * 100))
+	if info.has("lifesteal"):
+		parts.append("vol de vie %d %%" % roundi(info["lifesteal"] * 100))
+	if info.has("splash"):
+		parts.append("ricochet")
+	if info.has("regen"):
+		parts.append("+%d PV/s" % info["regen"])
+	if info.has("slow"):
+		parts.append("ralentit")
+	if info.has("dig_speed"):
+		parts.append("creuse x%d" % info["dig_speed"])
+	if info.has("door_damage"):
+		parts.append("portes x%d" % info["door_damage"])
+	if info.get("catcher", false):
+		parts.append("capture les héros")
+	if info["range"] > 50.0:
+		parts.append("à distance")
+	return ", ".join(parts) if not parts.is_empty() else "-"
+
+
+func _creatures_table() -> String:
+	var text := "[table=6]" + _header(["Créature", "Il faut", "Salaire", "Vie", "Dégâts", "Capacités"])
+	for type: int in Creatures.INFO:
+		var info: Dictionary = Creatures.INFO[type]
+		var requires: Array[String] = []
+		for room: int in info["requires"]:
+			requires.append("%d %s" % [info["requires"][room], Rooms.display_name(room)])
+		text += _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
+				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
+	return text + "[/table]"
+
+
+func _heroes_table() -> String:
+	var text := "[table=5]" + _header(["Héros", "Dès la vague", "Vie", "Dégâts", "Capacités"])
+	for type: int in Heroes.INFO:
+		var info: Dictionary = Heroes.INFO[type]
+		var wave: String = "rival" if info.get("rival", false) else str(info["first_wave"])
+		text += _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
+				+ _cell(roundi(info["damage"])) + _cell(_abilities(info))
+	return text + "[/table]"
+
+
+func _rooms_table() -> String:
+	var text := "[table=2]" + _header(["Salle", "Prix par case"])
+	for type: int in Rooms.INFO:
+		text += _cell(Rooms.display_name(type)) + _cell("%d or" % Rooms.cost(type))
+	return text + "[/table]\n\nUn Trésor range %d or par case. Une case de Repaire est un lit." % Rooms.TREASURY_CAPACITY
+
+
+func _defenses_table() -> String:
+	var text := "[table=2]" + _header(["Défense", "Points de fabrication à l'Atelier"])
+	for type: int in Defenses.INFO:
+		text += _cell(Defenses.display_name(type)) + _cell(Defenses.cost(type))
+	return text + "[/table]"
+
+
+func _spells_table() -> String:
+	var text := "[table=2]" + _header(["Sort", "Mana"])
+	for type: int in Spells.INFO:
+		text += _cell(Spells.display_name(type)) + _cell(Spells.mana_cost(type))
+	return text + "[/table]\n\nLa mana se recharge plus vite avec un grand territoire (%d au maximum)." % Spells.MAX_MANA
+
+
+func _research_table() -> String:
+	var text := "Dans l'ordre des découvertes :\n\n[table=2]" + _header(["Découverte", "Points de recherche"])
+	for item in Research.ITEMS:
+		text += _cell(item["name"]) + _cell(item["points"])
+	return text + "[/table]"
+
+
+func _changelog() -> String:
+	var text := ""
+	for entry in Rules.CHANGELOG:
+		text += "[color=#ffd54a][b]Version %s[/b][/color]\n" % entry["version"]
+		for change in entry["changes"]:
+			text += "- %s\n" % change
+		text += "\n"
+	return text

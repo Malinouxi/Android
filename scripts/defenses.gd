@@ -6,12 +6,14 @@ enum Type {
 	SPIKES, ## Pointes : blessent un héros qui marche dessus, puis se réarment.
 	RUNE,   ## Rune explosive : explose au passage d'un héros, puis disparaît.
 	DOOR,   ## Porte : les héros doivent la casser, tes unités passent librement.
+	ALTAR,  ## Autel de sacrifice : les prisonniers y sont sacrifiés contre de l'or.
 }
 
 const INFO := {
 	Type.SPIKES: {"name": "Pointes", "cost": 80, "damage": 30.0, "rearm_time": 2.5},
 	Type.RUNE: {"name": "Rune", "cost": 120, "damage": 90.0, "radius": 56.0},
 	Type.DOOR: {"name": "Porte", "cost": 100, "hp": 300.0},
+	Type.ALTAR: {"name": "Autel", "cost": 150},
 }
 
 

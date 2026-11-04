@@ -16,6 +16,7 @@ var _camera: Camera2D
 var _heart_light: PointLight2D
 var _time := 0.0
 var _settings_overlay: Control
+var _ui_root: Control
 
 
 func _ready() -> void:
@@ -104,6 +105,7 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.theme = get_tree().root.theme
 	layer.add_child(root)
+	_ui_root = root
 
 	# Un panneau sombre sur toute la hauteur, à gauche.
 	var panel := PanelContainer.new()
@@ -111,17 +113,17 @@ func _build_ui() -> void:
 	style.bg_color = Color(0.06, 0.05, 0.045, 0.88)
 	style.border_color = Color("6d4c41")
 	style.border_width_right = 3
-	style.set_content_margin_all(26)
+	style.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.anchor_bottom = 1.0
 	panel.offset_right = PANEL_WIDTH
 	root.add_child(panel)
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
+	column.add_theme_constant_override("separation", 9)
 	panel.add_child(column)
 
-	column.add_child(_make_label("Seigneur\ndes Profondeurs", 46, Ui.GOLD, 10))
+	column.add_child(_make_label("Seigneur\ndes Profondeurs", 40, Ui.GOLD, 10))
 	column.add_child(_make_label("Creuse, bâtis, et défends ton cœur contre les héros.", 17, Color("d7ccc8"), 6))
 	column.add_child(_make_gallery())
 
@@ -133,12 +135,14 @@ func _build_ui() -> void:
 		var summary: Dictionary = save.get("summary", {})
 		continue_button.text = "Continuer\n%s, vague %d" % [summary.get("level_name", "Partie libre"),
 				int(summary.get("wave", 1))]
-		continue_button.custom_minimum_size.y = 76
+		continue_button.custom_minimum_size.y = 68
 		continue_button.add_theme_stylebox_override("normal", Ui.primary_button_style())
 	column.add_child(continue_button)
 	column.add_child(_make_button("Campagne", Art.ENTRANCE, func() -> void:
 		get_tree().change_scene_to_file(LEVELS_SCENE)))
 	column.add_child(_make_button("Partie libre", preload("res://assets/icons/pickaxe.png"), _on_new_game_pressed))
+	column.add_child(_make_button("Codex des règles", Art.ROOM_PROPS[Rooms.Type.LIBRARY], func() -> void:
+		_ui_root.add_child(Codex.new())))
 	column.add_child(_make_button("Réglages", Art.ROOM_PROPS[Rooms.Type.WORKSHOP], func() -> void:
 		_settings_overlay.visible = true))
 	column.add_child(_make_button("Quitter", Art.DOOR, func() -> void: get_tree().quit()))
@@ -165,12 +169,12 @@ func _make_gallery() -> Control:
 	for i in names.size():
 		# Un cadre fixe (géré par le conteneur) avec l'image dedans, libre de bouger.
 		var frame := Control.new()
-		frame.custom_minimum_size = Vector2(56, 64)
+		frame.custom_minimum_size = Vector2(52, 56)
 		row.add_child(frame)
 		var picture := TextureRect.new()
 		picture.texture = Art.UNITS[names[i]][0]
 		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		picture.size = Vector2(56, 56)
+		picture.size = Vector2(48, 48)
 		picture.position = Vector2(0, 8)
 		frame.add_child(picture)
 		var tween := picture.create_tween().set_loops()
@@ -229,8 +233,8 @@ func _make_label(text: String, font_size: int, color: Color, outline: int) -> La
 func _make_button(text: String, icon_texture: Texture2D, action: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(0, 62)
-	button.add_theme_font_size_override("font_size", 26)
+	button.custom_minimum_size = Vector2(0, 54)
+	button.add_theme_font_size_override("font_size", 23)
 	if icon_texture != null:
 		button.icon = icon_texture
 		button.expand_icon = true

@@ -16,11 +16,13 @@ signal resume_pressed
 signal save_pressed
 signal menu_pressed
 signal next_level_pressed
+signal codex_pressed
 signal tool_selected(tool: int)
 
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
-		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE }
+		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE,
+		ALTAR, SACRIFICE }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -64,6 +66,8 @@ const TOOL_ICONS := {
 	Tool.SPIKES: preload("res://assets/props/spikes_up.png"),
 	Tool.RUNE: preload("res://assets/props/rune.png"),
 	Tool.DOOR: preload("res://assets/props/door.png"),
+	Tool.ALTAR: preload("res://assets/props/sacrifice_altar.png"),
+	Tool.SACRIFICE: preload("res://assets/icons/dagger.png"),
 	Tool.SPELL_HEAL: preload("res://assets/icons/heal.png"),
 	Tool.SPELL_LIGHTNING: preload("res://assets/icons/bolt.png"),
 	Tool.SPELL_HASTE: preload("res://assets/icons/haste.png"),
@@ -83,6 +87,8 @@ func _ready() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE # Laisse passer les touchers vers la carte.
 	_root.theme = get_tree().root.theme
 	add_child(_root)
+	# Le codex s'ouvre par-dessus tout (il marche aussi pendant la pause).
+	codex_pressed.connect(func() -> void: _root.add_child(Codex.new()))
 	_build_top_panel()
 	_build_tool_panel()
 	_build_spell_panel()
@@ -191,6 +197,8 @@ func _build_tool_panel() -> void:
 		[Tool.SPIKES, _defense_label(Defenses.Type.SPIKES)],
 		[Tool.RUNE, _defense_label(Defenses.Type.RUNE)],
 		[Tool.DOOR, _defense_label(Defenses.Type.DOOR)],
+		[Tool.ALTAR, _defense_label(Defenses.Type.ALTAR)],
+		[Tool.SACRIFICE, "Sacrifier"],
 		[Tool.DEMOLISH, "Démolir"],
 	]
 	for entry in tools:
@@ -248,7 +256,7 @@ func _make_tool_button(tool: int, text: String) -> Button:
 	button.toggle_mode = true
 	button.button_group = _tool_group
 	button.button_pressed = tool == Tool.DIG
-	button.custom_minimum_size = Vector2(170, 50)
+	button.custom_minimum_size = Vector2(170, 46)
 	button.add_theme_font_size_override("font_size", 18)
 	button.pressed.connect(func() -> void:
 		Sound.play("click")
@@ -366,6 +374,7 @@ func show_pause_menu() -> void:
 	_pause_panel = column.get_parent() as Control
 	column.add_child(_make_big_button("Reprendre", resume_pressed))
 	column.add_child(_make_big_button("Sauvegarder", save_pressed))
+	column.add_child(_make_big_button("Codex des règles", codex_pressed))
 	column.add_child(_make_big_button("Sauvegarder et quitter", menu_pressed))
 	for button in Sound.make_settings_buttons():
 		column.add_child(button)

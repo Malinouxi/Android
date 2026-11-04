@@ -711,6 +711,27 @@ CHARACTERS.update({
 })
 
 
+# L'Attrapeur de cauchemar (étape 18) : capuche sombre, yeux jaunes, filet de chaînes.
+CHARACTERS["catcher"] = ([
+    "................",
+    "......kkkk......",
+    ".....kcccck.....",
+    "....kcccccck....",
+    "....kckkkkck....",
+    "....kkykkykk....",
+    "....kckkkkck....",
+    "...kkccCCcckk...",
+    "..kcccCCCCccck..",
+    ".kncccCCCCcccnk.",
+    ".knnccCCCCccnnk.",
+    "..kncccCCcccnk..",
+    "...kcccccccck...",
+    "...kcccccccck...",
+    "....kckk.kkck...",
+    "....kk.....kk...",
+], {"k": "#0a0f14", "c": "#1f3a44", "C": "#2f5d6b", "y": "#ffeb3b", "n": "#90a4ae"})
+
+
 def make_characters():
     for name, (rows, palette) in CHARACTERS.items():
         rows = [r.replace(" ", ".") for r in rows]
@@ -1070,6 +1091,54 @@ def make_icons():
     save(from_ascii(TORCH, TORCH_PALETTE), "props", "torch.png")
 
 
+# Autel de sacrifice (fabriqué à l'Atelier) et icône du poignard (outil Sacrifier).
+SACRIFICE_ALTAR = [
+    "................",
+    "....r......r....",
+    "....w......w....",
+    "..kkwkkkkkkwkk..",
+    "..kSSSSSSSSSSk..",
+    "..ksssRRRRsssk..",
+    "..kssRrrrrRssk..",
+    "..ksssRRRRsssk..",
+    "..kkkkkkkkkkkk..",
+    "...kddddddddk...",
+    "...kdRddddRdk...",
+    "...kddddddddk...",
+    "..kkkkkkkkkkkk..",
+    "................",
+    "................",
+    "................",
+]
+SACRIFICE_PALETTE = {"k": "#140a0a", "S": "#5d5d66", "s": "#3d3d44", "R": "#c62828", "r": "#ff5252",
+                     "w": "#eceff1", "d": "#2a2a30"}
+
+DAGGER = [
+    "................",
+    "............kk..",
+    "...........kMk..",
+    "..........kMmk..",
+    ".........kMmk...",
+    "........kMmk....",
+    ".......kMmk.....",
+    "..kk..kMmk......",
+    "..krkkMmk.......",
+    "...krrmk........",
+    "....krrk........",
+    "...kwkkrk.......",
+    "..kwk..krk......",
+    ".kwk....kk......",
+    ".kk.............",
+    "................",
+]
+DAGGER_PALETTE = {"k": "#1c1c1c", "M": "#eceff1", "m": "#90a4ae", "r": "#c62828", "w": "#6d4c41"}
+
+
+def make_sacrifice_art():
+    save(from_ascii(SACRIFICE_ALTAR, SACRIFICE_PALETTE), "props", "sacrifice_altar.png")
+    save(from_ascii(DAGGER, DAGGER_PALETTE), "icons", "dagger.png")
+
+
 def make_defenses():
     save(spikes(False), "props", "spikes_down.png")
     save(spikes(True), "props", "spikes_up.png")
@@ -1084,6 +1153,7 @@ def main():
     make_defenses()
     make_room_props()
     make_icons()
+    make_sacrifice_art()
     print("Images générées dans", ASSETS)
 
 

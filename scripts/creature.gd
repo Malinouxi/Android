@@ -18,6 +18,8 @@ signal left_dungeon(creature: Creature)
 signal worked(room_type: int, amount: float)
 ## Émis quand la créature passe un niveau.
 signal leveled_up(creature: Creature)
+## Émis quand un Attrapeur dépose un prisonnier sur un autel (main.gd donne l'or).
+signal sacrificed(hero: Hero)
 
 ## main.gd met à jour ces deux valeurs : y a-t-il encore quelque chose à
 ## chercher ou à fabriquer ? (« static » : partagées par toutes les créatures.)
@@ -25,7 +27,7 @@ static var research_needed := false
 static var workshop_needed := false
 
 enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING,
-		GOING_TO_WORK, WORKING, RAIDING }
+		GOING_TO_WORK, WORKING, RAIDING, GOING_TO_CATCH, CARRYING }
 
 const STATE_NAMES := {
 	State.WANDER: "se promène",
@@ -37,6 +39,8 @@ const STATE_NAMES := {
 	State.FIGHTING: "se bat",
 	State.GOING_TO_WORK: "va travailler",
 	State.RAIDING: "attaque le cœur rival",
+	State.GOING_TO_CATCH: "va chercher un héros",
+	State.CARRYING: "porte un héros",
 	State.WORKING: "travaille",
 }
 const WORK_NAMES := {
@@ -104,6 +108,8 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
 	load_abilities(info)
+	if info.get("catcher", false):
+		add_to_group("catchers") # Les héros vaincus peuvent alors tomber assommés (hero.gd).
 	setup(dungeon_map, cell)
 	energy = randf_range(60.0, 100.0)
 	hunger = randf_range(0.0, 30.0)
@@ -245,7 +251,149 @@ func _process(delta: float) -> void:
 			_process_working(delta)
 		State.RAIDING:
 			_process_raiding(delta)
+		State.GOING_TO_CATCH:
+			_process_going_to_catch(delta)
+		State.CARRYING:
+			_process_carrying(delta)
 	queue_redraw()
+
+
+# ---------------------------------------------------------------------------
+# L'Attrapeur de cauchemar
+# ---------------------------------------------------------------------------
+## 1. Il cherche un héros assommé (ou un prisonnier à sacrifier) que personne ne
+##    vient déjà chercher, et y va (GOING_TO_CATCH).
+## 2. Il le soulève et le porte (CARRYING) vers une cellule de Prison libre...
+##    ou vers un autel de sacrifice.
+## 3. Arrivé : le héros est enfermé (rançon), ou sacrifié (signal sacrificed).
+
+var _catch_target: Hero = null
+var _carry_destination := NO_CELL
+var _carry_to_altar := false
+
+
+func is_catcher() -> bool:
+	return Creatures.info(type).get("catcher", false)
+
+
+## Choisit un héros à aller chercher. Renvoie false s'il n'y a rien à faire.
+func _start_catch() -> bool:
+	var best: Hero = null
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("knocked_out"):
+		var hero := node as Hero
+		if hero != null and _is_free_to_catch(hero) and position.distance_to(hero.position) < best_distance:
+			best = hero
+			best_distance = position.distance_to(hero.position)
+	# Pas de héros assommé : un prisonnier à conduire à l'autel ?
+	if best == null and not map.altar_cells().is_empty():
+		for node in get_tree().get_nodes_in_group("prisoners"):
+			var hero := node as Hero
+			if hero != null and hero.sacrifice_requested and _is_free_to_catch(hero):
+				best = hero
+				break
+	if best == null or not go_to(best.current_cell()):
+		return false
+	best.reserved_by = self
+	_catch_target = best
+	state = State.GOING_TO_CATCH
+	return true
+
+
+func _is_free_to_catch(hero: Hero) -> bool:
+	return hero.carrier == null and (hero.reserved_by == null or not is_instance_valid(hero.reserved_by)
+			or hero.reserved_by == self)
+
+
+func _process_going_to_catch(delta: float) -> void:
+	if not is_instance_valid(_catch_target) or _catch_target.carrier != null \
+			or _catch_target.reserved_by != self:
+		_stop_catch()
+		return
+	if move_along_path(delta) or position.distance_to(_catch_target.position) < 12.0:
+		_pick_up_target()
+
+
+## Soulève le héros, et choisit où le porter.
+func _pick_up_target() -> void:
+	var hero := _catch_target
+	_carry_to_altar = hero.is_captured() and hero.sacrifice_requested
+	var destination := NO_CELL
+	if _carry_to_altar:
+		var best_length := 1000000
+		for cell in map.altar_cells():
+			var route := map.find_path(current_cell(), cell)
+			if not route.is_empty() and route.size() < best_length:
+				best_length = route.size()
+				destination = cell
+	else:
+		destination = map.find_free_prison_cell()
+		if destination != NO_CELL:
+			map.prisoners[destination] = hero # On réserve la cellule.
+	if destination == NO_CELL:
+		_stop_catch()
+		return
+	hero.lift(self)
+	if not go_to(destination):
+		_drop_carried()
+		return
+	_carry_destination = destination
+	state = State.CARRYING
+	Sound.play("pickup", position)
+
+
+func _process_carrying(delta: float) -> void:
+	if not is_instance_valid(_catch_target):
+		_stop_catch()
+		return
+	# La destination existe-t-elle encore (cellule démolie, autel retiré) ?
+	var still_valid := false
+	if _carry_to_altar:
+		still_valid = map.defenses.has(_carry_destination) \
+				and map.defenses[_carry_destination]["type"] == Defenses.Type.ALTAR
+	else:
+		still_valid = map.get_room(_carry_destination) == Rooms.Type.PRISON
+	if not still_valid:
+		_drop_carried()
+		return
+	if move_along_path(delta):
+		_deliver()
+
+
+func _deliver() -> void:
+	var hero := _catch_target
+	if _carry_to_altar:
+		hero.carrier = null
+		sacrificed.emit(hero) # main.gd donne l'or et joue les effets.
+		hero.no_ransom = true
+		hero.kill()
+	else:
+		map.prisoners.erase(_carry_destination) # La réservation devient un vrai prisonnier :
+		hero.capture_at(_carry_destination)
+		hero.captured.emit(hero) # main.gd donne la rançon.
+		Sound.play("capture", position)
+	gain_xp(20.0)
+	_catch_target = null
+	_carry_destination = NO_CELL
+	state = State.WANDER
+
+
+## Lâche le héros porté (l'Attrapeur meurt, est ramassé, ou la destination a disparu).
+func _drop_carried() -> void:
+	if is_instance_valid(_catch_target) and _catch_target.carrier == self:
+		if not _carry_to_altar and map.prisoners.get(_carry_destination) == _catch_target:
+			map.prisoners.erase(_carry_destination)
+		_catch_target.put_down()
+	_stop_catch()
+
+
+func _stop_catch() -> void:
+	if is_instance_valid(_catch_target) and _catch_target.reserved_by == self:
+		_catch_target.reserved_by = null
+	_catch_target = null
+	_carry_destination = NO_CELL
+	if state == State.GOING_TO_CATCH or state == State.CARRYING:
+		state = State.WANDER
 
 
 ## Attaque du cœur rival : on se place à côté, puis on frappe.
@@ -343,7 +491,8 @@ func _stop_work() -> void:
 
 ## Trois fois par seconde : y a-t-il un héros à combattre ?
 func _update_combat(delta: float) -> void:
-	if state == State.LEAVING:
+	# (Un Attrapeur en mission ne se laisse pas distraire par les combats.)
+	if state == State.LEAVING or state == State.GOING_TO_CATCH or state == State.CARRYING:
 		return
 	_combat_timer -= delta
 	if _combat_timer > 0.0:
@@ -374,6 +523,10 @@ func _process_wander(delta: float) -> void:
 	if _think_timer > 0.0:
 		return
 	_think_timer = 0.5
+
+	# Priorité 0 (Attrapeurs) : ramasser les héros assommés, conduire les sacrifiés.
+	if is_catcher() and _start_catch():
+		return
 
 	# Priorité 1 : manger.
 	if hunger >= HUNGRY_LEVEL:
@@ -429,6 +582,7 @@ func _has_bed() -> bool:
 
 
 func _start_leaving() -> void:
+	_drop_carried()
 	map.release_work_spot(self)
 	state = State.LEAVING
 	map.release_bed(self)
@@ -443,6 +597,7 @@ func can_be_picked_up() -> bool:
 
 
 func _on_picked_up() -> void:
+	_drop_carried()
 	_enemy = null
 	map.release_work_spot(self)
 	state = State.WANDER
@@ -450,6 +605,7 @@ func _on_picked_up() -> void:
 
 ## Morte au combat : on libère son lit, puis Unit.die() fait le reste.
 func die() -> void:
+	_drop_carried()
 	map.release_bed(self)
 	map.release_work_spot(self)
 	super()

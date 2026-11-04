@@ -121,9 +121,9 @@ func _build_top_panel() -> void:
 	_treasury_label = _make_label(18)
 	row.add_child(_treasury_label)
 	_workers_label = _make_label(24)
-	row.add_child(_with_icon(preload("res://assets/units/worker_0.png"), _workers_label))
+	row.add_child(_with_icon(preload("res://assets/units/worker_idle_0.png"), _workers_label))
 	_creatures_label = _make_label(24)
-	row.add_child(_with_icon(preload("res://assets/units/kobold_0.png"), _creatures_label))
+	row.add_child(_with_icon(preload("res://assets/units/kobold_idle_0.png"), _creatures_label))
 	_heart_label = _make_label(20)
 	second_row.add_child(_with_icon(preload("res://assets/props/heart.png"), _heart_label))
 	_payday_label = _make_label(20)
@@ -154,7 +154,7 @@ func _build_top_panel() -> void:
 	_summon_button.add_theme_font_size_override("font_size", 22)
 	# Un bouton de 64 px de haut est facile à toucher avec le doigt.
 	_summon_button.custom_minimum_size = Vector2(0, 64)
-	_summon_button.icon = preload("res://assets/units/worker_0.png")
+	_summon_button.icon = preload("res://assets/units/worker_idle_0.png")
 	_summon_button.expand_icon = true
 	_summon_button.pressed.connect(func() -> void:
 		Sound.play("click")

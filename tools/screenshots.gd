@@ -42,8 +42,9 @@ func _run() -> void:
 	print("ÉTAPE combat : scène = ", game, ", carte = ", game.get("map"))
 	var map_node: Node = game.get_node("World/DungeonMap")
 	var heart: Vector2i = map_node.heart_cell
-	game._add_hero(Heroes.Type.KNIGHT, heart + Vector2i(1, 1))
-	game._add_creature(Creatures.Type.ORC, heart + Vector2i(-1, 1))
+	# Entiers (KNIGHT = 2, ORC = 1) : citer Heroes/Creatures ferait compiler la carte avant Sound.
+	game._add_hero(2, heart + Vector2i(1, 1))
+	game._add_creature(1, heart + Vector2i(-1, 1))
 	print("ÉTAPE combat : unités ajoutées")
 	await _frames(70)
 	_shot("04_combat")

@@ -1195,10 +1195,10 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 		var type := get_room(cell)
 		match type:
 			Rooms.Type.TREASURY:
-				# Un tas d'or qui grossit avec la quantité stockée (0 à 5 pièces).
-				var coins := ceili(5.0 * stored_gold.get(cell, 0) / Rooms.TREASURY_CAPACITY)
-				if coins > 0:
-					_billboard(layer, Art.GOLD_PILES[mini(coins, 5) - 1], center, 0.9)
+				# Un coffre : fermé s'il est vide, puis de plus en plus rempli d'or.
+				var fill: float = float(stored_gold.get(cell, 0)) / Rooms.TREASURY_CAPACITY
+				var level := 0 if fill <= 0.0 else mini(3, 1 + int(fill * 3.0))
+				_billboard(layer, Art.CHESTS[level], center, 0.95)
 			Rooms.Type.LAIR:
 				_billboard(layer, Art.BED, center, 0.9)
 			Rooms.Type.FARM:

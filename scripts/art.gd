@@ -65,7 +65,15 @@ const RUNE := preload("res://assets/props/rune.png")
 const DOOR := preload("res://assets/props/door.png")
 const SACRIFICE_ALTAR := preload("res://assets/props/sacrifice_altar.png")
 
-## Tas d'or du trésor, de 1 à 5 pièces.
+## Les coffres du Trésor : fermé (vide), puis de plus en plus plein.
+const CHESTS := [
+	preload("res://assets/props/chest_0.png"),
+	preload("res://assets/props/chest_1.png"),
+	preload("res://assets/props/chest_2.png"),
+	preload("res://assets/props/chest_3.png"),
+]
+
+## Tas d'or (icônes de l'interface), de 1 à 5 pièces.
 const GOLD_PILES := [
 	preload("res://assets/props/gold_pile_1.png"),
 	preload("res://assets/props/gold_pile_2.png"),

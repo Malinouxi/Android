@@ -1148,6 +1148,9 @@ def make_defenses():
 
 def main():
     make_tiles()
+    # Les tuiles en 32 x 32 (et les coffres) remplacent celles en 16 x 16 : voir art32.py.
+    import art32
+    art32.make_all()
     make_props()
     make_characters()
     make_defenses()

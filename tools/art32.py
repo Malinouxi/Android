@@ -389,6 +389,425 @@ def make_chests():
         save(chest(level, rng), "props", "chest_%d.png" % level)
 
 
+
+
+
+# ===========================================================================
+# PERSONNAGES EN 32 x 32
+# ===========================================================================
+# Chaque personnage est assemblé avec des « pièces » (jambes, torse, bras, tête,
+# casque, cape, armes...). Chaque pièce est ombrée toute seule : bord clair en
+# haut et à gauche, bord sombre en bas et à droite. Un contour sombre est ajouté
+# à la fin. Deux images par personnage : step=0 (debout) et step=1 (un pas).
+
+OUTLINE = "#120a08"
+
+
+def shade(color, factor):
+    r, g, b, a = rgb(color)
+    if factor > 1:
+        r, g, b = (int(c + (255 - c) * (factor - 1)) for c in (r, g, b))
+    else:
+        r, g, b = (int(c * factor) for c in (r, g, b))
+    return "#%02x%02x%02x" % (r, g, b)
+
+
+class Sprite:
+    def __init__(self):
+        self.image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+
+    def part(self, shape, xy, base, light=None, dark=None):
+        """Dessine une pièce (rect, ellipse ou polygon) avec son ombrage."""
+        mask = Image.new("L", (S, S), 0)
+        draw = ImageDraw.Draw(mask)
+        getattr(draw, shape)(xy, fill=255)
+        light = light or shade(base, 1.35)
+        dark = dark or shade(base, 0.7)
+        pixels = mask.load()
+        for y in range(S):
+            for x in range(S):
+                if not pixels[x, y]:
+                    continue
+                edge = lambda nx, ny: not (0 <= nx < S and 0 <= ny < S and pixels[nx, ny])
+                if edge(x, y - 1) or edge(x - 1, y):
+                    color = light
+                elif edge(x, y + 1) or edge(x + 1, y):
+                    color = dark
+                else:
+                    color = base
+                self.image.putpixel((x, y), rgb(color))
+
+    def flat(self, shape, xy, color):
+        """Une pièce d'une seule couleur (yeux, bouche, détails)."""
+        getattr(ImageDraw.Draw(self.image), shape)(xy, fill=rgb(color))
+
+    def dots(self, points, color):
+        for point in points:
+            self.image.putpixel(point, rgb(color))
+
+    def finish(self):
+        return outline(self.image, OUTLINE)
+
+
+def eyes(sp, y, color="#ffffff", pupil="#1a1a1a", left=12, right=18, glow=False):
+    if glow:
+        sp.flat("rectangle", [left, y, left + 1, y], color)
+        sp.flat("rectangle", [right, y, right + 1, y], color)
+        return
+    sp.flat("rectangle", [left, y, left + 1, y + 1], color)
+    sp.flat("rectangle", [right, y, right + 1, y + 1], color)
+    sp.dots([(left + 1, y + 1), (right, y + 1)], pupil)
+
+
+def humanoid(step, skin, top, legs, boots, *, robe=None, head_drop=0, short=False):
+    """Le corps de base : jambes (ou robe), torse, bras, mains et tête.
+    Renvoie le Sprite et un dictionnaire de repères pour placer les accessoires."""
+    sp = Sprite()
+    bob = -1 if step else 0
+    lift = 1 if step else 0
+    leg_top = 26 if short else 24
+    if robe:
+        sp.part("polygon", [(10, 15 + bob), (21, 15 + bob), (24, 30), (7, 30)], robe)
+        sp.part("rectangle", [9 + lift, 29, 13 + lift, 30], boots)
+        sp.part("rectangle", [18 - lift, 29, 22 - lift, 30], boots)
+    else:
+        sp.part("rectangle", [11, leg_top - lift, 14, 29 - lift], legs)
+        sp.part("rectangle", [17, leg_top, 20, 29], legs)
+        sp.part("rectangle", [10, 29 - lift, 14, 30 - lift], boots)
+        sp.part("rectangle", [17, 29, 21, 30], boots)
+        sp.part("rectangle", [10, 15 + bob + (3 if short else 0), 21, leg_top + 1 + bob], top)
+    arm_y = 16 + bob + (3 if short else 0)
+    sp.part("rectangle", [7, arm_y + lift, 9, arm_y + 6 + lift], top if not robe else robe)
+    sp.part("rectangle", [22, arm_y - lift, 24, arm_y + 6 - lift], top if not robe else robe)
+    sp.part("ellipse", [7, arm_y + 6 + lift, 9, arm_y + 8 + lift], skin)
+    sp.part("ellipse", [22, arm_y + 6 - lift, 24, arm_y + 8 - lift], skin)
+    head_y = 3 + bob + head_drop
+    sp.part("ellipse", [9, head_y, 22, head_y + 12], skin)
+    return sp, {"bob": bob, "lift": lift, "head_y": head_y, "arm_y": arm_y,
+                "left_hand": (8, arm_y + 7 + lift), "right_hand": (23, arm_y + 7 - lift)}
+
+
+def sword(sp, hand, blade="#cfd8dc"):
+    x, y = hand
+    sp.part("rectangle", [x - 1, y - 11, x, y - 1], blade, "#ffffff", "#78909c")
+    sp.flat("rectangle", [x - 2, y - 1, x + 1, y - 1], "#8d6e63")
+
+
+def staff(sp, hand, orb, wood="#6d4c41"):
+    x, y = hand
+    sp.part("rectangle", [x, y - 16, x + 1, y + 4], wood)
+    sp.part("ellipse", [x - 2, y - 20, x + 3, y - 15], orb)
+    sp.dots([(x - 1, y - 19)], "#ffffff")
+
+
+# --- Les créatures du donjon --------------------------------------------------
+
+def draw_worker(step):
+    # Petit diablotin vert aux grandes oreilles, tablier de cuir.
+    sp, m = humanoid(step, "#7cb342", "#8d6e63", "#5d4037", "#3e2723")
+    hy = m["head_y"]
+    sp.part("polygon", [(9, hy + 5), (3, hy + 1), (9, hy + 9)], "#7cb342")
+    sp.part("polygon", [(22, hy + 5), (28, hy + 1), (22, hy + 9)], "#7cb342")
+    eyes(sp, hy + 5, "#ffeb3b")
+    sp.flat("line", [(14, hy + 9), (17, hy + 9)], "#33691e")
+    sp.dots([(13, hy + 9), (18, hy + 8)], "#ffffff")
+    return sp.finish()
+
+
+def draw_kobold(step):
+    sp = Sprite()
+    # La queue derrière le corps.
+    sp.part("polygon", [(18, 22), (27, 27 - step), (29, 30), (21, 26)], "#ff9800")
+    body, m = humanoid(step, "#ff9800", "#ff9800", "#ff9800", "#c66900")
+    sp.image.alpha_composite(body.image)
+    hy = m["head_y"]
+    sp.part("ellipse", [12, 17 + m["bob"], 19, 24 + m["bob"]], "#ffe0b2")  # ventre clair
+    sp.part("ellipse", [11, hy + 6, 20, hy + 13], "#ffb74d")              # museau
+    sp.dots([(14, hy + 9), (17, hy + 9)], "#5d2e00")
+    sp.part("polygon", [(11, hy + 2), (9, hy - 2), (13, hy + 1)], "#c66900")  # petites cornes
+    sp.part("polygon", [(20, hy + 2), (22, hy - 2), (18, hy + 1)], "#c66900")
+    eyes(sp, hy + 4, "#ffffff")
+    return sp.finish()
+
+
+def draw_orc(step):
+    sp, m = humanoid(step, "#4e7d2a", "#6d4c41", "#4e342e", "#2e1d16")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("rectangle", [6, 15 + bob, 10, 18 + bob], "#9e9e9e")   # épaulières
+    sp.part("rectangle", [21, 15 + bob, 25, 18 + bob], "#9e9e9e")
+    sp.flat("rectangle", [10, 22 + bob, 21, 22 + bob], "#3e2723")  # ceinture
+    sp.flat("line", [(11, hy + 4), (14, hy + 5)], "#1b2e0f")       # sourcils froncés
+    sp.flat("line", [(20, hy + 4), (17, hy + 5)], "#1b2e0f")
+    eyes(sp, hy + 6, "#ff5252", glow=True)
+    sp.flat("line", [(13, hy + 10), (18, hy + 10)], "#1b2e0f")
+    sp.dots([(13, hy + 9), (18, hy + 9), (13, hy + 8), (18, hy + 8)], "#fffde7")  # défenses
+    return sp.finish()
+
+
+def draw_warlock(step):
+    sp, m = humanoid(step, "#2a1b3d", "#5e35b1", "#5e35b1", "#2a1b3d", robe="#5e35b1")
+    hy = m["head_y"]
+    sp.part("polygon", [(15, hy - 3), (24, hy + 8), (22, hy + 14), (9, hy + 14), (7, hy + 8)], "#4527a0")  # capuche
+    sp.part("ellipse", [11, hy + 5, 20, hy + 13], "#1a1026")  # visage dans l'ombre
+    eyes(sp, hy + 8, "#ffee58", glow=True)
+    sp.part("rectangle", [14, 18 + m["bob"], 17, 29], "#8e6bd6")  # bande de la robe
+    staff(sp, m["right_hand"], "#ffee58")
+    return sp.finish()
+
+
+def draw_spider(step):
+    sp = Sprite()
+    for side in (-1, 1):  # Huit pattes, qui alternent à chaque pas.
+        for i, (dx, dy) in enumerate([(10, -6), (12, -1), (12, 4), (10, 9)]):
+            up = (i + step) % 2
+            x0, y0 = 16 + side * 4, 17 + (i - 1) * 2
+            knee = (16 + side * (dx - 2), y0 + dy - 4 - up)
+            foot = (16 + side * dx, y0 + dy + 2 - up)
+            sp.flat("line", [(x0, y0), knee], "#2a1838")
+            sp.flat("line", [knee, foot], "#2a1838")
+    sp.part("ellipse", [9, 15, 22, 28], "#3b2350")   # abdomen
+    sp.part("ellipse", [11, 8, 20, 17], "#4a2d63")   # tête
+    sp.flat("rectangle", [12, 19, 19, 20], "#6a3d8f")  # motif
+    sp.flat("rectangle", [15, 18, 16, 24], "#6a3d8f")
+    sp.dots([(13, 11), (14, 11), (17, 11), (18, 11), (14, 13), (17, 13)], "#ff1744")
+    sp.dots([(14, 16), (17, 16)], "#e0e0e0")  # crochets
+    return sp.finish()
+
+
+def draw_demon(step):
+    sp = Sprite()
+    flap = 2 if step else 0
+    sp.part("polygon", [(10, 15), (1, 6 + flap), (3, 18), (8, 22)], "#4a0e0e")   # ailes
+    sp.part("polygon", [(21, 15), (30, 6 + flap), (28, 18), (23, 22)], "#4a0e0e")
+    body, m = humanoid(step, "#c62828", "#b71c1c", "#8e1b1b", "#3b0a0a")
+    sp.image.alpha_composite(body.image)
+    hy = m["head_y"]
+    sp.part("polygon", [(11, hy + 3), (8, hy - 3), (13, hy + 1)], "#ffd54f")  # cornes
+    sp.part("polygon", [(20, hy + 3), (23, hy - 3), (18, hy + 1)], "#ffd54f")
+    eyes(sp, hy + 5, "#ffeb3b", glow=True)
+    sp.flat("rectangle", [12, hy + 9, 19, hy + 10], "#3b0a0a")  # grand sourire
+    sp.dots([(13, hy + 9), (15, hy + 9), (17, hy + 9)], "#ffffff")
+    sp.flat("rectangle", [10, 22 + m["bob"], 21, 23 + m["bob"]], "#3b0a0a")
+    return sp.finish()
+
+
+def draw_bat(step):
+    sp = Sprite()
+    up = -4 if step else 0
+    sp.part("polygon", [(13, 14), (1, 8 + up), (3, 18), (6, 15), (9, 20), (13, 19)], "#4a3b5c")
+    sp.part("polygon", [(18, 14), (30, 8 + up), (28, 18), (25, 15), (22, 20), (18, 19)], "#4a3b5c")
+    sp.part("ellipse", [11, 11, 20, 22], "#5d4a72")
+    sp.part("polygon", [(12, 12), (11, 6), (14, 11)], "#5d4a72")  # oreilles
+    sp.part("polygon", [(19, 12), (20, 6), (17, 11)], "#5d4a72")
+    sp.dots([(13, 14), (18, 14)], "#ff5252")
+    sp.dots([(14, 18), (17, 18)], "#ffffff")
+    return sp.finish()
+
+
+def draw_golem(step):
+    sp = Sprite()
+    bob, lift = (-1 if step else 0), (1 if step else 0)
+    stone, light, dark = "#8d8d8d", "#bdbdbd", "#5a5a5a"
+    sp.part("rectangle", [9, 24 - lift, 14, 30 - lift], stone, light, dark)
+    sp.part("rectangle", [17, 24, 22, 30], stone, light, dark)
+    sp.part("rectangle", [7, 13 + bob, 24, 25 + bob], stone, light, dark)
+    sp.part("rectangle", [3, 14 + bob + lift, 7, 25 + bob + lift], stone, light, dark)
+    sp.part("rectangle", [24, 14 + bob - lift, 28, 25 + bob - lift], stone, light, dark)
+    sp.part("rectangle", [10, 3 + bob, 21, 13 + bob], stone, light, dark)
+    sp.flat("rectangle", [12, 7 + bob, 13, 8 + bob], "#4dd0e1")
+    sp.flat("rectangle", [18, 7 + bob, 19, 8 + bob], "#4dd0e1")
+    sp.flat("line", [(12, 17 + bob), (15, 20 + bob), (14, 23 + bob)], dark)  # fissures
+    sp.flat("line", [(20, 15 + bob), (18, 18 + bob)], dark)
+    sp.dots([(9, 14 + bob), (10, 14 + bob), (22, 24 + bob), (11, 3 + bob)], "#558b2f")  # mousse
+    return sp.finish()
+
+
+def draw_vampire(step):
+    sp = Sprite()
+    sp.part("polygon", [(9, 14), (22, 14), (26, 30), (5, 30)], "#1a1a2e")   # cape
+    sp.part("polygon", [(10, 16), (21, 16), (23, 29), (8, 29)], "#b71c1c")
+    body, m = humanoid(step, "#e0e0e0", "#311b92", "#212121", "#121212")
+    sp.image.alpha_composite(body.image)
+    hy = m["head_y"]
+    sp.part("polygon", [(9, hy + 5), (15, hy + 4), (16, hy + 1), (17, hy + 4), (22, hy + 5),
+                        (22, hy + 1), (16, hy - 1), (9, hy + 1)], "#212121")  # cheveux en pointe
+    sp.part("polygon", [(8, 14 + m["bob"]), (10, 10 + m["bob"]), (12, 15 + m["bob"])], "#1a1a2e")  # col
+    sp.part("polygon", [(23, 14 + m["bob"]), (21, 10 + m["bob"]), (19, 15 + m["bob"])], "#1a1a2e")
+    eyes(sp, hy + 6, "#ff1744", glow=True)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#5d0000")
+    sp.dots([(14, hy + 11), (17, hy + 11)], "#ffffff")  # crocs
+    return sp.finish()
+
+
+def draw_salamander(step):
+    sp = Sprite()
+    tail = 1 if step else 0
+    sp.part("polygon", [(18, 22), (26, 25 - tail), (28, 30), (20, 27)], "#e64a19")
+    sp.part("polygon", [(25, 23 - tail), (30, 18 - tail), (29, 25), (27, 27)], "#ff9800")  # flamme
+    sp.dots([(29, 20 - tail)], "#ffeb3b")
+    body, m = humanoid(step, "#e64a19", "#e64a19", "#bf360c", "#7f2207")
+    sp.image.alpha_composite(body.image)
+    hy = m["head_y"]
+    sp.part("ellipse", [12, 17 + m["bob"], 19, 24 + m["bob"]], "#ffcc80")  # ventre
+    sp.part("ellipse", [11, hy + 6, 20, hy + 13], "#ff7043")              # museau
+    sp.dots([(14, hy + 9), (17, hy + 9)], "#3e0e00")
+    sp.dots([(12, hy - 1 + 1), (15, hy - 1), (19, hy)], "#ff9800")  # crête de feu
+    eyes(sp, hy + 4, "#ffeb3b", glow=True)
+    return sp.finish()
+
+
+def draw_catcher(step):
+    sp, m = humanoid(step, "#0a0f14", "#1f3a44", "#1f3a44", "#0a0f14", robe="#1f3a44")
+    hy = m["head_y"]
+    sp.part("polygon", [(15, hy - 2), (23, hy + 7), (22, hy + 14), (9, hy + 14), (8, hy + 7)], "#2f5d6b")
+    sp.part("ellipse", [11, hy + 5, 20, hy + 13], "#05080a")
+    eyes(sp, hy + 8, "#ffeb3b", glow=True)
+    # Un filet de chaînes porté en bandoulière.
+    for i in range(0, 12, 3):
+        sp.flat("line", [(7 + i, 16 + m["bob"]), (11 + i, 27)], "#90a4ae")
+    sp.flat("line", [(8, 25), (22, 17 + m["bob"])], "#90a4ae")
+    return sp.finish()
+
+
+# --- Les héros -------------------------------------------------------------------
+
+def draw_adventurer(step):
+    sp, m = humanoid(step, "#ffccbc", "#1e88e5", "#5d4037", "#3e2723")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(9, hy + 6), (10, hy + 1), (16, hy - 1), (22, hy + 2), (22, hy + 5), (16, hy + 3)], "#6d4c41")
+    sp.flat("rectangle", [10, 21 + bob, 21, 22 + bob], "#5d4037")
+    sp.flat("rectangle", [15, 21 + bob, 16, 22 + bob], "#ffca28")
+    eyes(sp, hy + 6)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#a1665e")
+    sword(sp, m["right_hand"])
+    return sp.finish()
+
+
+def draw_thief(step):
+    sp, m = humanoid(step, "#ffccbc", "#37474f", "#263238", "#1c1c1c")
+    hy = m["head_y"]
+    sp.part("polygon", [(16, hy - 2), (24, hy + 6), (23, hy + 12), (9, hy + 12), (8, hy + 6)], "#26a69a")  # capuche
+    sp.part("ellipse", [11, hy + 4, 20, hy + 12], "#ffccbc")
+    sp.flat("rectangle", [11, hy + 9, 20, hy + 12], "#00695c")  # foulard
+    eyes(sp, hy + 6)
+    sp.part("rectangle", [23, m["right_hand"][1] - 6, 23, m["right_hand"][1] - 1], "#cfd8dc")  # dague
+    return sp.finish()
+
+
+def draw_knight(step):
+    sp, m = humanoid(step, "#90a4ae", "#90a4ae", "#78909c", "#455a64")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("ellipse", [9, hy, 22, hy + 12], "#b0bec5")              # casque
+    sp.flat("rectangle", [11, hy + 6, 20, hy + 7], "#1c2833")        # visière
+    sp.part("polygon", [(16, hy), (18, hy - 5), (21, hy - 4), (18, hy + 1)], "#e53935")  # plumet
+    sp.flat("rectangle", [14, 16 + bob, 17, 24 + bob], "#cfd8dc")
+    sword(sp, m["right_hand"])
+    lx, ly = m["left_hand"]
+    sp.part("polygon", [(lx - 4, ly - 8), (lx + 4, ly - 8), (lx + 4, ly - 1), (lx, ly + 3), (lx - 4, ly - 1)], "#1565c0")
+    sp.flat("rectangle", [lx - 1, ly - 6, lx, ly - 1], "#ffca28")
+    sp.flat("rectangle", [lx - 2, ly - 4, lx + 1, ly - 3], "#ffca28")
+    return sp.finish()
+
+
+def draw_cleric(step):
+    sp, m = humanoid(step, "#ffccbc", "#eceff1", "#eceff1", "#795548", robe="#eceff1")
+    hy = m["head_y"]
+    sp.part("polygon", [(9, hy + 5), (12, hy), (19, hy), (22, hy + 5), (16, hy + 2)], "#8d6e63")
+    eyes(sp, hy + 6)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#a1665e")
+    sp.flat("rectangle", [15, 17 + m["bob"], 16, 26], "#ffca28")   # croix dorée
+    sp.flat("rectangle", [13, 19 + m["bob"], 18, 20 + m["bob"]], "#ffca28")
+    staff(sp, m["right_hand"], "#ffca28")
+    return sp.finish()
+
+
+def draw_archer(step):
+    sp = Sprite()
+    sp.part("rectangle", [19, 12, 22, 22], "#6d4c41")  # carquois dans le dos
+    sp.dots([(19, 10), (20, 11), (21, 10)], "#eceff1")
+    body, m = humanoid(step, "#ffccbc", "#2e7d32", "#5d4037", "#3e2723")
+    sp.image.alpha_composite(body.image)
+    hy = m["head_y"]
+    sp.part("polygon", [(16, hy - 2), (24, hy + 6), (22, hy + 9), (16, hy + 3), (10, hy + 9), (8, hy + 6)], "#1b5e20")
+    eyes(sp, hy + 6)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#a1665e")
+    x, y = m["right_hand"]
+    ImageDraw.Draw(sp.image).arc([x - 2, y - 12, x + 6, y + 4], 270, 90, fill=rgb("#8d6e63"), width=2)  # arc
+    sp.flat("line", [(x + 2, y - 12), (x + 2, y + 4)], "#eceff1")      # corde
+    return sp.finish()
+
+
+def draw_dwarf(step):
+    sp, m = humanoid(step, "#ffccbc", "#6d4c41", "#4e342e", "#3e2723", head_drop=3, short=True)
+    hy = m["head_y"]
+    sp.part("ellipse", [9, hy - 1, 22, hy + 6], "#9e9e9e")              # casque
+    sp.part("polygon", [(10, hy + 8), (21, hy + 8), (20, hy + 18), (16, hy + 21), (11, hy + 18)], "#ff8f00")  # barbe
+    eyes(sp, hy + 6)
+    x, y = m["right_hand"]
+    sp.part("rectangle", [x, y - 12, x + 1, y + 2], "#8d6e63")          # hache
+    sp.part("polygon", [(x + 1, y - 12), (x + 6, y - 14), (x + 6, y - 7), (x + 1, y - 8)], "#cfd8dc")
+    return sp.finish()
+
+
+def draw_mage(step):
+    sp, m = humanoid(step, "#ffccbc", "#3949ab", "#3949ab", "#1a237e", robe="#3949ab")
+    hy = m["head_y"]
+    sp.part("polygon", [(16, hy - 10), (21, hy + 1), (11, hy + 1)], "#283593")  # chapeau pointu
+    sp.part("ellipse", [6, hy, 25, hy + 4], "#283593")                          # bord du chapeau
+    sp.dots([(15, hy - 4), (17, hy - 2)], "#ffd54f")
+    eyes(sp, hy + 6)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#a1665e")
+    staff(sp, m["right_hand"], "#ff7043")
+    return sp.finish()
+
+
+def draw_paladin(step):
+    sp, m = humanoid(step, "#fbc02d", "#fbc02d", "#f9a825", "#795548")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("ellipse", [9, hy, 22, hy + 12], "#fdd835")               # heaume doré
+    sp.flat("rectangle", [12, hy + 6, 19, hy + 7], "#3e2a00")
+    sp.flat("rectangle", [15, hy + 2, 16, hy + 10], "#3e2a00")
+    sp.part("rectangle", [12, 16 + bob, 19, 25 + bob], "#eceff1")     # tabard blanc
+    sp.flat("rectangle", [15, 17 + bob, 16, 24 + bob], "#e53935")
+    sp.flat("rectangle", [13, 19 + bob, 18, 20 + bob], "#e53935")
+    lx, ly = m["left_hand"]
+    sp.part("ellipse", [lx - 5, ly - 9, lx + 4, ly + 2], "#1565c0")   # bouclier rond
+    sp.dots([(lx, ly - 4), (lx - 1, ly - 4), (lx, ly - 3)], "#ffffff")
+    return sp.finish()
+
+
+def draw_giant(step):
+    sp, m = humanoid(step, "#c8a27a", "#558b2f", "#c8a27a", "#3e2723")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(9, hy + 4), (12, hy - 1), (20, hy - 1), (22, hy + 4), (16, hy + 1)], "#4e342e")
+    sp.flat("line", [(11, hy + 4), (14, hy + 5)], "#4e342e")
+    sp.flat("line", [(20, hy + 4), (17, hy + 5)], "#4e342e")
+    eyes(sp, hy + 6)
+    sp.flat("rectangle", [13, hy + 9, 18, hy + 10], "#5d2e1a")
+    sp.flat("rectangle", [10, 22 + bob, 21, 23 + bob], "#3e2723")
+    x, y = m["right_hand"]
+    sp.part("polygon", [(x - 1, y), (x + 1, y), (x + 4, y - 14), (x + 2, y - 17), (x - 1, y - 14)], "#795548")  # massue
+    sp.dots([(x + 2, y - 13), (x + 1, y - 10)], "#4e342e")
+    return sp.finish()
+
+
+CHARACTERS_32 = {
+    "worker": draw_worker, "kobold": draw_kobold, "orc": draw_orc, "warlock": draw_warlock,
+    "spider": draw_spider, "demon": draw_demon, "bat": draw_bat, "golem": draw_golem,
+    "vampire": draw_vampire, "salamander": draw_salamander, "catcher": draw_catcher,
+    "adventurer": draw_adventurer, "thief": draw_thief, "knight": draw_knight, "cleric": draw_cleric,
+    "archer": draw_archer, "dwarf": draw_dwarf, "mage": draw_mage, "paladin": draw_paladin,
+    "giant": draw_giant,
+}
+
+
+def make_characters():
+    for name, draw in CHARACTERS_32.items():
+        save(draw(0), "units", "%s_0.png" % name)
+        save(draw(1), "units", "%s_1.png" % name)
+
+
 def make_all():
     make_tiles()
     make_chests()
+    make_characters()

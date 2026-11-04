@@ -1148,9 +1148,6 @@ def make_defenses():
 
 def main():
     make_tiles()
-    # Les tuiles en 32 x 32 (et les coffres) remplacent celles en 16 x 16 : voir art32.py.
-    import art32
-    art32.make_all()
     make_props()
     make_characters()
     make_defenses()
@@ -1158,6 +1155,10 @@ def main():
     make_icons()
     make_sacrifice_art()
     print("Images générées dans", ASSETS)
+    # EN DERNIER : les images en 32 x 32 (tuiles, coffres, personnages) remplacent
+    # celles en 16 x 16 dessinées plus haut. Voir art32.py.
+    import art32
+    art32.make_all()
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ const CHUNK := 8            ## La carte est découpée en blocs de 8 x 8 cases (
 const REBUILD_DELAY := 0.2  ## Au plus 5 reconstructions par seconde.
 const BASE_DISTANCE := 15.0 ## Distance de la caméra au zoom 1.
 ## Assombrissement du dessus des murs (0 = comme les côtés, 1 = noir).
-const TOP_DARKEN := 0.5
+const TOP_DARKEN := 0.2
 const DECORATION_OFFSET := 0.012 ## Les tableaux sont décollés du mur, pour ne pas clignoter.
 const BAR_WIDTH := 0.5      ## Largeur des barres de vie au-dessus des têtes.
 
@@ -43,6 +43,8 @@ var _flat_materials := {}   ## Couleur -> matériau sans ombrage (barres, cercle
 var _cell_props := {}       ## case -> {"sig": texte, "node": Node3D, "anims": [...]}
 var _units := {}            ## Unit -> données de son modèle (voir _make_unit)
 var _torch_lights := {}     ## case -> OmniLight3D
+var _dig_icons := {}        ## case marquée « à creuser » -> Sprite3D (une pioche)
+const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 var _effect_discs: Array[MeshInstance3D] = []
 var _heart: MeshInstance3D
 var _heart_light: OmniLight3D
@@ -571,16 +573,14 @@ func _add_cell(tools: Dictionary, cell: Vector2i) -> void:
 	elif tile == DungeonMap.Tile.GOLD:
 		images = Art.GOLD
 	var texture: Texture2D = Art.pick(images, cell)
-	# Teinte : jaune si la case est marquée « à creuser », plus sombre si elle est entamée.
+	# Teinte : plus sombre si la case est entamée par les pioches.
+	# (Les cases à creuser sont signalées par une pioche, voir _update_dig_icons.)
 	var tint := Color.WHITE
-	if map.marked.has(cell):
-		tint = Color(1.0, 0.85, 0.35)
 	if map.damage.has(cell) and DungeonMap.DIG_HITS.has(tile):
 		tint = tint.darkened(0.5 * float(map.damage[cell]) / DungeonMap.DIG_HITS[tile])
 	var st := _tool(tools, texture, tint)
-	# Le dessus des murs est plus sombre que le sol : on voit mieux le relief.
-	# (Sauf s'il est marqué : le jaune doit bien se voir.)
-	var top_tint := tint if map.marked.has(cell) else tint.darkened(TOP_DARKEN)
+	# Le dessus des murs est un peu plus sombre que le sol : on voit mieux le relief.
+	var top_tint := tint.darkened(TOP_DARKEN)
 	_flat(_tool(tools, texture, top_tint), cell, WALL_HEIGHT)
 	for direction in DungeonMap.DIRECTIONS:
 		var neighbour: Vector2i = cell + direction
@@ -667,7 +667,29 @@ func _cell_signature(cell: Vector2i) -> String:
 	return ",".join(parts)
 
 
+## Une pioche flotte au-dessus de chaque case marquée « à creuser ».
+func _update_dig_icons() -> void:
+	for cell: Vector2i in _dig_icons.keys():
+		if not map.marked.has(cell):
+			_dig_icons[cell].queue_free()
+			_dig_icons.erase(cell)
+	for cell: Vector2i in map.marked:
+		if _dig_icons.has(cell):
+			continue
+		var icon := Sprite3D.new()
+		icon.texture = PICKAXE_ICON
+		icon.pixel_size = 0.016
+		icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		icon.shaded = false # Toujours bien visible, même dans le noir.
+		icon.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		icon.position = Vector3(cell.x + 0.5, WALL_HEIGHT + 0.35, cell.y + 0.5)
+		add_child(icon)
+		_dig_icons[cell] = icon
+
+
 func _rebuild_props() -> void:
+	_update_dig_icons()
 	var wanted_torches := {}
 	for y in DungeonMap.HEIGHT:
 		for x in DungeonMap.WIDTH:
@@ -707,6 +729,10 @@ func _rebuild_props() -> void:
 
 ## Le décor animé : flammes qui vacillent, mannequins qui se balancent, lueurs.
 func _update_props() -> void:
+	# Les pioches se balancent doucement.
+	for cell: Vector2i in _dig_icons:
+		var icon: Sprite3D = _dig_icons[cell]
+		icon.position.y = WALL_HEIGHT + 0.35 + 0.06 * sin(_time * 3.0 + cell.x + cell.y)
 	for cell: Vector2i in _cell_props:
 		var t := _time + cell.x * 1.3 + cell.y * 0.7
 		for anim: Dictionary in _cell_props[cell]["anims"]:

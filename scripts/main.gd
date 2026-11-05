@@ -290,7 +290,7 @@ func _update_portal(delta: float) -> void:
 	_arrival_timer = CREATURE_ARRIVAL_DELAY
 
 	# Une créature ne vient que s'il reste un lit libre.
-	if creatures_root.get_child_count() >= map.count_room_tiles(Rooms.Type.LAIR):
+	if _creatures_needing_beds() >= map.count_room_tiles(Rooms.Type.LAIR):
 		_hint("Construis du Repaire : chaque case est un lit pour une créature.")
 		return
 	var type := _choose_arrival(Creatures.attracted_types(map))
@@ -625,17 +625,35 @@ func _bury(hero: Hero) -> void:
 	_hint("%s est enterré au Cimetière. Bientôt, il se relèvera en Revenant !" % hero.display_name())
 
 
-## Les héros enterrés se relèvent en Revenants (il faut un lit libre au Repaire).
+## Les créatures qui ont besoin d'un lit (les morts-vivants n'en ont pas besoin).
+func _creatures_needing_beds() -> int:
+	var count := 0
+	for creature: Creature in creatures_root.get_children():
+		if not creature.is_undead():
+			count += 1
+	return count
+
+
+func _count_creatures(type: int) -> int:
+	var count := 0
+	for creature: Creature in creatures_root.get_children():
+		if creature.type == type and not creature.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+## Les héros enterrés se relèvent en Revenants (pas besoin de lit : ce sont des
+## morts-vivants). Au-delà de Rules.MAX_REVENANTS, le héros repose en paix.
 func _update_graves(delta: float) -> void:
 	_grave_timer -= delta
 	if _grave_timer > 0.0:
 		return
 	_grave_timer = 1.0
 	for cell in map.ready_graves():
-		if creatures_root.get_child_count() >= map.count_room_tiles(Rooms.Type.LAIR):
-			_hint("Un Revenant attend un lit libre au Repaire pour se relever.")
-			return
 		map.empty_grave(cell)
+		if _count_creatures(Creatures.Type.REVENANT) >= Rules.MAX_REVENANTS:
+			_hint("Assez de Revenants : ce héros repose en paix, sa tombe se libère.")
+			continue
 		var revenant := _add_creature(Creatures.Type.REVENANT, cell)
 		Sound.play("portal", revenant.position, -4.0)
 		Fx.burst("magic", revenant.position, Color("76ff03"))
@@ -986,7 +1004,7 @@ func _add_worker(cell: Vector2i) -> Worker:
 func _refresh_hud() -> void:
 	hud.set_gold(map.get_total_gold(), map.get_treasury_stored(), map.get_treasury_capacity())
 	hud.set_workers(workers_root.get_child_count())
-	hud.set_creatures(creatures_root.get_child_count(), map.count_room_tiles(Rooms.Type.LAIR))
+	hud.set_creatures(_creatures_needing_beds(), map.count_room_tiles(Rooms.Type.LAIR))
 	hud.set_payday(ceili(_payday_timer))
 	hud.set_heart(map.heart_hp, DungeonMap.HEART_MAX_HP)
 	hud.set_next_wave(_next_wave, ceili(_wave_timer))
@@ -1267,6 +1285,13 @@ func _use_hand(cell: Vector2i, world_position: Vector2) -> void:
 	var dropped: Unit = hand.pop_back()
 	dropped.drop_at(cell)
 	Sound.play("drop", map.cell_to_world(cell))
+	if dropped is Creature and cell == map.portal_cell:
+		# Déposée sur le portail : la créature est renvoyée, son lit se libère.
+		var creature := dropped as Creature
+		hud.show_message("%s est renvoyé par le portail." % creature.display_name(), 3.0)
+		Sound.play("leave", creature.position)
+		Fx.burst("magic", creature.position)
+		creature.dismiss()
 	_refresh_hand()
 
 

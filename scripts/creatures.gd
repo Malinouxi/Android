@@ -77,7 +77,8 @@ const INFO := {
 		# Le Revenant : un héros mort, enterré au Cimetière, qui se relève pour te servir.
 		# "graveyard" : il ne vient jamais par le portail (voir main.gd, _update_graves).
 		"name": "Revenant", "sprite": "revenant", "color": Color("9e9a86"), "size": 9.0, "speed": 70.0,
-		"salary": 10, "requires": {Rooms.Type.GRAVEYARD: 1}, "graveyard": true,
+		# "undead" : un mort-vivant ne dort pas, ne mange pas et n'a pas besoin de lit.
+		"salary": 10, "requires": {Rooms.Type.GRAVEYARD: 1}, "graveyard": true, "undead": true,
 		"hp": 130.0, "damage": 12.0, "range": 28.0, "attack_interval": 1.1, "armor": 0.15,
 	},
 	Type.CERBERUS: {

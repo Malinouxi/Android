@@ -14,10 +14,15 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.9"
+const VERSION := "1.10"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.10", "changes": [
+		"Les Revenants n'ont plus besoin de lit (ni de manger, ni de dormir) : ils ne bloquent plus l'arrivée des autres créatures.",
+		"Revenants limités à 6. Au-delà, le héros enterré repose en paix et sa tombe se libère.",
+		"Déposer une créature avec la Main sur le portail la renvoie (son lit se libère).",
+	]},
 	{"version": "1.9", "changes": [
 		"Tout en 3D : personnages et objets en volumes (blocs), barres de vie et d'humeur, cercles des sorts et particules dans la scène, menu principal en 3D.",
 		"3D : toucher le dessus d'un mur vise bien ce mur.",
@@ -104,6 +109,8 @@ const MAX_ALTARS := 2
 ## Secondes entre l'enterrement d'un héros et le moment où il se relève en Revenant
 ## (il faut aussi un lit libre au Repaire).
 const REVENANT_RISE_TIME := 60.0
+## Nombre maximum de Revenants dans le donjon.
+const MAX_REVENANTS := 6
 
 # --- Héros en mission ------------------------------------------------------------
 ## Or que la Voleuse emporte d'un coffre.

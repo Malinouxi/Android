@@ -113,7 +113,8 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	setup(dungeon_map, cell)
 	energy = randf_range(60.0, 100.0)
 	hunger = randf_range(0.0, 30.0)
-	bed_cell = map.claim_bed(self)
+	if not is_undead():
+		bed_cell = map.claim_bed(self)
 
 
 ## Expérience nécessaire pour passer au niveau suivant.
@@ -195,10 +196,26 @@ func describe() -> String:
 		activity = "garde le %s" % Rooms.display_name(_guarded_room())
 	return "%s niv. %d (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
 		display_name(), level, activity, hp, max_hp, happiness, hunger, energy, salary(),
-		"" if _has_bed() else ", SANS LIT !"]
+		"" if _has_bed() or is_undead() else ", SANS LIT !"]
+
+
+## Un mort-vivant (le Revenant) : pas de lit, pas de sommeil, pas de faim.
+func is_undead() -> bool:
+	return Creatures.info(type).get("undead", false)
+
+
+## Renvoyée par le maître (déposée sur le portail) : elle s'en va tout de suite.
+func dismiss() -> void:
+	_drop_carried()
+	map.release_bed(self)
+	map.release_work_spot(self)
+	queue_free()
 
 
 func _process(delta: float) -> void:
+	if is_undead():
+		energy = 100.0
+		hunger = 0.0
 	if state != State.SLEEPING:
 		energy = maxf(0.0, energy - ENERGY_LOSS * delta)
 	if state != State.EATING:
@@ -594,7 +611,7 @@ func _update_mood(delta: float) -> void:
 		return
 	_mood_timer = 0.0
 
-	if not _has_bed():
+	if not _has_bed() and not is_undead():
 		bed_cell = map.claim_bed(self) # Un lit s'est peut-être libéré.
 
 	var change := 0.0
@@ -602,7 +619,7 @@ func _update_mood(delta: float) -> void:
 		change -= 3.0
 	if energy <= 5.0:
 		change -= 3.0
-	if not _has_bed():
+	if not _has_bed() and not is_undead():
 		change -= 2.0
 	if change == 0.0 and hunger < HUNGRY_LEVEL and energy > TIRED_LEVEL:
 		change = 1.0

@@ -276,6 +276,12 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Nouvelle créature : le **Cerbère** (2 Repaire + 6 Trésor). Il ne travaille pas : il **garde le Trésor**
   le plus proche, et flaire les Voleuses de loin. Règles en version 1.4.
 
+**Étape 23 — Portail équilibré** (retour de partie : trop de Cerbères)
+- Le portail préfère la **variété** : une espèce déjà présente N fois a (N + 1)² fois moins de chances
+  de venir. Avec une Prison et aucun Attrapeur, l'Attrapeur a 4 fois plus de chances.
+- **Cerbères limités** : un pour 6 cases de Trésor, 3 au maximum. Règles en version 1.5
+  (réglages `PORTAL_BALANCE`, `CATCHER_PRIORITY`, `CERBERUS_TREASURY_TILES`, `MAX_CERBERUS`).
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

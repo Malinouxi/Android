@@ -14,10 +14,14 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.4"
+const VERSION := "1.5"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.5", "changes": [
+		"Portail équilibré : il favorise les espèces que tu as peu ou pas (un Attrapeur arrive vite si tu as une Prison).",
+		"Cerbères limités : un pour 6 cases de Trésor, 3 au maximum.",
+	]},
 	{"version": "1.4", "changes": [
 		"La Voleuse est discrète : elle se faufile jusqu'au Trésor, vole jusqu'à 150 or et s'enfuit par l'entrée. Abattue, elle lâche son sac, que les ouvriers rapportent.",
 		"Nouveau héros : le Moine libérateur, qui ouvre les cellules de la Prison.",
@@ -49,6 +53,14 @@ const PAYDAY_INTERVAL := 90.0     ## Secondes entre deux jours de paie.
 
 # --- Créatures ----------------------------------------------------------------
 const CREATURE_ARRIVAL_DELAY := 20.0 ## Secondes entre deux arrivées par le portail.
+## Portail équilibré : une espèce déjà présente N fois a 1 / (N + 1)^PORTAL_BALANCE
+## fois moins de chances de venir. 0 = au hasard, 2 = forte préférence pour la variété.
+const PORTAL_BALANCE := 2.0
+## Avec une Prison et aucun Attrapeur de cauchemar, ses chances sont multipliées par ceci.
+const CATCHER_PRIORITY := 4.0
+## Un Cerbère par CERBERUS_TREASURY_TILES cases de Trésor, MAX_CERBERUS au plus.
+const CERBERUS_TREASURY_TILES := 6
+const MAX_CERBERUS := 3
 
 # --- Prison et sacrifices ------------------------------------------------------
 ## Secondes pendant lesquelles un héros assommé attend un Attrapeur avant de mourir.

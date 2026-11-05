@@ -271,10 +271,41 @@ func _update_portal(delta: float) -> void:
 	if creatures_root.get_child_count() >= map.count_room_tiles(Rooms.Type.LAIR):
 		_hint("Construis du Repaire : chaque case est un lit pour une créature.")
 		return
-	var types := Creatures.attracted_types(map)
-	if types.is_empty():
+	var type := _choose_arrival(Creatures.attracted_types(map))
+	if type < 0:
 		return
-	_spawn_creature(types.pick_random())
+	_spawn_creature(type)
+
+
+## Le portail équilibré : chaque espèce attirée reçoit un « poids » (ses chances),
+## plus petit si tu en as déjà beaucoup. Les espèces limitées (le Cerbère) ne
+## viennent plus une fois leur limite atteinte. Renvoie -1 si personne ne vient.
+func _choose_arrival(types: Array[int]) -> int:
+	var counts := {}
+	for creature: Creature in creatures_root.get_children():
+		counts[creature.type] = counts.get(creature.type, 0) + 1
+	var weights := {}
+	var total := 0.0
+	for type in types:
+		var info := Creatures.info(type)
+		var count: int = counts.get(type, 0)
+		if info.has("limit_room"):
+			var allowed := mini(map.count_room_tiles(info["limit_room"]) / int(info["limit_per"]), info["limit_max"])
+			if count >= allowed:
+				continue
+		var weight := 1.0 / pow(count + 1.0, Rules.PORTAL_BALANCE)
+		if info.get("catcher", false) and count == 0 and map.count_room_tiles(Rooms.Type.PRISON) > 0:
+			weight *= Rules.CATCHER_PRIORITY
+		weights[type] = weight
+		total += weight
+	if total <= 0.0:
+		return -1
+	var roll := randf() * total
+	for type: int in weights:
+		roll -= weights[type]
+		if roll <= 0.0:
+			return type
+	return weights.keys().back()
 
 
 func _spawn_creature(type: int) -> void:

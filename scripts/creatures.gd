@@ -87,6 +87,9 @@ const INFO := {
 		"salary": 35, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.TREASURY: 6},
 		"hp": 200.0, "damage": 16.0, "range": 28.0, "attack_interval": 0.9,
 		"guard": Rooms.Type.TREASURY, "keen_nose": true,
+		# Limite : un Cerbère par « limit_per » cases de Trésor, « limit_max » au plus.
+		"limit_room": Rooms.Type.TREASURY, "limit_per": Rules.CERBERUS_TREASURY_TILES,
+		"limit_max": Rules.MAX_CERBERUS,
 	},
 }
 

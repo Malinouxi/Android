@@ -70,6 +70,12 @@ const CAMPAIGN := [
 		"goal": {"type": "rival"}, "rival": true, "rival_hp": 2200.0, "rival_interval": 60.0,
 		"start_gold": 600, "first_wave": 300.0, "wave_interval": 150.0,
 	},
+	{
+		"id": 9, "name": "Le Champion du royaume", "seed": 9909,
+		"intro": "Le roi envoie son Champion. Prépare ton donjon : il mènera la 3e vague. Abats-le !",
+		"goal": {"type": "champion"}, "champion_wave": 3,
+		"start_gold": 700, "first_wave": 240.0, "wave_interval": 150.0,
+	},
 ]
 
 
@@ -106,6 +112,8 @@ static func goal_text(level: Dictionary) -> String:
 			return "Garde %d prisonniers" % goal["count"]
 		"rival":
 			return "Détruis le cœur rival"
+		"champion":
+			return "Abats le Champion"
 	return ""
 
 

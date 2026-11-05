@@ -32,6 +32,7 @@ var _door_cell := Vector2i(-1, -1)
 ## Sa cellule de prison s'il est capturé, sinon (-1, -1).
 var prison_cell := Vector2i(-1, -1)
 var _heal_timer := 0.0
+var _war_cry_timer := 3.0
 
 ## Assommé au sol, en attente d'un Attrapeur.
 var knocked_out := false
@@ -198,6 +199,8 @@ func _process(delta: float) -> void:
 	update_effects(delta)
 	if type == Heroes.Type.CLERIC:
 		_cleric_heal(delta)
+	elif type == Heroes.Type.CHAMPION:
+		_war_cry(delta)
 
 	# Si notre cible a disparu (morte entre-temps), on l'oublie.
 	if _target != null and not is_instance_valid(_target):
@@ -250,6 +253,23 @@ func _cleric_heal(delta: float) -> void:
 	if healed:
 		map.add_effect(position, Heroes.CLERIC_HEAL_RADIUS, Color(1.0, 1.0, 0.6, 0.35))
 		Sound.play("heal", position, -8.0)
+
+
+## Le cri de guerre du Champion : les héros autour de lui (lui compris) courent plus vite.
+func _war_cry(delta: float) -> void:
+	_war_cry_timer -= delta
+	if _war_cry_timer > 0.0:
+		return
+	_war_cry_timer = Heroes.WAR_CRY_INTERVAL
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var ally := node as Unit
+		if ally != null and ally.position.distance_to(position) <= Heroes.WAR_CRY_RADIUS:
+			ally.apply_haste(Heroes.WAR_CRY_DURATION)
+	play_attack() # Il lève son épée.
+	map.add_effect(position, Heroes.WAR_CRY_RADIUS, Color(1.0, 0.85, 0.3, 0.35))
+	Fx.burst("sparks", position, Color("ffd54a"))
+	Fx.flash_light(position, Color(1.0, 0.85, 0.4), 150.0, 0.5)
+	Sound.play("horn", position, -10.0)
 
 
 func _attack_door(cell: Vector2i) -> void:

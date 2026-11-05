@@ -18,3 +18,4 @@ android/
 
 # APK construit localement ou par GitHub Actions
 build/
+__pycache__/

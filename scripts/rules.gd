@@ -14,10 +14,16 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.2"
+const VERSION := "1.3"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.3", "changes": [
+		"Nouvelle salle : le Cimetière (recherche). Les héros morts y sont enterrés et se relèvent en Revenants.",
+		"Nouveau héros : le Champion du royaume, qui mène une vague sur 5 et accélère les héros par son cri de guerre.",
+		"Nouveau niveau de campagne : « Le Champion du royaume ».",
+		"Décor animé : flammes, portail, enclume, autels, mannequins, tombes, et cœur qui bat.",
+	]},
 	{"version": "1.2", "changes": [
 		"Nouvelle créature : l'Attrapeur de cauchemar. Les héros vaincus tombent assommés, et les Attrapeurs les emmènent en prison.",
 		"Sacrifices : l'Atelier fabrique des Autels de sacrifice. Outil Sacrifier : un prisonnier conduit à l'autel rapporte 3 fois sa rançon.",
@@ -48,6 +54,11 @@ const PRISONER_RESEARCH := 1.0
 const SACRIFICE_GOLD_MULTIPLIER := 3
 ## Nombre maximum d'autels de sacrifice (posés + en stock) que l'Atelier fabrique.
 const MAX_ALTARS := 2
+
+# --- Cimetière ----------------------------------------------------------------------
+## Secondes entre l'enterrement d'un héros et le moment où il se relève en Revenant
+## (il faut aussi un lit libre au Repaire).
+const REVENANT_RISE_TIME := 60.0
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

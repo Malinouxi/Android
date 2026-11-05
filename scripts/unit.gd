@@ -387,6 +387,12 @@ func draw_sprite(sprite_name: String, sprite_scale := 1.0) -> void:
 	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO) * flip)
 	var size := Vector2(32, 32) * sprite_scale
 	draw_texture_rect(frame, Rect2(-size.x / 2, -size.y + 4, size.x, size.y), false)
+	if _haste_left > 0.0 and not path.is_empty():
+		# Accélérée et en marche : des traits de vitesse filent derrière elle.
+		for i in 3:
+			var y := -size.y * (0.25 + 0.2 * i)
+			var start := -size.x * 0.45 - fmod(time * 60.0 + i * 7.0, 10.0)
+			draw_line(Vector2(start, y), Vector2(start - 8.0, y), Color(0.6, 0.95, 1.0, 0.8), 1.5)
 
 	# 3. Pour la suite (barres, textes...), l'origine est placée au centre du
 	#    personnage, comme avant la vue isométrique.

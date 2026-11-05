@@ -182,6 +182,8 @@ func _heroes_table() -> String:
 	for type: int in Heroes.INFO:
 		var info: Dictionary = Heroes.INFO[type]
 		var wave: String = "rival" if info.get("rival", false) else str(info["first_wave"])
+		if info.get("boss", false):
+			wave = "1 vague sur %d" % Heroes.CHAMPION_EVERY
 		text += _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
 				+ _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"

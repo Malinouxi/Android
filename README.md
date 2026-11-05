@@ -255,6 +255,19 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - À sa **mort**, un personnage bascule, tombe et s'efface.
 - Les poses sont dans `tools/art32.py` (`ANIMATIONS`) ; Godot choisit l'animation dans `unit.gd` (`draw_sprite`).
 
+**Étape 21 — Décor vivant et nouveau contenu**
+- **Décor animé** : flammes des torches, tourbillon du portail, enclume qui frappe et lance des étincelles,
+  bougies des autels, mannequins qui se balancent, et **cœur qui bat** (plus vite quand il est attaqué).
+  Seules les couches qui contiennent un objet animé sont redessinées (6 images par seconde) :
+  voir `ANIM_FPS` et `_animated()` dans `dungeon_map.gd`, et `ANIMATED_PROPS` dans `art.gd`.
+- **Sorts visibles** : un éclair tombe du ciel sur chaque héros touché, des étincelles vertes montent des
+  unités soignées, des traits de vitesse suivent les unités accélérées.
+- Nouvelle salle : le **Cimetière** (recherche). Un héros mort y est enterré ; une minute plus tard, il
+  se relève en **Revenant**, un squelette guerrier à ton service (il lui faut un lit libre).
+- Nouveau héros : le **Champion du royaume**. Il mène une vague sur 5, se soigne, et son cri de guerre
+  fait courir les héros autour de lui.
+- Nouveau niveau de campagne (9) : **Le Champion du royaume**. Règles en version 1.3.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

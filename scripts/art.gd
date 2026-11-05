@@ -34,6 +34,7 @@ const ROOM_FLOORS := {
 	Rooms.Type.TRAINING: preload("res://assets/tiles/room_training.png"),
 	Rooms.Type.PRISON: preload("res://assets/tiles/room_prison.png"),
 	Rooms.Type.TEMPLE: preload("res://assets/tiles/room_temple.png"),
+	Rooms.Type.GRAVEYARD: preload("res://assets/tiles/room_graveyard.png"),
 }
 ## Le sol revendiqué par ton donjon.
 const CLAIMED := [
@@ -47,7 +48,10 @@ const ROOM_PROPS := {
 	Rooms.Type.WORKSHOP: preload("res://assets/props/anvil.png"),
 	Rooms.Type.TRAINING: preload("res://assets/props/dummy.png"),
 	Rooms.Type.TEMPLE: preload("res://assets/props/altar.png"),
+	Rooms.Type.GRAVEYARD: preload("res://assets/props/tomb_empty.png"),
 }
+## Une tombe libre du Cimetière (les tombes occupées sont animées : « tomb_full »).
+const TOMB_EMPTY := preload("res://assets/props/tomb_empty.png")
 ## Les barreaux, dessinés par-dessus un héros prisonnier.
 const PRISON_BARS := preload("res://assets/props/prison_bars.png")
 
@@ -81,6 +85,28 @@ const GOLD_PILES := [
 	preload("res://assets/props/gold_pile_4.png"),
 	preload("res://assets/props/gold_pile_5.png"),
 ]
+
+# --- Le décor animé ---
+## Pour chaque objet animé : [nombre d'images, lenteur]. Le décor change d'image
+## DungeonMap.ANIM_FPS fois par seconde ; une lenteur de 2 divise cette vitesse par 2.
+## Fichiers : assets/props/<nom>_<numéro>.png (voir tools/art32.py, ANIMATED_PROPS).
+const ANIMATED_PROPS := {
+	"torch": [4, 1], "portal": [4, 1], "anvil": [3, 2], "altar": [4, 2],
+	"sacrifice_altar": [2, 3], "dummy": [4, 2], "tomb_full": [4, 2],
+}
+static var _prop_cache := {}
+
+
+## L'image d'un objet animé au « tic » d'animation donné (voir dungeon_map.gd).
+static func prop_frame(prop: String, tick: int) -> Texture2D:
+	if not _prop_cache.has(prop):
+		var frames := []
+		for i in ANIMATED_PROPS[prop][0]:
+			frames.append(load("res://assets/props/%s_%d.png" % [prop, i]))
+		_prop_cache[prop] = frames
+	var list: Array = _prop_cache[prop]
+	return list[(tick / int(ANIMATED_PROPS[prop][1])) % list.size()]
+
 
 # --- Personnages : leurs animations ---
 ## Nombre d'images de chaque animation (voir tools/art32.py, ANIMATIONS).

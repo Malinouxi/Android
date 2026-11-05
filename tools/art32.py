@@ -303,6 +303,20 @@ def room_temple():
     return image
 
 
+def room_graveyard(rng):
+    image = quantize(fractal_noise(rng), ["#1c2219", "#232b1f", "#2a3324"])
+    draw = ImageDraw.Draw(image)
+    for _ in range(14):  # De l'herbe grise et de la mousse.
+        x, y = rng.randint(1, S - 2), rng.randint(1, S - 2)
+        draw.point([(x, y)], fill=rgb("#4b5a3c"))
+        draw.point([(x, y - 1)], fill=rgb("#5f6e4a"))
+    for _ in range(3):  # Quelques cailloux pâles.
+        x, y = rng.randint(2, S - 4), rng.randint(2, S - 4)
+        draw.rectangle([x, y, x + 1, y], fill=rgb("#6d7166"))
+    draw.rectangle([0, 0, S - 1, S - 1], outline=rgb("#141a12"))
+    return image
+
+
 def make_tiles():
     rng = random.Random(42)  # Toujours le même résultat.
     for i in range(3):
@@ -320,6 +334,7 @@ def make_tiles():
     save(room_training(), "tiles", "room_training.png")
     save(room_prison(rng), "tiles", "room_prison.png")
     save(room_temple(), "tiles", "room_temple.png")
+    save(room_graveyard(rng), "tiles", "room_graveyard.png")
 
 
 # ---------------------------------------------------------------------------
@@ -822,13 +837,56 @@ def draw_giant(step):
     return sp.finish()
 
 
+def draw_revenant(step):
+    # Le Revenant : un squelette guerrier relevé du Cimetière, en armure rouillée.
+    bone, dark = "#d8d2bf", "#8f8874"
+    sp, m = humanoid(step, bone, "#5b4a3a", bone, "#3a2f26")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("rectangle", [11, 15 + bob, 20, 23 + bob], "#6d5a46")       # cuirasse rouillée
+    for y in (17, 19, 21):                                              # côtes visibles
+        sp.flat("line", [(12, y + bob), (19, y + bob)], dark)
+    sp.flat("rectangle", [15, 15 + bob, 16, 23 + bob], bone)            # colonne
+    sp.flat("rectangle", [11, hy + 5, 13, hy + 7], "#1a1a1a")           # orbites
+    sp.flat("rectangle", [18, hy + 5, 20, hy + 7], "#1a1a1a")
+    sp.dots([(12, hy + 6), (19, hy + 6)], "#76ff03")                    # lueur verte
+    sp.flat("line", [(13, hy + 10), (18, hy + 10)], "#1a1a1a")          # mâchoire
+    for x in (14, 16):
+        sp.dots([(x, hy + 9)], "#1a1a1a")
+    x, y = m["right_hand"]
+    sp.part("rectangle", [x - 1, y - 11, x, y - 1], "#8d6e63", "#a1887f", "#5d4037")  # épée rouillée
+    sp.flat("rectangle", [x - 2, y - 1, x + 1, y - 1], "#4e342e")
+    return sp.finish()
+
+
+def draw_champion(step):
+    # Le Champion du royaume : le chef des héros, grande cape et couronne.
+    sp = Sprite()
+    sp.part("polygon", [(8, 13), (23, 13), (28, 31), (3, 31)], "#1a237e")     # cape royale
+    sp.part("polygon", [(10, 15), (21, 15), (24, 30), (7, 30)], "#283593")
+    body, m = humanoid(step, "#ffccbc", "#cfd8dc", "#90a4ae", "#37474f")
+    sp.image.alpha_composite(body.image)
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("rectangle", [11, 15 + bob, 20, 24 + bob], "#eceff1")      # plastron
+    sp.flat("rectangle", [15, 16 + bob, 16, 23 + bob], "#ffca28")       # liseré d'or
+    sp.flat("rectangle", [12, 18 + bob, 19, 18 + bob], "#ffca28")
+    sp.part("polygon", [(9, hy + 2), (11, hy - 3), (13, hy), (16, hy - 4), (19, hy), (21, hy - 3), (22, hy + 2)],
+            "#ffca28", "#fff59d", "#c79100")                             # couronne
+    sp.dots([(16, hy - 1)], "#e53935")
+    sp.part("polygon", [(9, hy + 7), (11, hy + 13), (20, hy + 13), (22, hy + 7), (16, hy + 11)], "#8d6e63")  # barbe
+    eyes(sp, hy + 5)
+    x, y = m["right_hand"]                                               # grande épée
+    sp.part("rectangle", [x - 1, y - 15, x + 1, y - 1], "#eceff1", "#ffffff", "#90a4ae")
+    sp.flat("rectangle", [x - 3, y - 1, x + 3, y - 1], "#ffca28")
+    return sp.finish()
+
+
 CHARACTERS_32 = {
     "worker": draw_worker, "kobold": draw_kobold, "orc": draw_orc, "warlock": draw_warlock,
     "spider": draw_spider, "demon": draw_demon, "bat": draw_bat, "golem": draw_golem,
     "vampire": draw_vampire, "salamander": draw_salamander, "catcher": draw_catcher,
     "adventurer": draw_adventurer, "thief": draw_thief, "knight": draw_knight, "cleric": draw_cleric,
     "archer": draw_archer, "dwarf": draw_dwarf, "mage": draw_mage, "paladin": draw_paladin,
-    "giant": draw_giant,
+    "giant": draw_giant, "revenant": draw_revenant, "champion": draw_champion,
 }
 
 
@@ -1187,6 +1245,149 @@ def icon_dagger():
     return sp.finish()
 
 
+# --- Le décor animé : plusieurs images par objet ----------------------------------
+# Fichiers : props/<nom>_<numéro>.png. L'image 0 est aussi enregistrée sous props/<nom>.png
+# (pour les icônes de l'interface).
+
+def prop_torch_frame(i):
+    sp = Sprite()
+    sp.part("rectangle", [14, 14, 17, 28], "#5d4037", "#795548", "#3e2723")   # pied
+    sp.part("rectangle", [11, 28, 20, 30], "#4e342e")
+    sp.part("polygon", [(8, 10), (23, 10), (20, 16), (11, 16)], "#6d4c41", "#8d6e63", "#3e2723")  # coupe
+    # Quatre formes de flamme : elle danse en se penchant à gauche, puis à droite.
+    outer = [
+        [(10, 10), (13, 3), (15, 6), (16, 0), (18, 5), (20, 2), (22, 10)],
+        [(10, 10), (12, 4), (14, 6), (15, 1), (18, 4), (21, 3), (22, 10)],
+        [(10, 10), (11, 2), (14, 5), (17, 0), (19, 6), (21, 4), (22, 10)],
+        [(10, 10), (13, 5), (15, 3), (17, 1), (18, 4), (21, 1), (22, 10)],
+    ][i]
+    inner = [
+        [(13, 10), (15, 5), (17, 8), (19, 5), (19, 10)],
+        [(13, 10), (14, 6), (16, 4), (18, 7), (19, 10)],
+        [(13, 10), (15, 4), (17, 7), (18, 6), (19, 10)],
+        [(13, 10), (15, 6), (17, 4), (19, 6), (19, 10)],
+    ][i]
+    sp.part("polygon", outer, "#ff9800", "#ffcc80", "#e65100")
+    sp.part("polygon", inner, "#ffeb3b", "#ffffff", "#ffc107")
+    spark = [(12, 1), (20, 0), (14, 0), (19, 1)][i]                           # une étincelle
+    sp.dots([spark], "#ffe082")
+    return sp.finish()
+
+
+def prop_portal_frame(i):
+    sp = Sprite()
+    sp.part("ellipse", [2, 1, 29, 30], "#5d5d6a", "#8a8a9a", "#33333c")     # anneau de pierre
+    sp.part("ellipse", [6, 5, 25, 26], "#4a148c", "#6a1b9a", "#2a0a52")     # tourbillon
+    d = _draw(sp)
+    turn = 90 * i                                                            # le tourbillon tourne
+    for box, color in (([8, 7, 23, 24], "#7b1fa2"), ([10, 9, 21, 22], "#ab47bc"), ([12, 11, 19, 20], "#ce93d8")):
+        d.arc(box, 200 + turn, 520 + turn, fill=rgb(color), width=2)
+    glow = [[14, 13, 17, 18], [13, 12, 18, 19], [14, 13, 17, 18], [15, 14, 16, 17]][i]
+    d.ellipse(glow, fill=rgb("#f3e5f5"))
+    runes = ((5, 8), (25, 9), (4, 20), (26, 21), (15, 2))
+    for index, (x, y) in enumerate(runes):                                   # les runes clignotent
+        d.point((x, y), fill=rgb("#e1bee7" if index % 4 == i else "#b388ff"))
+    return sp.finish()
+
+
+def prop_anvil_frame(i):
+    sp = Sprite()
+    sp.part("rectangle", [9, 22, 22, 30], "#795548", "#8d6e63", "#4e342e")    # billot
+    sp.part("polygon", [(3, 11), (24, 11), (29, 13), (24, 16), (20, 16), (19, 22), (12, 22), (11, 16), (5, 16)],
+            "#78909c", "#cfd8dc", "#455a64")
+    sp.part("rectangle", [9, 8, 17, 10], "#ff7043", "#ffcc80", "#bf360c")     # lame chauffée au rouge
+    d = _draw(sp)
+    if i == 0:
+        sp.part("rectangle", [21, 5, 23, 11], "#8d6e63")                      # marteau posé
+        sp.part("rectangle", [18, 3, 27, 6], "#90a4ae")
+    elif i == 1:
+        sp.part("rectangle", [16, 0, 18, 7], "#8d6e63")                       # marteau qui tombe
+        sp.part("rectangle", [12, 4, 21, 7], "#90a4ae")
+        d.point([(10, 6), (7, 4), (19, 5), (22, 3), (8, 2)], fill=rgb("#ffeb3b"))  # étincelles
+    else:
+        sp.part("rectangle", [21, 5, 23, 11], "#8d6e63")
+        sp.part("rectangle", [18, 3, 27, 6], "#90a4ae")
+        d.point([(6, 1), (4, 6), (13, 2)], fill=rgb("#ffb74d"))
+    d.point((7, 12), fill=rgb("#ffffff"))
+    return sp.finish()
+
+
+def _candle_flame(d, x, top, i, colors=("#ffb300", "#fff59d")):
+    lean = (0, -1, 0, 1)[i % 4]
+    d.polygon([(x, top + 4), (x + 1 + lean, top - (1 if i % 2 else 0)), (x + 2, top + 4)], fill=rgb(colors[0]))
+    d.point((x + 1, top + 2), fill=rgb(colors[1]))
+
+
+def prop_temple_altar_frame(i):
+    sp = Sprite()
+    sp.part("rectangle", [4, 13, 27, 29], "#78909c", "#b0bec5", "#455a64")
+    sp.part("rectangle", [2, 11, 29, 15], "#90a4ae", "#cfd8dc", "#546e7a")
+    sp.part("rectangle", [11, 14, 20, 27], "#6a1b9a", "#9c27b0", "#4a148c")   # étoffe violette
+    d = _draw(sp)
+    gold = "#fff59d" if i == 1 else "#ffd54f"                                 # le symbole luit
+    d.line([(15, 17), (15, 23)], fill=rgb(gold))
+    d.line([(13, 19), (17, 19)], fill=rgb(gold))
+    for index, x in enumerate((5, 25)):                                       # bougies
+        d.rectangle([x, 5, x + 2, 11], fill=rgb("#eceff1"))
+        _candle_flame(d, x, 1, i + index)
+    return sp.finish()
+
+
+def prop_sacrifice_altar_frame(i):
+    sp = Sprite()
+    sp.part("rectangle", [5, 18, 26, 30], "#2a2a30", "#3d3d44", "#141418")
+    sp.part("rectangle", [2, 12, 29, 19], "#4a4a52", "#6a6a74", "#25252b")
+    d = _draw(sp)
+    d.line([(6, 15), (25, 15)], fill=rgb("#c62828"))                          # sang
+    d.point([(9, 16), (9, 17), (20, 16)], fill=rgb("#8e1b1b"))
+    d.ellipse([12, 21, 19, 27], outline=rgb("#ff5252" if i == 1 else "#c62828"))  # rune qui pulse
+    d.point((15, 24), fill=rgb("#ffcdd2" if i == 1 else "#ff5252"))
+    sp.part("ellipse", [12, 5, 19, 12], "#e0e0e0", "#ffffff", "#9e9e9e")      # crâne
+    d.point([(14, 8), (17, 8)], fill=rgb("#ff1744" if i == 1 else "#1a1a1a"))  # yeux rouges
+    d.line([(14, 11), (17, 11)], fill=rgb("#757575"))
+    for index, x in enumerate((3, 27)):                                       # bougies rouges
+        d.rectangle([x, 6, x + 1, 12], fill=rgb("#b71c1c"))
+        _candle_flame(d, x - 0, 2, i + index, ("#ff5252", "#ffcdd2"))
+    return sp.finish()
+
+
+def prop_dummy_frame(i):
+    """Le mannequin se balance un peu, comme s'il venait d'être frappé."""
+    angle = (0, 5, 0, -5)[i]
+    return prop_dummy().rotate(angle, resample=Image.NEAREST, center=(16, 30))
+
+
+def prop_tomb(filled, i=0):
+    """Une tombe : fosse ouverte (libre) ou refermée (un héros y repose).
+    Une tombe occupée laisse échapper une lueur verte : bientôt, un Revenant."""
+    sp = Sprite()
+    if filled:
+        sp.part("polygon", [(5, 24), (9, 20), (23, 20), (27, 24), (23, 29), (9, 29)], "#4e3b2c", "#6d5641", "#2e2219")
+    else:
+        sp.part("polygon", [(5, 24), (9, 20), (23, 20), (27, 24), (23, 29), (9, 29)], "#2a1e15", "#3b2b1e", "#120c08")
+        sp.part("rectangle", [21, 25, 28, 29], "#5a4430", "#7a5c40", "#3a2a1c")    # tas de terre
+    sp.part("rectangle", [11, 6, 20, 21], "#7d8580", "#a3aba5", "#4f5650")         # pierre tombale
+    sp.part("ellipse", [11, 2, 20, 11], "#7d8580", "#a3aba5", "#4f5650")
+    d = _draw(sp)
+    d.line([(15, 8), (15, 15)], fill=rgb("#4f5650"))                              # croix gravée
+    d.line([(13, 10), (17, 10)], fill=rgb("#4f5650"))
+    d.point([(12, 18), (19, 7)], fill=rgb("#5f7a4a"))                              # mousse
+    if filled:
+        wisp = [[(8, 18), (9, 14), (8, 10)], [(9, 17), (8, 13), (9, 9)],
+                [(8, 16), (9, 12), (10, 8)], [(9, 18), (10, 15), (9, 11)]][i]
+        for index, point in enumerate(wisp):
+            d.point(point, fill=(118, 255, 3, 230 - index * 60))
+        d.point((24, 22 - i % 2), fill=(178, 255, 89, 200))
+    return sp.finish()
+
+
+ANIMATED_PROPS = {
+    "torch": (prop_torch_frame, 4), "portal": (prop_portal_frame, 4), "anvil": (prop_anvil_frame, 3),
+    "altar": (prop_temple_altar_frame, 4), "sacrifice_altar": (prop_sacrifice_altar_frame, 2),
+    "dummy": (prop_dummy_frame, 4), "tomb_full": (lambda i: prop_tomb(True, i), 4),
+}
+
+
 def make_props_and_icons():
     props = {
         "heart": prop_heart, "portal": prop_portal, "entrance": prop_entrance, "bed": prop_bed,
@@ -1196,6 +1397,13 @@ def make_props_and_icons():
     }
     for name, draw in props.items():
         save(draw(), "props", name + ".png")
+    for name, (draw_frame, count) in ANIMATED_PROPS.items():
+        for i in range(count):
+            image = draw_frame(i)
+            save(image, "props", "%s_%d.png" % (name, i))
+            if i == 0 and name != "tomb_full":
+                save(image, "props", name + ".png")
+    save(prop_tomb(False), "props", "tomb_empty.png")
     save(prop_spikes(False), "props", "spikes_down.png")
     save(prop_spikes(True), "props", "spikes_up.png")
     for count in range(1, 6):

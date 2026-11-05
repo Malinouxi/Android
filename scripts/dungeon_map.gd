@@ -112,6 +112,20 @@ var work_spots: Dictionary = {}
 var prisoners: Dictionary = {}
 ## Cases où brûle une torche (choisies par main.gd) : Vector2i -> true.
 var torch_cells: Dictionary = {}
+## Les tombes occupées du Cimetière : case -> secondes avant que le héros enterré
+## se relève en Revenant (0 = prêt ; main.gd le fait se relever s'il y a un lit).
+var graves: Dictionary = {}
+
+## Le décor animé (torches, portail, cœur...) change d'image ANIM_FPS fois par seconde.
+const ANIM_FPS := 6.0
+## Le « tic » d'animation du décor : il augmente de 1 à chaque changement d'image.
+var anim_tick := 0
+var _anim_timer := 0.0
+## Les diagonales (couches de dessin) qui contiennent un objet animé : d -> true.
+## Seules celles-ci sont redessinées à chaque tic, pour ne pas ralentir le jeu.
+var _animated_layers: Dictionary = {}
+## Vrai si la diagonale en cours de dessin contient un objet animé.
+var _layer_is_animated := false
 
 var _farm_timer := 0.0
 var _trap_timer := 0.0
@@ -129,6 +143,20 @@ func _process(delta: float) -> void:
 	_update_traps(delta)
 	_update_effects(delta)
 	_update_farms(delta)
+	_update_animation(delta)
+	for cell: Vector2i in graves:
+		graves[cell] = maxf(0.0, graves[cell] - delta)
+
+
+## Fait avancer le décor animé : on ne redessine que les couches qui en ont besoin.
+func _update_animation(delta: float) -> void:
+	_anim_timer += delta
+	if _anim_timer < 1.0 / ANIM_FPS:
+		return
+	_anim_timer = 0.0
+	anim_tick += 1
+	for d: int in _animated_layers:
+		_wall_layers[d].queue_redraw()
 
 
 ## Les champignons poussent avec le temps.
@@ -328,6 +356,7 @@ func to_save() -> Dictionary:
 		"rival_heart_hp": rival_heart_hp,
 		"rival_heart_max_hp": rival_heart_max_hp,
 		"rival_claimed": _cells_to_array_list(rival_claimed),
+		"graves": _cells_to_list(graves),
 	}
 
 
@@ -347,6 +376,9 @@ func load_save(data: Dictionary) -> bool:
 	rooms = _list_to_cells(data["rooms"])
 	stored_gold = _list_to_cells(data["stored_gold"])
 	food = _list_to_cells(data["food"])
+	graves.clear()
+	for values in data.get("graves", []):
+		graves[SaveGame.array_to_cell(values)] = float(values[2])
 	marked.clear()
 	for values in data["marked"]:
 		marked[SaveGame.array_to_cell(values)] = true
@@ -633,6 +665,7 @@ func remove_room(cell: Vector2i) -> int:
 	food.erase(cell)
 	beds.erase(cell) # La créature qui dormait là n'a plus de lit.
 	work_spots.erase(cell)
+	graves.erase(cell) # Le héros enterré là ne se relèvera pas.
 	prisoners.erase(cell) # Le prisonnier s'évadera (voir hero.gd).
 	var lost: int = stored_gold.get(cell, 0)
 	stored_gold.erase(cell)
@@ -648,6 +681,32 @@ func remove_room(cell: Vector2i) -> int:
 # ---------------------------------------------------------------------------
 # Lits, nourriture et portail (pour les créatures)
 # ---------------------------------------------------------------------------
+
+## Enterre un héros mort dans une tombe libre du Cimetière.
+## Renvoie la case de la tombe, ou (-1, -1) s'il n'y a pas de tombe libre.
+func bury() -> Vector2i:
+	for cell: Vector2i in rooms:
+		if rooms[cell] == Rooms.Type.GRAVEYARD and not graves.has(cell):
+			graves[cell] = Rules.REVENANT_RISE_TIME
+			_redraw_all()
+			return cell
+	return Vector2i(-1, -1)
+
+
+## Les tombes dont le héros enterré est prêt à se relever.
+func ready_graves() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for cell: Vector2i in graves:
+		if graves[cell] <= 0.0:
+			result.append(cell)
+	return result
+
+
+## Le Revenant est sorti : la tombe redevient libre.
+func empty_grave(cell: Vector2i) -> void:
+	graves.erase(cell)
+	_redraw_all()
+
 
 ## Donne un lit libre à une créature. Renvoie sa case, ou (-1, -1) s'il n'y en a pas.
 func claim_bed(creature: Node) -> Vector2i:
@@ -1126,6 +1185,7 @@ func _draw_room_floor(cell: Vector2i, rect: Rect2) -> void:
 
 ## Une diagonale : les murs en relief et les objets debout des cases où x + y = d.
 func _draw_diagonal(layer: Node2D, d: int) -> void:
+	_layer_is_animated = false
 	for x in range(maxi(0, d - HEIGHT + 1), mini(WIDTH - 1, d) + 1):
 		var cell := Vector2i(x, d - x)
 		if _is_wall(cell):
@@ -1133,6 +1193,28 @@ func _draw_diagonal(layer: Node2D, d: int) -> void:
 		else:
 			_draw_standing_objects(layer, cell)
 	layer.draw_set_transform_matrix(Transform2D.IDENTITY)
+	# On retient si cette couche devra être redessinée à chaque tic d'animation.
+	if _layer_is_animated:
+		_animated_layers[d] = true
+	else:
+		_animated_layers.erase(d)
+
+
+## L'image actuelle d'un objet animé. Chaque case a son propre décalage :
+## les torches ne vacillent pas toutes en même temps.
+func _animated(prop: String, cell: Vector2i) -> Texture2D:
+	_layer_is_animated = true
+	return Art.prop_frame(prop, anim_tick + cell.x * 3 + cell.y * 5)
+
+
+## Le cœur bat : un « poum-poum » par seconde, bien plus vite s'il est attaqué.
+func _heartbeat() -> float:
+	_layer_is_animated = true
+	var attacked := Time.get_ticks_msec() - last_heart_hit_msec < 3000
+	var pattern := [0.09, 0.02, 0.06, 0.0, 0.0, 0.0]
+	if attacked:
+		pattern = [0.1, 0.0, 0.06]
+	return 1.0 + pattern[anim_tick % pattern.size()]
 
 
 ## Un mur en relief : deux faces visibles (seulement si la case voisine est vide)
@@ -1180,14 +1262,15 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 	var center := cell_to_world(cell)
 	match get_tile(cell):
 		Tile.HEART:
-			_billboard(layer, Art.HEART, center, 1.1)
+			_billboard(layer, Art.HEART, center, 1.1 * _heartbeat())
 			if heart_hp < HEART_MAX_HP:
 				_draw_bar(layer, -38.0, heart_hp / HEART_MAX_HP, Color("e53935"))
 		Tile.RIVAL_HEART:
-			_billboard(layer, Art.HEART, center, 1.1, Color(0.4, 0.55, 1.6))
+			var rival_scale := 1.1 * _heartbeat() if rival_heart_hp > 0.0 else 1.1
+			_billboard(layer, Art.HEART, center, rival_scale, Color(0.4, 0.55, 1.6))
 			_draw_bar(layer, -38.0, rival_heart_hp / rival_heart_max_hp, Color("42a5f5"))
 		Tile.PORTAL:
-			_billboard(layer, Art.PORTAL, center, 1.2)
+			_billboard(layer, _animated("portal", cell), center, 1.2)
 		Tile.ENTRANCE:
 			_billboard(layer, Art.ENTRANCE, center, 1.3)
 
@@ -1206,16 +1289,28 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 				var spots := [Vector2(-8, 6), Vector2(7, -6), Vector2(4, 9)]
 				for i in food.get(cell, 0):
 					_billboard(layer, Art.MUSHROOM, center + spots[i], 0.5)
+			Rooms.Type.WORKSHOP:
+				_billboard(layer, _animated("anvil", cell), center, 1.0)
+			Rooms.Type.TRAINING:
+				_billboard(layer, _animated("dummy", cell), center, 1.0)
+			Rooms.Type.TEMPLE:
+				_billboard(layer, _animated("altar", cell), center, 1.0)
+			Rooms.Type.GRAVEYARD:
+				# Une tombe : ouverte si elle est libre ; sinon une lueur verte s'en échappe.
+				if graves.has(cell):
+					_billboard(layer, _animated("tomb_full", cell), center, 0.95)
+				else:
+					_billboard(layer, Art.TOMB_EMPTY, center, 0.95)
 			_:
 				if Art.ROOM_PROPS.has(type):
 					_billboard(layer, Art.ROOM_PROPS[type], center, 1.0)
 
 	# Une torche, sauf si la case est occupée par un meuble ou une défense.
 	if torch_cells.has(cell) and not rooms.has(cell) and not defenses.has(cell):
-		_billboard(layer, Art.TORCH, center, 0.8)
+		_billboard(layer, _animated("torch", cell), center, 0.8)
 
 	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.ALTAR:
-		_billboard(layer, Art.SACRIFICE_ALTAR, center, 1.1)
+		_billboard(layer, _animated("sacrifice_altar", cell), center, 1.1)
 
 	if has_door(cell):
 		_billboard(layer, Art.DOOR, center, 1.1)

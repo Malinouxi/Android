@@ -3,7 +3,7 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT }
 
 ## "requires" : nombre minimum de cases de chaque salle pour attirer la créature.
 ## "salary" : or versé à chaque jour de paie.
@@ -73,6 +73,13 @@ const INFO := {
 		"speed": 110.0, "salary": 25, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.PRISON: 2},
 		"hp": 90.0, "damage": 6.0, "range": 26.0, "attack_interval": 1.0, "catcher": true,
 	},
+	Type.REVENANT: {
+		# Le Revenant : un héros mort, enterré au Cimetière, qui se relève pour te servir.
+		# "graveyard" : il ne vient jamais par le portail (voir main.gd, _update_graves).
+		"name": "Revenant", "sprite": "revenant", "color": Color("9e9a86"), "size": 9.0, "speed": 70.0,
+		"salary": 10, "requires": {Rooms.Type.GRAVEYARD: 1}, "graveyard": true,
+		"hp": 130.0, "damage": 12.0, "range": 28.0, "attack_interval": 1.1, "armor": 0.15,
+	},
 }
 
 
@@ -84,6 +91,8 @@ static func info(type: int) -> Dictionary:
 static func attracted_types(map: DungeonMap) -> Array[int]:
 	var result: Array[int] = []
 	for type: int in INFO:
+		if INFO[type].get("graveyard", false):
+			continue # Le Revenant naît au Cimetière, pas au portail.
 		var requires: Dictionary = INFO[type]["requires"]
 		var ok := true
 		for room: int in requires:

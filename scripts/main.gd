@@ -46,6 +46,7 @@ const TOOL_ROOMS := {
 	Hud.Tool.TRAINING: Rooms.Type.TRAINING,
 	Hud.Tool.PRISON: Rooms.Type.PRISON,
 	Hud.Tool.TEMPLE: Rooms.Type.TEMPLE,
+	Hud.Tool.GRAVEYARD: Rooms.Type.GRAVEYARD,
 }
 ## Points de recherche par seconde qu'apporte chaque prisonnier interrogé.
 const PRISONER_RESEARCH := Rules.PRISONER_RESEARCH
@@ -101,6 +102,9 @@ var _wave_in_progress := false
 var _wave_warned := false
 var _pending_heroes: Array[int] = []
 var _hero_spawn_timer := 0.0
+## Nombre de Champions du royaume vaincus (objectif du niveau 9).
+var _champions_defeated := 0
+var _grave_timer := 0.0
 
 ## La recherche de la Bibliothèque (voir research.gd).
 var research := Research.new()
@@ -228,6 +232,7 @@ func _process(delta: float) -> void:
 	_update_payday(delta)
 	_update_waves(delta)
 	_update_rival(delta)
+	_update_graves(delta)
 	_goal_timer -= delta
 	if _goal_timer <= 0.0:
 		_goal_timer = 1.0
@@ -361,15 +366,18 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 		Spells.Type.HEAL:
 			for unit in _units_near("dungeon", world_position, info["radius"]):
 				unit.heal(info["amount"])
+				Fx.burst("heal", unit.position) # Des étincelles vertes montent de chaque unité.
 				cast = true
 		Spells.Type.LIGHTNING:
 			for unit in _units_near("heroes", world_position, info["radius"]):
+				Fx.lightning(unit.position) # Un éclair tombe sur chaque héros touché.
 				unit.take_damage(info["damage"])
 				cast = true
 		Spells.Type.HASTE:
 			var targets := _units_near("dungeon", world_position, 20.0)
 			if not targets.is_empty():
 				targets[0].apply_haste(info["duration"])
+				Fx.burst("haste", targets[0].position)
 				cast = true
 	if not cast:
 		_fail("Aucune cible ici : touche %s." % (
@@ -442,8 +450,28 @@ func _start_wave() -> void:
 	_hero_spawn_timer = 0.0
 	_wave_in_progress = true
 	Sound.play("horn")
-	hud.show_message("Vague %d : %d héros entrent dans ton donjon !" % [_next_wave, count], 5.0)
+	if _champion_leads_wave(_next_wave):
+		_pending_heroes.push_front(Heroes.Type.CHAMPION) # Il entre le premier.
+		Fx.shake(5.0, 0.5)
+		hud.show_message("Vague %d : le CHAMPION DU ROYAUME mène %d héros contre toi !" % [_next_wave, count], 6.0)
+	else:
+		hud.show_message("Vague %d : %d héros entrent dans ton donjon !" % [_next_wave, count], 5.0)
 	_next_wave += 1
+
+
+## Le Champion mène-t-il cette vague ? Par défaut, une vague sur Heroes.CHAMPION_EVERY.
+## Un niveau peut choisir sa vague (« champion_wave ») : il revient alors à chaque
+## vague suivante tant qu'il n'a pas été vaincu.
+func _champion_leads_wave(wave: int) -> bool:
+	var champion_wave: int = level.get("champion_wave", 0)
+	if champion_wave <= 0:
+		return wave % Heroes.CHAMPION_EVERY == 0
+	if wave < champion_wave or _champions_defeated > 0:
+		return false
+	for node in heroes_root.get_children():
+		if node is Hero and (node as Hero).type == Heroes.Type.CHAMPION:
+			return false # Il est encore dans le donjon.
+	return true
 
 
 func _spawn_hero(type: int) -> void:
@@ -498,6 +526,8 @@ func _request_sacrifice(world_position: Vector2) -> void:
 
 ## Un héros vaincu finit en Prison : il rapporte sa rançon, et sera interrogé.
 func _on_hero_captured(hero: Hero) -> void:
+	if hero.type == Heroes.Type.CHAMPION:
+		_champions_defeated += 1
 	var stored := map.add_gold_to_treasury(hero.reward())
 	hud.show_message("%s capturé ! +%d or de rançon. Interrogé, il fera avancer la recherche." %
 			[hero.display_name(), stored], 4.0)
@@ -506,6 +536,11 @@ func _on_hero_captured(hero: Hero) -> void:
 ## Un héros vaincu rapporte une rançon, rangée au trésor s'il y a de la place.
 func _on_hero_died(unit: Unit) -> void:
 	var hero := unit as Hero
+	if hero.type == Heroes.Type.CHAMPION:
+		_champions_defeated += 1
+		Fx.shake(8.0, 0.5)
+		hud.show_message("Le Champion du royaume est tombé ! Sa rançon est immense.", 5.0)
+	_bury(hero)
 	if hero.no_ransom:
 		return # Sacrifié : l'or a déjà été donné.
 	var stored := map.add_gold_to_treasury(hero.reward())
@@ -514,6 +549,38 @@ func _on_hero_died(unit: Unit) -> void:
 		hud.show_message("%s vaincu ! +%d or de rançon." % [hero.display_name(), stored], 3.0)
 	else:
 		hud.show_message("%s vaincu ! Sa rançon est perdue : pas de place au Trésor." % hero.display_name(), 3.0)
+
+
+## Un héros mort est enterré au Cimetière, s'il y a une tombe libre.
+func _bury(hero: Hero) -> void:
+	if Heroes.info(hero.type).get("rival", false):
+		return # Les troupes du rival ne sont pas des héros.
+	var grave := map.bury()
+	if grave == Vector2i(-1, -1):
+		return
+	var grave_position := map.cell_to_world(grave)
+	Fx.burst("dust", grave_position)
+	Fx.burst("magic", grave_position, Color("76ff03"))
+	_hint("%s est enterré au Cimetière. Bientôt, il se relèvera en Revenant !" % hero.display_name())
+
+
+## Les héros enterrés se relèvent en Revenants (il faut un lit libre au Repaire).
+func _update_graves(delta: float) -> void:
+	_grave_timer -= delta
+	if _grave_timer > 0.0:
+		return
+	_grave_timer = 1.0
+	for cell in map.ready_graves():
+		if creatures_root.get_child_count() >= map.count_room_tiles(Rooms.Type.LAIR):
+			_hint("Un Revenant attend un lit libre au Repaire pour se relever.")
+			return
+		map.empty_grave(cell)
+		var revenant := _add_creature(Creatures.Type.REVENANT, cell)
+		Sound.play("portal", revenant.position, -4.0)
+		Fx.burst("magic", revenant.position, Color("76ff03"))
+		Fx.burst("dust", revenant.position)
+		Fx.flash_light(revenant.position, Color(0.5, 1.0, 0.3), 140.0, 0.6)
+		hud.show_message("Un Revenant se relève du Cimetière pour te servir !", 4.0)
 
 
 func _on_heart_changed() -> void:
@@ -553,6 +620,8 @@ func _goal_progress() -> Array:
 			return [research.next_index, goal["count"]]
 		"prisoners":
 			return [map.prisoners.size(), goal["count"]]
+		"champion":
+			return [_champions_defeated, 1]
 		"rival":
 			var damage_done := map.rival_heart_max_hp - map.rival_heart_hp
 			return [roundi(100.0 * damage_done / map.rival_heart_max_hp), 100]
@@ -704,6 +773,7 @@ func save_game() -> bool:
 			"portal_connected": _portal_connected,
 			"rival_timer": _rival_timer,
 			"rival_squads": _rival_squads,
+			"champions_defeated": _champions_defeated,
 		},
 		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
 		"research": research.to_save(),
@@ -742,6 +812,7 @@ func _load_game(data: Dictionary) -> bool:
 	var state: Dictionary = data["state"]
 	_rival_timer = float(state.get("rival_timer", level.get("rival_interval", 80.0)))
 	_rival_squads = int(state.get("rival_squads", 0))
+	_champions_defeated = int(state.get("champions_defeated", 0))
 	_payday_timer = float(state["payday_timer"])
 	_wave_timer = float(state["wave_timer"])
 	_next_wave = int(state["next_wave"])

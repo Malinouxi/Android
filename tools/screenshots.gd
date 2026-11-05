@@ -49,6 +49,26 @@ func _run() -> void:
 	await _frames(70)
 	_shot("04_combat")
 
+	# Le nouveau contenu : un Cimetière (deux tombes occupées), le Champion du
+	# royaume, un Revenant, et un éclair qui tombe sur le Champion.
+	var built := 0
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var cell: Vector2i = heart + Vector2i(dx, dy)
+			if built < 3 and map_node.can_build_room(cell):
+				map_node.build_room(cell, 9) # Rooms.Type.GRAVEYARD
+				built += 1
+	map_node.bury()
+	map_node.bury()
+	var champion: Node2D = game._add_hero(12, heart + Vector2i(2, -1)) # Heroes.Type.CHAMPION
+	game._add_creature(10, heart + Vector2i(1, -2)) # Creatures.Type.REVENANT
+	print("ÉTAPE contenu : cimetière (", built, " cases), champion et revenant ajoutés")
+	await _frames(40)
+	game.mana = 200.0
+	game._cast_spell(1, champion.position) # Spells.Type.LIGHTNING
+	await _frames(3)
+	_shot("06_contenu")
+
 	var hud := game.get_node("HUD")
 	hud.codex_pressed.emit()
 	await _frames(20)

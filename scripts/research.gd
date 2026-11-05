@@ -19,6 +19,7 @@ const ITEMS := [
 	{"name": "Temple", "kind": "room", "id": Rooms.Type.TEMPLE, "points": 200},
 	{"name": "Sort Hâte", "kind": "spell", "id": Spells.Type.HASTE, "points": 220},
 	{"name": "Rune explosive", "kind": "defense", "id": Defenses.Type.RUNE, "points": 260},
+	{"name": "Cimetière", "kind": "room", "id": Rooms.Type.GRAVEYARD, "points": 240},
 ]
 
 ## Indice de la prochaine découverte dans ITEMS.

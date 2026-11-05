@@ -22,6 +22,8 @@ const BURSTS := {
 	"smoke": {"color": Color(0.35, 0.33, 0.35, 0.8), "amount": 22, "speed": 70.0, "gravity": -40.0, "life": 1.0, "size": 6.0},
 	"claim": {"color": Color("ff4d6a"), "amount": 10, "speed": 40.0, "gravity": -60.0, "life": 0.7, "size": 2.0},
 	"magic": {"color": Color("b388ff"), "amount": 16, "speed": 80.0, "gravity": -30.0, "life": 0.7, "size": 3.0},
+	"heal": {"color": Color("69f0ae"), "amount": 14, "speed": 35.0, "gravity": -110.0, "life": 0.9, "size": 3.0},
+	"haste": {"color": Color("80deea"), "amount": 18, "speed": 140.0, "gravity": 0.0, "life": 0.35, "size": 2.0},
 }
 
 
@@ -101,6 +103,31 @@ static func death_fall(map_position: Vector2, texture: Texture2D, sprite_scale: 
 	tween.tween_property(sprite, "position:y", sprite.position.y + 6.0, 0.35)
 	tween.tween_property(sprite, "modulate:a", 0.0, 0.6).set_delay(0.5)
 	tween.chain().tween_callback(sprite.queue_free)
+
+
+## Un éclair qui tombe du ciel sur un point de la carte : une ligne brisée au
+## hasard (deux couches : un halo bleu et un cœur blanc), qui s'efface très vite.
+static func lightning(map_position: Vector2) -> void:
+	if not is_ready():
+		return
+	var target := to_screen(map_position) + Vector2(0, -10)
+	var points := PackedVector2Array()
+	var steps := 7
+	for i in steps + 1:
+		var t := float(i) / steps
+		var wobble := 0.0 if i == 0 or i == steps else randf_range(-16.0, 16.0)
+		points.append(target + Vector2(wobble + (1.0 - t) * 30.0, -260.0 * (1.0 - t)))
+	for layer_settings in [[9.0, Color(0.55, 0.8, 1.0, 0.6)], [3.0, Color(1, 1, 1, 1)]]:
+		var line := Line2D.new()
+		line.points = points
+		line.width = layer_settings[0]
+		line.default_color = layer_settings[1]
+		line.joint_mode = Line2D.LINE_JOINT_ROUND
+		layer.add_child(line)
+		var tween := line.create_tween()
+		tween.tween_property(line, "modulate:a", 0.0, 0.35).set_delay(0.08)
+		tween.tween_callback(line.queue_free)
+	burst("sparks", map_position, Color("b3e5fc"))
 
 
 ## Fait trembler l'écran (strength en pixels).

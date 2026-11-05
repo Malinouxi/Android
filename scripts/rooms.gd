@@ -15,6 +15,7 @@ enum Type {
 	TRAINING, ## Salle d'entraînement : les créatures y gagnent de l'expérience.
 	PRISON,   ## Prison : les héros vaincus y sont capturés (et interrogés).
 	TEMPLE,   ## Temple : les créatures y prient (humeur, soin, mana).
+	GRAVEYARD, ## Cimetière : les héros morts y sont enterrés, puis se relèvent en Revenants.
 }
 
 const INFO := {
@@ -26,6 +27,7 @@ const INFO := {
 	Type.TRAINING: {"name": "Entraînement", "cost": 90, "color": Color("5e352a")},
 	Type.PRISON: {"name": "Prison", "cost": 60, "color": Color("34343b")},
 	Type.TEMPLE: {"name": "Temple", "cost": 100, "color": Color("4a3a6a")},
+	Type.GRAVEYARD: {"name": "Cimetière", "cost": 70, "color": Color("2a3324")},
 }
 
 ## Les salles où les créatures viennent travailler (voir creature.gd).

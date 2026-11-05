@@ -22,7 +22,7 @@ signal tool_selected(tool: int)
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE,
-		ALTAR, SACRIFICE }
+		ALTAR, SACRIFICE, GRAVEYARD }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -63,6 +63,7 @@ const TOOL_ICONS := {
 	Tool.TRAINING: preload("res://assets/props/dummy.png"),
 	Tool.PRISON: preload("res://assets/props/prison_bars.png"),
 	Tool.TEMPLE: preload("res://assets/props/altar.png"),
+	Tool.GRAVEYARD: preload("res://assets/props/tomb_empty.png"),
 	Tool.SPIKES: preload("res://assets/props/spikes_up.png"),
 	Tool.RUNE: preload("res://assets/props/rune.png"),
 	Tool.DOOR: preload("res://assets/props/door.png"),
@@ -194,6 +195,7 @@ func _build_tool_panel() -> void:
 		[Tool.TRAINING, _room_label(Rooms.Type.TRAINING)],
 		[Tool.PRISON, _room_label(Rooms.Type.PRISON)],
 		[Tool.TEMPLE, _room_label(Rooms.Type.TEMPLE)],
+		[Tool.GRAVEYARD, _room_label(Rooms.Type.GRAVEYARD)],
 		[Tool.SPIKES, _defense_label(Defenses.Type.SPIKES)],
 		[Tool.RUNE, _defense_label(Defenses.Type.RUNE)],
 		[Tool.DOOR, _defense_label(Defenses.Type.DOOR)],

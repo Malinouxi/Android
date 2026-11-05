@@ -299,6 +299,15 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
 - Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
+**Étape 29 — Nouvelle interface**
+- Une grande barre en haut (emblème, or et Trésor, mana, créatures, ouvriers, grande barre de vie du
+  cœur, vague et paie, ouvrier en plus, vitesse, pause), des cadres de pierre sombre au liseré rouge.
+- Mini-carte encadrée en haut à droite ; sorts en icônes à gauche avec l'objectif et la recherche.
+- Barre d'outils en icônes en bas au centre, rangée par onglets (Actions, Salles, Défenses) : le prix ou
+  le stock sous chaque icône, le nom complet de l'outil choisi au-dessus.
+- Toucher une créature ouvre sa **fiche** en bas à gauche (portrait, niveau, vie, humeur, faim, énergie,
+  tâche, salaire). Les messages vont dans un **journal** en bas à droite, les alertes en rouge.
+
 **Étape 28 — Tout en 3D**
 - `scripts/voxel_models.gd` construit par code tous les **personnages** (fiches `CHARACTERS` : couleurs,
   couvre-chef, arme, bouclier, cape, ailes, queue ; plus l'araignée, la chauve-souris et le Cerbère) et

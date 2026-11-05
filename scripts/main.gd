@@ -1184,7 +1184,7 @@ func _on_paint_started(screen_position: Vector2, world_position: Vector2) -> voi
 		# Toucher une créature affiche son état (au lieu de creuser).
 		var creature := _creature_at(world_position)
 		if creature:
-			hud.show_message(creature.describe(), 5.0)
+			hud.select_unit(creature) # Sa fiche s'affiche en bas à gauche.
 			_paint_active = false
 			return
 		# La première case décide : on marque tout... ou on démarque tout.
@@ -1218,7 +1218,7 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 			# Toucher une créature affiche son état.
 			var creature := _creature_at(world_position)
 			if creature:
-				hud.show_message(creature.describe(), 5.0)
+				hud.select_unit(creature) # Sa fiche s'affiche en bas à gauche.
 			else:
 				map.toggle_mark(cell)
 		Hud.Tool.HAND:

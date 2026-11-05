@@ -44,7 +44,8 @@ func _run() -> void:
 	var heart: Vector2i = map_node.heart_cell
 	# Entiers (KNIGHT = 2, ORC = 1) : citer Heroes/Creatures ferait compiler la carte avant Sound.
 	game._add_hero(2, heart + Vector2i(1, 1))
-	game._add_creature(1, heart + Vector2i(-1, 1))
+	var orc: Node = game._add_creature(1, heart + Vector2i(-1, 1))
+	game.get_node("HUD").select_unit(orc) # La fiche de l'orque, en bas à gauche.
 	print("ÉTAPE combat : unités ajoutées")
 	await _frames(70)
 	_shot("04_combat")

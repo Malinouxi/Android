@@ -187,6 +187,15 @@ func receive_pay(paid: bool) -> void:
 	happiness = clampf(happiness + (15.0 if paid else -35.0), 0.0, 100.0)
 
 
+## Ce que fait la créature en ce moment (pour sa fiche, voir hud.gd).
+func activity_text() -> String:
+	if state == State.WORKING:
+		return WORK_NAMES[_work_room]
+	if state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
+		return "garde le %s" % Rooms.display_name(_guarded_room())
+	return STATE_NAMES[state]
+
+
 ## Petit texte affiché quand on touche la créature.
 func describe() -> String:
 	var activity: String = STATE_NAMES[state]

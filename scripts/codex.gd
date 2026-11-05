@@ -159,6 +159,10 @@ func _room_img(type: int) -> String:
 			texture = Art.BED
 		Rooms.Type.FARM:
 			texture = Art.MUSHROOM
+		Rooms.Type.PRISON:
+			texture = Art.PRISON_BARS
+	if texture == null:
+		return "" # Pas d'image pour cette salle : on laisse la case vide.
 	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
 
 

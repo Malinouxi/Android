@@ -14,6 +14,11 @@ signal closed
 
 var _articles: Array = []
 var _text: RichTextLabel
+var _text_scroll: ScrollContainer
+
+## Taille des images dans le texte (les images font 32 x 32 : x2 pour bien les voir).
+const IMAGE_SIZE := 48
+const TABLE_IMAGE_SIZE := 40
 
 
 func _ready() -> void:
@@ -69,6 +74,7 @@ func _ready() -> void:
 	var list_scroll := ScrollContainer.new()
 	list_scroll.custom_minimum_size = Vector2(300, 0)
 	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list_scroll.scroll_deadzone = 12 # Un doigt qui glisse fait défiler, au lieu d'appuyer.
 	body.add_child(list_scroll)
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -91,27 +97,79 @@ func _ready() -> void:
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.custom_minimum_size = Vector2(0, 44)
 		button.add_theme_font_size_override("font_size", 18)
+		# PASS : le bouton laisse aussi le glissement du doigt à la liste, qui peut
+		# alors défiler dans les deux sens (avec STOP, les boutons bloquaient tout).
+		button.mouse_filter = Control.MOUSE_FILTER_PASS
 		button.pressed.connect(_show_article.bind(i))
 		list.add_child(button)
 		if i == 0:
 			button.button_pressed = true
 
-	# L'article choisi (texte enrichi, défilable).
+	# L'article choisi : un texte enrichi dans un ScrollContainer (qui sait défiler
+	# au doigt, ce que le RichTextLabel seul fait mal sur téléphone).
+	_text_scroll = ScrollContainer.new()
+	_text_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_text_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_text_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_text_scroll.scroll_deadzone = 12
+	body.add_child(_text_scroll)
 	_text = RichTextLabel.new()
 	_text.bbcode_enabled = true
+	_text.fit_content = true     # Le texte prend toute sa hauteur : c'est le ScrollContainer qui défile.
+	_text.scroll_active = false
+	_text.mouse_filter = Control.MOUSE_FILTER_PASS
 	_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_text.add_theme_font_size_override("normal_font_size", 19)
 	_text.add_theme_font_size_override("bold_font_size", 19)
 	_text.add_theme_constant_override("table_h_separation", 18)
-	body.add_child(_text)
+	_text.add_theme_constant_override("table_v_separation", 6)
+	_text_scroll.add_child(_text)
 	_show_article(0)
 
 
 func _show_article(index: int) -> void:
 	var article: Dictionary = _articles[index]
-	_text.text = "[font_size=26][color=#ffd54a]%s[/color][/font_size]\n\n%s" % [article["title"], article["text"]]
-	_text.scroll_to_line(0)
+	var images := ""
+	for path: String in article.get("images", []):
+		images += _img(path, IMAGE_SIZE) + "  "
+	if images != "":
+		images = "[center]%s[/center]\n" % images
+	_text.text = "[font_size=26][color=#ffd54a]%s[/color][/font_size]\n\n%s%s" % [
+			article["title"], images, article["text"]]
+	_text_scroll.set_deferred("scroll_vertical", 0) # On revient en haut de l'article.
+
+
+## Une image dans le texte (balise BBCode [img]).
+func _img(path: String, size: int) -> String:
+	return "[img=%dx%d]%s[/img]" % [size, size, path]
+
+
+## L'image d'un personnage (sa première image de respiration).
+func _unit_img(sprite: String) -> String:
+	return _img("res://assets/units/%s_idle_0.png" % sprite, TABLE_IMAGE_SIZE)
+
+
+## L'image du meuble d'une salle.
+func _room_img(type: int) -> String:
+	var texture: Texture2D = Art.ROOM_PROPS.get(type, null)
+	match type:
+		Rooms.Type.TREASURY:
+			texture = Art.CHESTS[3]
+		Rooms.Type.LAIR:
+			texture = Art.BED
+		Rooms.Type.FARM:
+			texture = Art.MUSHROOM
+	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
+
+
+func _defense_img(type: int) -> String:
+	var texture: Texture2D = [Art.SPIKES_UP, Art.RUNE, Art.DOOR, Art.SACRIFICE_ALTAR][type]
+	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
+
+
+func _spell_img(type: int) -> String:
+	var icon: String = ["heal", "bolt", "haste"][type]
+	return _img("res://assets/icons/%s.png" % icon, TABLE_IMAGE_SIZE)
 
 
 # ---------------------------------------------------------------------------
@@ -176,54 +234,64 @@ func _abilities(info: Dictionary) -> String:
 
 
 func _creatures_table() -> String:
-	var text := "[table=6]" + _header(["Créature", "Il faut", "Salaire", "Vie", "Dégâts", "Capacités"])
+	var text := "[table=7]" + _header(["", "Créature", "Il faut", "Salaire", "Vie", "Dégâts", "Capacités"])
 	for type: int in Creatures.INFO:
 		var info: Dictionary = Creatures.INFO[type]
 		var requires: Array[String] = []
 		for room: int in info["requires"]:
 			requires.append("%d %s" % [info["requires"][room], Rooms.display_name(room)])
-		text += _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
+		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
 				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"
 
 
 func _heroes_table() -> String:
-	var text := "[table=5]" + _header(["Héros", "Dès la vague", "Vie", "Dégâts", "Capacités"])
+	var text := "[table=6]" + _header(["", "Héros", "Dès la vague", "Vie", "Dégâts", "Capacités"])
 	for type: int in Heroes.INFO:
 		var info: Dictionary = Heroes.INFO[type]
 		var wave: String = "rival" if info.get("rival", false) else str(info["first_wave"])
 		if info.get("boss", false):
 			wave = "1 vague sur %d" % Heroes.CHAMPION_EVERY
-		text += _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
+		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
 				+ _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"
 
 
 func _rooms_table() -> String:
-	var text := "[table=2]" + _header(["Salle", "Prix par case"])
+	var text := "[table=4]" + _header(["", "Salle", "Prix par case", "Construction"])
 	for type: int in Rooms.INFO:
-		text += _cell(Rooms.display_name(type)) + _cell("%d or" % Rooms.cost(type))
+		text += _cell(_room_img(type)) + _cell(Rooms.display_name(type)) + _cell("%d or" % Rooms.cost(type)) \
+				+ _cell("%d s" % roundi(Rooms.build_time(type)))
 	return text + "[/table]\n\nUn Trésor range %d or par case. Une case de Repaire est un lit." % Rooms.TREASURY_CAPACITY
 
 
 func _defenses_table() -> String:
-	var text := "[table=2]" + _header(["Défense", "Points de fabrication à l'Atelier"])
+	var text := "[table=4]" + _header(["", "Défense", "Fabrication (Atelier)", "Installation"])
 	for type: int in Defenses.INFO:
-		text += _cell(Defenses.display_name(type)) + _cell(Defenses.cost(type))
+		text += _cell(_defense_img(type)) + _cell(Defenses.display_name(type)) + _cell(Defenses.cost(type)) \
+				+ _cell("%d s" % roundi(Defenses.build_time(type)))
 	return text + "[/table]"
 
 
 func _spells_table() -> String:
-	var text := "[table=2]" + _header(["Sort", "Mana"])
+	var text := "[table=3]" + _header(["", "Sort", "Mana"])
 	for type: int in Spells.INFO:
-		text += _cell(Spells.display_name(type)) + _cell(Spells.mana_cost(type))
+		text += _cell(_spell_img(type)) + _cell(Spells.display_name(type)) + _cell(Spells.mana_cost(type))
 	return text + "[/table]\n\nLa mana se recharge plus vite avec un grand territoire (%d au maximum)." % Spells.MAX_MANA
 
 
 func _research_table() -> String:
-	var text := "Dans l'ordre des découvertes :\n\n[table=2]" + _header(["Découverte", "Points de recherche"])
+	var text := "Dans l'ordre des découvertes :\n\n[table=3]" + _header(["", "Découverte", "Points de recherche"])
 	for item in Research.ITEMS:
-		text += _cell(item["name"]) + _cell(item["points"])
+		var image := ""
+		match item["kind"]:
+			"room":
+				image = _room_img(item["id"])
+			"defense":
+				image = _defense_img(item["id"])
+			"spell":
+				image = _spell_img(item["id"])
+		text += _cell(image) + _cell(item["name"]) + _cell(item["points"])
 	return text + "[/table]"
 
 

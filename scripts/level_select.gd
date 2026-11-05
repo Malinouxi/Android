@@ -15,6 +15,7 @@ func _ready() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.scroll_deadzone = 12
 	add_child(scroll)
 	var center := CenterContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -50,6 +51,7 @@ func _make_level_button(level: Dictionary, unlocked: bool) -> Button:
 	var earned := Levels.stars(id)
 	var button := Button.new()
 	button.custom_minimum_size = Vector2(440, 96)
+	button.mouse_filter = Control.MOUSE_FILTER_PASS # Laisse la liste défiler au doigt.
 	button.add_theme_font_size_override("font_size", 20)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	if unlocked:

@@ -289,6 +289,13 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   (coffre, pointes) à 12 s (autel du Temple, autel de sacrifice). Réglage global : `BUILD_TIME_FACTOR`.
 - Les ouvriers construisent avant de creuser. Démolir un chantier rend l'or ou le piège. Règles 1.6.
 
+**Étape 25 — Codex illustré**
+- Correction : la liste du codex (et celle des niveaux) défile au doigt dans les deux sens. Les boutons
+  laissent passer le glissement (`MOUSE_FILTER_PASS`), et le texte des articles est dans un ScrollContainer.
+- Des **images** en haut de chaque article (clé `"images"` dans `codex_content.gd`) et une colonne
+  d'images dans tous les tableaux (créatures, héros, salles, défenses, sorts, recherche). Les tableaux
+  des salles et des défenses montrent aussi le temps de construction.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

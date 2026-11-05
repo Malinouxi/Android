@@ -289,6 +289,12 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   (coffre, pointes) à 12 s (autel du Temple, autel de sacrifice). Réglage global : `BUILD_TIME_FACTOR`.
 - Les ouvriers construisent avant de creuser. Démolir un chantier rend l'or ou le piège. Règles 1.6.
 
+**Étape 27 — Prototype 3D** (bouton « Prototype 3D » du menu)
+- Une scène à part (`scenes/proto_3d.tscn`, `scripts/proto_3d.gd`) : la carte du niveau 1 en vrais
+  blocs 3D, avec les mêmes images pixel art plaquées sur le sol et les murs. Cœur en gemme qui tourne,
+  portail en anneau, torches et ouvriers en images qui font face à la caméra (Sprite3D).
+- Un doigt pour tourner autour du cœur, deux doigts pour zoomer. Le jeu 2D n'est pas modifié.
+
 **Étape 26 — Décorations**
 - Quand ils n'ont plus rien à faire, les ouvriers fabriquent des **tableaux** et des **tapisseries**
   (plaqués sur les faces visibles des murs) et des **tapis** (dans les salles). Durées et limites dans

@@ -88,6 +88,12 @@ func _run() -> void:
 	hud.codex_pressed.emit()
 	await _frames(20)
 	_shot("05_codex_partie")
+	# Le prototype 3D (scène à part, ouverte depuis le menu).
+	paused = false # Le codex de la partie a pu mettre le jeu en pause.
+	change_scene_to_file("res://scenes/proto_3d.tscn")
+	await _frames(90)
+	print("ÉTAPE prototype 3D : scène = ", current_scene)
+	_shot("08_proto3d")
 	print("CAPTURES TERMINÉES")
 	quit()
 

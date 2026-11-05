@@ -145,6 +145,8 @@ func _build_ui() -> void:
 		_ui_root.add_child(Codex.new())))
 	column.add_child(_make_button("Réglages", Art.ROOM_PROPS[Rooms.Type.WORKSHOP], func() -> void:
 		_settings_overlay.visible = true))
+	column.add_child(_make_button("Prototype 3D", Art.HEART, func() -> void:
+		get_tree().change_scene_to_file("res://scenes/proto_3d.tscn")))
 	column.add_child(_make_button("Quitter", Art.DOOR, func() -> void: get_tree().quit()))
 
 	# Le bas du panneau : date de la sauvegarde et crédits.

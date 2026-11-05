@@ -606,6 +606,8 @@ func _update_mood(delta: float) -> void:
 		change -= 2.0
 	if change == 0.0 and hunger < HUNGRY_LEVEL and energy > TIRED_LEVEL:
 		change = 1.0
+	# Le prestige : un donjon bien décoré rend les créatures plus heureuses.
+	change += minf(map.decorations.size() * Rules.DECORATION_MOOD, Rules.MAX_DECORATION_MOOD)
 	happiness = clampf(happiness + change, 0.0, 100.0)
 
 	if happiness <= 0.0:

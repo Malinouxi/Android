@@ -289,6 +289,12 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   (coffre, pointes) à 12 s (autel du Temple, autel de sacrifice). Réglage global : `BUILD_TIME_FACTOR`.
 - Les ouvriers construisent avant de creuser. Démolir un chantier rend l'or ou le piège. Règles 1.6.
 
+**Étape 26 — Décorations**
+- Quand ils n'ont plus rien à faire, les ouvriers fabriquent des **tableaux** et des **tapisseries**
+  (plaqués sur les faces visibles des murs) et des **tapis** (dans les salles). Durées et limites dans
+  `rules.gd` (`DECORATION_TIME`, `MAX_DECORATIONS`) ; les décorations rendent les créatures plus heureuses
+  (`DECORATION_MOOD`). Règles 1.7.
+
 **Étape 25 — Codex illustré**
 - Correction : la liste du codex (et celle des niveaux) défile au doigt dans les deux sens. Les boutons
   laissent passer le glissement (`MOUSE_FILTER_PASS`), et le texte des articles est dans un ScrollContainer.

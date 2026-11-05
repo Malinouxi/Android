@@ -50,6 +50,12 @@ const ROOM_PROPS := {
 	Rooms.Type.TEMPLE: preload("res://assets/props/altar.png"),
 	Rooms.Type.GRAVEYARD: preload("res://assets/props/tomb_empty.png"),
 }
+## Les décorations fabriquées par les ouvriers (voir dungeon_map.gd, decorations).
+const DECORATIONS := {
+	"rug": preload("res://assets/props/deco_rug.png"),
+	"painting": preload("res://assets/props/deco_painting.png"),
+	"tapestry": preload("res://assets/props/deco_tapestry.png"),
+}
 ## Une tombe libre du Cimetière (les tombes occupées sont animées : « tomb_full »).
 const TOMB_EMPTY := preload("res://assets/props/tomb_empty.png")
 ## Les barreaux, dessinés par-dessus un héros prisonnier.

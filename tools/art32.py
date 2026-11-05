@@ -1424,6 +1424,50 @@ def prop_tomb(filled, i=0):
     return sp.finish()
 
 
+# --- Décorations fabriquées par les ouvriers ---------------------------------------
+
+def deco_rug():
+    """Un tapis rouge à motifs, posé à plat (vu de dessus)."""
+    image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle([3, 3, 28, 28], fill=rgb("#7f1d2d"))
+    d.rectangle([5, 5, 26, 26], outline=rgb("#d4a017"))
+    d.rectangle([8, 8, 23, 23], fill=rgb("#9c2a3c"))
+    d.polygon([(16, 9), (22, 16), (16, 23), (10, 16)], fill=rgb("#d4a017"))
+    d.polygon([(16, 12), (19, 16), (16, 20), (13, 16)], fill=rgb("#2a1e4a"))
+    for i in range(4, 28, 3):  # Franges.
+        d.point([(i, 2), (i, 29)], fill=rgb("#e8d9a8"))
+    return image
+
+
+def deco_painting():
+    """Un tableau dans un cadre doré : un paysage de volcan sous la lune."""
+    image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle([2, 4, 29, 27], fill=rgb("#b8860b"))
+    d.rectangle([3, 5, 28, 26], outline=rgb("#ffd54f"))
+    d.rectangle([5, 7, 26, 24], fill=rgb("#2c1e3d"))               # ciel de nuit
+    d.ellipse([20, 9, 24, 13], fill=rgb("#fff3c4"))                 # lune
+    d.polygon([(5, 24), (13, 13), (21, 24)], fill=rgb("#4a3328"))   # volcan
+    d.polygon([(11, 16), (13, 13), (15, 16)], fill=rgb("#ff7043"))  # lave
+    d.line([(13, 13), (12, 9)], fill=rgb("#9e9e9e"))                # fumée
+    d.rectangle([5, 22, 26, 24], fill=rgb("#3e2723"))
+    return image
+
+
+def deco_tapestry():
+    """Une tapisserie violette suspendue, brodée d'un cœur doré."""
+    image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle([4, 1, 27, 3], fill=rgb("#6d4c41"))                  # tringle
+    d.polygon([(6, 3), (25, 3), (25, 26), (20, 30), (15, 26), (11, 30), (6, 26)], fill=rgb("#4a148c"))
+    d.line([(8, 5), (8, 25)], fill=rgb("#d4a017"))
+    d.line([(23, 5), (23, 25)], fill=rgb("#d4a017"))
+    d.polygon([(15, 8), (20, 13), (15, 22), (11, 13)], fill=rgb("#d4a017"))  # cœur doré
+    d.polygon([(15, 11), (18, 13), (15, 19), (13, 13)], fill=rgb("#c62828"))
+    return image
+
+
 ANIMATED_PROPS = {
     "torch": (prop_torch_frame, 4), "portal": (prop_portal_frame, 4), "anvil": (prop_anvil_frame, 3),
     "altar": (prop_temple_altar_frame, 4), "sacrifice_altar": (prop_sacrifice_altar_frame, 2),
@@ -1447,6 +1491,9 @@ def make_props_and_icons():
             if i == 0 and name != "tomb_full":
                 save(image, "props", name + ".png")
     save(prop_tomb(False), "props", "tomb_empty.png")
+    save(deco_rug(), "props", "deco_rug.png")
+    save(deco_painting(), "props", "deco_painting.png")
+    save(deco_tapestry(), "props", "deco_tapestry.png")
     save(prop_spikes(False), "props", "spikes_down.png")
     save(prop_spikes(True), "props", "spikes_up.png")
     for count in range(1, 6):

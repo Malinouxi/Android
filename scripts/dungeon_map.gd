@@ -122,6 +122,18 @@ var graves: Dictionary = {}
 ## Une case en chantier ne sert à rien tant qu'elle n'est pas terminée.
 var construction: Dictionary = {}
 
+## Les DÉCORATIONS fabriquées par les ouvriers : case de sol -> {"kind", "side"}.
+## kind : "rug" (tapis, à plat), "painting" (tableau) ou "tapestry" (tapisserie).
+## side : le mur où le tableau est accroché, vu depuis la case (Vector2i.UP ou
+## Vector2i.LEFT : les seuls murs dont on voit la face en vue isométrique),
+## ou Vector2i.ZERO pour un tapis.
+var decorations: Dictionary = {}
+const DECORATION_KINDS := ["rug", "painting", "tapestry"]
+const DECORATION_SIDES := [Vector2i.ZERO, Vector2i.UP, Vector2i.LEFT]
+## Les tapis ne se posent que dans ces salles.
+const RUG_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LAIR, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
+		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]
+
 ## L'or tombé par terre (le sac d'une Voleuse abattue) : case -> or.
 ## Les ouvriers le ramassent et le rapportent au Trésor (voir worker.gd).
 var loose_gold: Dictionary = {}
@@ -369,6 +381,7 @@ func to_save() -> Dictionary:
 		"graves": _cells_to_list(graves),
 		"loose_gold": _cells_to_list(loose_gold),
 		"construction": _construction_to_list(),
+		"decorations": _decorations_to_list(),
 	}
 
 
@@ -389,6 +402,10 @@ func load_save(data: Dictionary) -> bool:
 	stored_gold = _list_to_cells(data["stored_gold"])
 	food = _list_to_cells(data["food"])
 	loose_gold = _list_to_cells(data.get("loose_gold", []))
+	decorations.clear()
+	for values in data.get("decorations", []):
+		decorations[SaveGame.array_to_cell(values)] = {
+			"kind": DECORATION_KINDS[int(values[2])], "side": DECORATION_SIDES[int(values[3])]}
 	construction.clear()
 	for values in data.get("construction", []):
 		var kind: String = "room" if int(values[2]) == 0 else "defense"
@@ -433,6 +450,15 @@ func load_save(data: Dictionary) -> bool:
 	gold_changed.emit()
 	_redraw_all()
 	return true
+
+
+## Les décorations -> [[x, y, numéro de la sorte, numéro du côté], ...]
+func _decorations_to_list() -> Array:
+	var result := []
+	for cell: Vector2i in decorations:
+		var deco: Dictionary = decorations[cell]
+		result.append([cell.x, cell.y, DECORATION_KINDS.find(deco["kind"]), DECORATION_SIDES.find(deco["side"])])
+	return result
 
 
 ## Les chantiers -> [[x, y, 0 = salle / 1 = défense, type, secondes restantes], ...]
@@ -569,6 +595,11 @@ func dig(cell: Vector2i) -> Dictionary:
 		damage.erase(cell)
 		marked.erase(cell)
 		reserved.erase(cell)
+		# Le mur a disparu : les tableaux qui y étaient accrochés tombent.
+		if decorations.get(cell + Vector2i.DOWN, {}).get("side") == Vector2i.UP:
+			decorations.erase(cell + Vector2i.DOWN)
+		if decorations.get(cell + Vector2i.RIGHT, {}).get("side") == Vector2i.LEFT:
+			decorations.erase(cell + Vector2i.RIGHT)
 	_redraw_all()
 	return {"finished": finished, "gold": gold}
 
@@ -645,6 +676,63 @@ func find_claim_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 		release_jobs(worker)
 		reserved[best["target"]] = worker
 	return best
+
+
+# ---------------------------------------------------------------------------
+# Décorations : ce que font les ouvriers quand il n'y a rien d'autre à faire
+# ---------------------------------------------------------------------------
+
+## Les décorations possibles sur une case : liste de [sorte, côté].
+func _decoration_options(cell: Vector2i) -> Array:
+	var options := []
+	for side in [Vector2i.UP, Vector2i.LEFT]:
+		if _is_wall(cell + side) and is_inside(cell + side):
+			options.append(["painting", side])
+			options.append(["tapestry", side])
+	if RUG_ROOMS.has(get_room(cell)):
+		options.append(["rug", Vector2i.ZERO])
+	return options
+
+
+## Vrai s'il y a déjà une décoration sur la case ou juste à côté (pas d'entassement).
+func _decoration_near(cell: Vector2i) -> bool:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if decorations.has(cell + Vector2i(dx, dy)):
+				return true
+	return false
+
+
+## Pour un ouvrier sans travail : la case à décorer la plus proche.
+## Renvoie aussi la sorte de décoration choisie ("kind") et son côté ("side").
+func find_decorate_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+	if decorations.size() >= Rules.MAX_DECORATIONS:
+		return {}
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in claimed:
+		if get_tile(cell) != Tile.FLOOR or construction.has(cell) or defenses.has(cell):
+			continue
+		if reserved.get(cell, worker) != worker or _decoration_near(cell):
+			continue
+		if not _decoration_options(cell).is_empty():
+			candidates.append(cell)
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if best.is_empty():
+		return best
+	var choice: Array = _decoration_options(best["target"]).pick_random()
+	best["type"] = "decorate"
+	best["kind"] = choice[0]
+	best["side"] = choice[1]
+	release_jobs(worker)
+	reserved[best["target"]] = worker
+	return best
+
+
+## L'ouvrier a fini : la décoration est posée.
+func add_decoration(cell: Vector2i, kind: String, side: Vector2i) -> void:
+	reserved.erase(cell)
+	decorations[cell] = {"kind": kind, "side": side}
+	_redraw_all()
 
 
 ## Libère toutes les cases réservées par un ouvrier.
@@ -1327,6 +1415,8 @@ func _draw() -> void:
 			else:
 				var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
 				draw_texture_rect(Art.pick(floor_images, cell), rect, false)
+			if decorations.has(cell) and decorations[cell]["kind"] == "rug":
+				draw_texture_rect(Art.DECORATIONS["rug"], rect.grow(-3.0), false)
 			if construction.has(cell) and construction[cell]["kind"] == "room":
 				draw_texture_rect(Art.ROOM_FLOORS[construction[cell]["type"]], rect, false, Color(1, 1, 1, 0.4))
 			# Les pièges sont posés à plat sur le sol.
@@ -1408,6 +1498,13 @@ func _draw_wall(layer: Node2D, cell: Vector2i) -> void:
 		_draw_face(layer, texture, p + Vector2(0, s), p + Vector2(s, s), up, WALL_SHADE_SOUTH)
 	if not _is_wall(cell + Vector2i.RIGHT):
 		_draw_face(layer, texture, p + Vector2(s, s), p + Vector2(s, 0), up, WALL_SHADE_EAST)
+	# Les tableaux et tapisseries accrochés sur les faces visibles de ce mur.
+	var south: Dictionary = decorations.get(cell + Vector2i.DOWN, {})
+	if south.get("side") == Vector2i.UP:
+		_draw_wall_decoration(layer, south["kind"], p + Vector2(0, s), p + Vector2(s, s), up, WALL_SHADE_SOUTH)
+	var east: Dictionary = decorations.get(cell + Vector2i.RIGHT, {})
+	if east.get("side") == Vector2i.LEFT:
+		_draw_wall_decoration(layer, east["kind"], p + Vector2(s, s), p + Vector2(s, 0), up, WALL_SHADE_EAST)
 
 	var top := Rect2(p + up, Vector2(s, s))
 	layer.draw_texture_rect(texture, top, false)
@@ -1419,6 +1516,18 @@ func _draw_wall(layer: Node2D, cell: Vector2i) -> void:
 	# Les murs marqués « à creuser » sont entourés de jaune.
 	if marked.has(cell):
 		layer.draw_rect(top.grow(-2), MARK_COLOR, false, 2.0)
+
+
+## Un tableau ou une tapisserie, plaqué sur une face de mur (a -> b au sol).
+func _draw_wall_decoration(layer: Node2D, kind: String, a: Vector2, b: Vector2, up: Vector2,
+		shade: Color) -> void:
+	var left := a.lerp(b, 0.2)
+	var right := a.lerp(b, 0.8)
+	var low := 0.3 if kind == "painting" else 0.12
+	var high := 0.88 if kind == "painting" else 0.95
+	var points := PackedVector2Array([left + up * low, right + up * low, right + up * high, left + up * high])
+	var uvs := PackedVector2Array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+	layer.draw_polygon(points, PackedColorArray([shade.lightened(0.25)]), uvs, Art.DECORATIONS[kind])
 
 
 ## Une face verticale de mur : un quadrilatère entre l'arête au sol (a -> b) et

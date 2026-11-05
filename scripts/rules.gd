@@ -14,10 +14,13 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.6"
+const VERSION := "1.7"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.7", "changes": [
+		"Quand ils n'ont plus rien à faire, les ouvriers fabriquent des décorations : tableaux et tapisseries aux murs, tapis dans les salles. Elles rendent les créatures plus heureuses.",
+	]},
 	{"version": "1.6", "changes": [
 		"Les ouvriers construisent les salles, les pièges, les portes et les autels : chaque case devient un chantier, plus ou moins long selon l'objet. Elle ne sert qu'une fois terminée.",
 	]},
@@ -58,6 +61,16 @@ const PAYDAY_INTERVAL := 90.0     ## Secondes entre deux jours de paie.
 ## Multiplie toutes les durées de construction (rooms.gd et defenses.gd, "build_time").
 ## 0.5 = deux fois plus rapide, 2.0 = deux fois plus lent.
 const BUILD_TIME_FACTOR := 1.0
+
+# --- Décorations -----------------------------------------------------------------
+## Secondes de travail d'un ouvrier pour fabriquer chaque décoration.
+const DECORATION_TIME := {"rug": 6.0, "painting": 8.0, "tapestry": 10.0}
+## Nombre maximum de décorations dans le donjon.
+const MAX_DECORATIONS := 40
+## Humeur gagnée chaque seconde par les créatures, par décoration (le « prestige »)...
+const DECORATION_MOOD := 0.05
+## ... sans dépasser ce bonus.
+const MAX_DECORATION_MOOD := 1.0
 
 # --- Créatures ----------------------------------------------------------------
 const CREATURE_ARRIVAL_DELAY := 20.0 ## Secondes entre deux arrivées par le portail.

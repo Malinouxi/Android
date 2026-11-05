@@ -129,15 +129,30 @@ def earth_tile(rng):
 
 
 def gold_tile(rng):
-    image = earth_tile(rng)
+    """Un filon d'or : une terre plus chaude, traversée de veines dorées, avec 5 à 7
+    pépites bien visibles (et sans les cailloux gris de la terre, qu'on prenait
+    pour de la pierre)."""
+    image = quantize(fractal_noise(rng), ["#5a3d27", "#6b4a2f", "#7a5636", "#8a6440"])
     draw = ImageDraw.Draw(image)
-    for _ in range(rng.randint(3, 4)):
-        x, y = rng.randint(3, S - 9), rng.randint(3, S - 9)
+    for _ in range(2):  # Des veines dorées qui traversent la case.
+        x, y = rng.randint(0, 8), rng.randint(4, S - 4)
+        points = []
+        while x < S:
+            points.append((x, y))
+            x += rng.randint(3, 6)
+            y = max(1, min(S - 2, y + rng.randint(-3, 3)))
+        draw.line(points, fill=rgb("#c8961e"), width=1)
+    spots = []
+    while len(spots) < rng.randint(5, 7):
+        x, y = rng.randint(2, S - 9), rng.randint(2, S - 9)
+        if all(abs(x - a) > 6 or abs(y - b) > 5 for a, b in spots):
+            spots.append((x, y))
+    for x, y in spots:
         # Une pépite : forme irrégulière, ombre, reflet et éclat blanc.
-        draw.polygon([(x + 1, y), (x + 4, y), (x + 5, y + 2), (x + 4, y + 4), (x + 1, y + 4), (x, y + 2)],
+        draw.polygon([(x + 1, y), (x + 5, y), (x + 6, y + 2), (x + 5, y + 5), (x + 1, y + 5), (x, y + 2)],
                      fill=rgb("#f2b632"))
-        draw.line([(x + 1, y + 4), (x + 4, y + 4), (x + 5, y + 2)], fill=rgb("#8a5d14"))
-        draw.line([(x + 1, y + 1), (x + 3, y + 1)], fill=rgb("#ffe27a"))
+        draw.line([(x + 1, y + 5), (x + 5, y + 5), (x + 6, y + 2)], fill=rgb("#8a5d14"))
+        draw.line([(x + 1, y + 1), (x + 4, y + 1)], fill=rgb("#ffe27a"))
         draw.point([(x + 2, y + 1)], fill=rgb("#ffffff"))
     return image
 

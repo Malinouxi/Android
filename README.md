@@ -299,6 +299,12 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
 - Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
+**Étape 30 — Menu du maître et journal coloré**
+- Menu principal : le maître sur son trône à gauche (illustration fournie, `assets/menu/throne.png`),
+  le donjon vivant qui tourne au milieu, le menu dans un cadre de pierre à droite, une phrase d'accroche.
+- Journal en gros caractères, coloré selon la sorte de message (`MESSAGE_KINDS` dans `hud.gd`) : rouge =
+  attaque, orange = conseil ou erreur, violet = recherche et fabrication, or = argent, vert = créatures.
+
 **Étape 29 — Nouvelle interface**
 - Une grande barre en haut (emblème, or et Trésor, mana, créatures, ouvriers, grande barre de vie du
   cœur, vague et paie, ouvrier en plus, vitesse, pause), des cadres de pierre sombre au liseré rouge.

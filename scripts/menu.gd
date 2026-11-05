@@ -8,7 +8,9 @@ extends Node2D
 
 const GAME_SCENE := "res://scenes/main.tscn"
 const LEVELS_SCENE := "res://scenes/level_select.tscn"
-const PANEL_WIDTH := 480.0
+const PANEL_WIDTH := 440.0
+## Le maître des lieux sur son trône (illustration fournie par l'auteur du jeu).
+const THRONE := preload("res://assets/menu/throne.png")
 
 var _world: Node2D
 var _map: DungeonMap
@@ -66,7 +68,7 @@ func _build_background() -> void:
 		_view3d.setup(_map, [workers] as Array[Node])
 		_view3d.set_zoom(1.25)
 		# Le cœur un peu à droite, pour être visible à côté du panneau de gauche.
-		_view3d.pan(Vector2(PANEL_WIDTH * 0.45, 0))
+		_view3d.pan(Vector2(120, 0)) # Le cœur entre le trône (à gauche) et le menu (à droite).
 		Fx.view3d = _view3d
 		return
 	Fx.view3d = null
@@ -107,7 +109,7 @@ func _process(delta: float) -> void:
 	# visible à côté du panneau de gauche.
 	var heart_screen := _world.to_global(_map.cell_to_world(_map.heart_cell))
 	var drift := Vector2(sin(_time * 0.11) * 120.0, cos(_time * 0.08) * 60.0)
-	_camera.position = heart_screen + Vector2(-PANEL_WIDTH * 0.35, 0) + drift
+	_camera.position = heart_screen + Vector2(-120, 0) + drift
 	if _heart_light != null:
 		_heart_light.energy = 1.2 + 0.3 * sin(_time * 3.0)
 
@@ -125,25 +127,53 @@ func _build_ui() -> void:
 	layer.add_child(root)
 	_ui_root = root
 
-	# Un panneau sombre sur toute la hauteur, à gauche.
+	# À gauche : le maître sur son trône. Au milieu : le donjon vivant (en fond).
+	var throne := TextureRect.new()
+	throne.texture = THRONE
+	throne.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR # Une peinture, pas du pixel art.
+	throne.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	throne.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	throne.anchor_bottom = 1.0
+	throne.offset_right = 690
+	throne.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(throne)
+	# Le diable « respire » : sa lueur monte et descend doucement.
+	var glow := throne.create_tween().set_loops()
+	glow.tween_property(throne, "modulate", Color(1.12, 1.05, 1.0), 1.6).set_trans(Tween.TRANS_SINE)
+	glow.tween_property(throne, "modulate", Color.WHITE, 1.6).set_trans(Tween.TRANS_SINE)
+
+	# En bas à gauche : la phrase d'accroche, dans un cadre de pierre.
+	var tagline := PanelContainer.new()
+	tagline.add_theme_stylebox_override("panel", _stone_style(Color(0.07, 0.05, 0.04, 0.9), 3))
+	tagline.anchor_top = 1.0
+	tagline.anchor_bottom = 1.0
+	tagline.offset_left = 30
+	tagline.offset_right = 460
+	tagline.offset_top = -96
+	tagline.offset_bottom = -22
+	root.add_child(tagline)
+	tagline.add_child(_make_label("Creuse, bâtis, règne...\nsur les profondeurs !", 22, Color("f2b632"), 6))
+
+	# À droite : le panneau du menu.
 	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.05, 0.045, 0.88)
-	style.border_color = Color("6d4c41")
-	style.border_width_right = 3
-	style.set_content_margin_all(20)
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", _stone_style(Color(0.08, 0.04, 0.035, 0.9), 3))
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_right = PANEL_WIDTH
+	panel.offset_left = -PANEL_WIDTH - 16
+	panel.offset_right = -16
+	panel.offset_top = 16
+	panel.offset_bottom = -16
 	root.add_child(panel)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 9)
 	panel.add_child(column)
 
-	column.add_child(_make_label("Seigneur\ndes Profondeurs", 40, Ui.GOLD, 10))
-	column.add_child(_make_label("Creuse, bâtis, et défends ton cœur contre les héros.", 17, Color("d7ccc8"), 6))
-	column.add_child(_make_gallery())
+	var title := _make_label("Seigneur\ndes Profondeurs", 44, Color("e53935"), 12)
+	title.add_theme_color_override("font_outline_color", Color("2a0505"))
+	column.add_child(title)
+	column.add_child(_make_label("Creuse, bâtis, et défends ton cœur contre les héros.", 16, Color("d7ccc8"), 6))
 
 	var save := SaveGame.read()
 	var continue_button := _make_button("Continuer", Art.HEART, _on_continue_pressed)
@@ -234,6 +264,19 @@ func _on_new_game_pressed() -> void:
 	Levels.current_id = 0 # Partie libre : pas d'objectif.
 	SaveGame.load_requested = false
 	get_tree().change_scene_to_file(GAME_SCENE)
+
+
+## Un cadre de pierre sombre, au liseré rouge sang.
+func _stone_style(background: Color, border: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = Color("7a1f14")
+	style.set_border_width_all(border)
+	style.set_corner_radius_all(6)
+	style.shadow_color = Color(0, 0, 0, 0.6)
+	style.shadow_size = 8
+	style.set_content_margin_all(18)
+	return style
 
 
 func _make_label(text: String, font_size: int, color: Color, outline: int) -> Label:

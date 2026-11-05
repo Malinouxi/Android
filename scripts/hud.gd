@@ -71,7 +71,7 @@ var _unit_details: Label
 var _refresh_timer := 0.0
 
 const RED := Color("c62828")
-const LOG_LINES := 5 ## Nombre de messages gardés dans le journal.
+const LOG_LINES := 4 ## Nombre de messages gardés dans le journal.
 const TOP_HEIGHT := 64
 
 ## L'icône de chaque outil et sort (des images 16 x 16, agrandies sur les boutons).
@@ -381,9 +381,9 @@ func _build_log_panel() -> void:
 	_log_panel.anchor_right = 1.0
 	_log_panel.anchor_top = 1.0
 	_log_panel.anchor_bottom = 1.0
-	_log_panel.offset_left = -330
+	_log_panel.offset_left = -440
 	_log_panel.offset_right = -6
-	_log_panel.offset_top = -150
+	_log_panel.offset_top = -190
 	_log_panel.offset_bottom = -6
 	_log_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_log_box = VBoxContainer.new()
@@ -681,32 +681,65 @@ func set_summon_cost(cost: int) -> void:
 	_summon_button.tooltip_text = "Un ouvrier de plus (%d or)" % cost
 
 
-## Ajoute un message au journal (en bas à droite). Les alertes sont en rouge.
-## (duration est gardé pour compatibilité : les messages restent dans le journal.)
+## Les sortes de messages du journal : mots-clés -> couleur et petite pastille.
+## Le premier groupe dont un mot apparaît dans le message gagne.
+const MESSAGE_KINDS := [
+	{"words": ["attaqu", "héros", "vague", "champion", "voleuse", "moine", "pillé", "enfui", "enfoncé",
+			"détruit", "mort au combat", "tué"], "color": Color("ff5a5a"), "mark": "!"},
+	{"words": ["pas assez", "impossible", "plein", "aucun", "aucune", "touche ", "construis", "dépose",
+			"attend", "sans lit", "mécontent", "quitte"], "color": Color("ffa94d"), "mark": "?"},
+	{"words": ["découvert", "découverte", "recherche", "fabriqu", "atelier", "bibliothèque"],
+			"color": Color("b388ff"), "mark": "*"},
+	{"words": [" or", "rançon", "sacrifi", "trésor", "paie", "pièces"], "color": Color("ffd54a"), "mark": "$"},
+	{"words": ["arrive", "niveau", "revenant", "créature", "relève", "renvoyé", "capturé", "prison",
+			"enterré", "attrapeur"], "color": Color("8bd17c"), "mark": "+"},
+]
+
+
+## Ajoute un message au journal (en bas à droite), coloré selon sa sorte :
+## rouge = attaque, orange = conseil ou erreur, violet = savoir et fabrication,
+## or = argent, vert = tes créatures. (duration : gardé pour compatibilité.)
 func show_message(text: String, _duration := 3.0) -> void:
 	if text == "":
 		return
-	var label := _make_label(13)
+	var lower := text.to_lower()
+	var color := Color("efe6d8")
+	var mark := "-"
+	for kind: Dictionary in MESSAGE_KINDS:
+		var found := false
+		for word: String in kind["words"]:
+			if lower.contains(word):
+				found = true
+				break
+		if found:
+			color = kind["color"]
+			mark = kind["mark"]
+			break
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 6)
+	var badge := _make_label(18)
+	badge.text = mark
+	badge.custom_minimum_size = Vector2(16, 0)
+	badge.add_theme_color_override("font_color", color)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	line.add_child(badge)
+	var label := _make_label(18)
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(300, 0)
-	var lower := text.to_lower()
-	var alarm := false
-	for word in ["héros", "attaqu", "vague", "détruit", "mort", "enfui", "pillé", "pas assez", "impossible", "champion"]:
-		if lower.contains(word):
-			alarm = true
-	label.add_theme_color_override("font_color", Color("ff6e6e") if alarm else Color("efe6d8"))
-	_log_box.add_child(label)
+	label.custom_minimum_size = Vector2(390, 0)
+	label.add_theme_color_override("font_color", color)
+	line.add_child(label)
+	_log_box.add_child(line)
 	while _log_box.get_child_count() > LOG_LINES:
 		var oldest := _log_box.get_child(0)
 		_log_box.remove_child(oldest)
 		oldest.queue_free()
-	# Les anciens messages pâlissent.
+	# Les anciens messages pâlissent ; le nouveau brille un instant.
 	var count := _log_box.get_child_count()
 	for i in count:
-		(_log_box.get_child(i) as Label).modulate.a = 0.45 + 0.55 * float(i + 1) / count
-	label.modulate = Color(1.6, 1.6, 1.6)
-	label.create_tween().tween_property(label, "modulate", Color.WHITE, 0.6)
+		(_log_box.get_child(i) as Control).modulate.a = 0.5 + 0.5 * float(i + 1) / count
+	line.modulate = Color(1.6, 1.6, 1.6)
+	line.create_tween().tween_property(line, "modulate", Color.WHITE, 0.6)
 
 
 ## Fondu au noir qui s'éclaircit au début de la partie.

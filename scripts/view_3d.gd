@@ -5,26 +5,26 @@ extends Node3D
 ## Tout le jeu (carte, ouvriers, combats, sauvegarde...) continue de fonctionner
 ## exactement comme avant, en coordonnées 2D « vues de dessus ». Cette vue se
 ## contente de le MONTRER en 3D :
-##   - la carte devient des blocs : sol à plat, murs en relief, avec les mêmes
-##     images pixel art (reconstruite quand la carte change, signal « redrawn ») ;
-##   - les objets (coffres, lits, torches, portes...) et les personnages sont des
-##     Sprite3D : des images qui font toujours face à la caméra ;
-##   - le cœur est une gemme, le portail un anneau, avec des lumières.
-## main.gd cache alors le monde 2D et branche la caméra (camera_controller.gd) et
-## les effets (fx.gd) sur cette vue.
+##   - la carte devient des blocs : sol à plat, murs en relief, avec les images
+##     pixel art (reconstruite quand la carte change, signal « redrawn ») ;
+##   - les personnages et les objets sont des modèles en blocs (voxel_models.gd),
+##     animés ici : marche, attaque, ailes, flammes...
+##   - les effets sont dans la scène : barres de vie, cercles au sol, particules.
+## main.gd (et menu.gd) cachent alors le monde 2D et branchent la caméra
+## (camera_controller.gd) et les effets (fx.gd) sur cette vue.
 ##
 ## Conversion : une case de 32 pixels = 1 unité 3D. Le point (x, y) de la carte
 ## devient (x / 32, hauteur, y / 32) : le « y » de la carte est le « z » de la 3D.
 
 const TILE := 32.0
 const WALL_HEIGHT := 1.3    ## Hauteur des murs (une case = 1 de large).
-const PIXEL_SIZE := 0.026   ## Taille d'un pixel d'image (32 pixels -> 0,83 de haut).
 const CHUNK := 8            ## La carte est découpée en blocs de 8 x 8 cases (voir _rebuild).
 const REBUILD_DELAY := 0.2  ## Au plus 5 reconstructions par seconde.
 const BASE_DISTANCE := 15.0 ## Distance de la caméra au zoom 1.
 ## Assombrissement du dessus des murs (0 = comme les côtés, 1 = noir).
 const TOP_DARKEN := 0.5
 const DECORATION_OFFSET := 0.012 ## Les tableaux sont décollés du mur, pour ne pas clignoter.
+const BAR_WIDTH := 0.5      ## Largeur des barres de vie au-dessus des têtes.
 
 var map: DungeonMap
 var camera: Camera3D
@@ -39,10 +39,11 @@ var _dirty := true
 var _rebuild_timer := 0.0
 var _chunks: Array[MeshInstance3D] = []
 var _materials := {}
-var _props_root: Node3D
-var _animated_props: Array = [] ## [[Sprite3D, nom de l'objet animé, case]]
-var _unit_sprites := {}         ## Unit -> Sprite3D
-var _torch_lights := {}         ## case -> OmniLight3D
+var _flat_materials := {}   ## Couleur -> matériau sans ombrage (barres, cercles).
+var _cell_props := {}       ## case -> {"sig": texte, "node": Node3D, "anims": [...]}
+var _units := {}            ## Unit -> données de son modèle (voir _make_unit)
+var _torch_lights := {}     ## case -> OmniLight3D
+var _effect_discs: Array[MeshInstance3D] = []
 var _heart: MeshInstance3D
 var _heart_light: OmniLight3D
 var _rival_heart: MeshInstance3D
@@ -50,6 +51,7 @@ var _environment: Environment
 var _shake_time := 0.0
 var _shake_strength := 0.0
 var _time := 0.0
+var _flash_material: StandardMaterial3D
 
 
 ## À appeler juste après l'avoir ajoutée à la scène.
@@ -57,8 +59,10 @@ func setup(dungeon_map: DungeonMap, roots: Array[Node]) -> void:
 	map = dungeon_map
 	unit_roots = roots
 	map.redrawn.connect(func() -> void: _dirty = true)
-	_props_root = Node3D.new()
-	add_child(_props_root)
+	_flash_material = StandardMaterial3D.new()
+	_flash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_flash_material.albedo_color = Color(1, 1, 1, 0.6)
+	_flash_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_build_environment()
 	_build_heart_and_portal()
 	camera = Camera3D.new()
@@ -66,6 +70,7 @@ func setup(dungeon_map: DungeonMap, roots: Array[Node]) -> void:
 	add_child(camera)
 	camera.make_current()
 	center_on(map.cell_to_world(map.heart_cell))
+	_update_camera(0.0)
 	_rebuild()
 
 
@@ -101,7 +106,7 @@ func screen_to_map(screen_position: Vector2) -> Vector2:
 	return Vector2(hit.x, hit.z) * TILE
 
 
-## Le point de la carte -> sa position à l'écran (pour les effets et les touchers).
+## Le point de la carte -> sa position à l'écran (pour les chiffres et les touchers).
 func unproject(map_position: Vector2, height := 0.0) -> Vector2:
 	var point := to_3d(map_position, height)
 	if camera.is_position_behind(point):
@@ -158,6 +163,39 @@ func flash(map_position: Vector2, color: Color, radius: float, duration: float) 
 	tween.tween_callback(light.queue_free)
 
 
+## Une gerbe de particules en 3D (les réglages viennent de Fx.BURSTS).
+## Les vitesses et la gravité sont en pixels 2D : on les divise par 32.
+func burst(map_position: Vector2, settings: Dictionary, color: Color) -> void:
+	var particles := CPUParticles3D.new()
+	var cube := BoxMesh.new()
+	var size: float = settings["size"] * 0.012
+	cube.size = Vector3(size, size, size)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cube.material = material
+	particles.mesh = cube
+	particles.position = to_3d(map_position, 0.4)
+	particles.one_shot = true
+	particles.explosiveness = 0.9
+	particles.amount = settings["amount"]
+	particles.lifetime = settings["life"]
+	particles.direction = Vector3.UP
+	particles.spread = 180.0
+	particles.initial_velocity_min = settings["speed"] / TILE * 0.5
+	particles.initial_velocity_max = settings["speed"] / TILE
+	particles.gravity = Vector3(0, -settings["gravity"] / TILE, 0)
+	particles.color = color
+	var fade := Gradient.new()
+	fade.set_color(0, Color.WHITE)
+	fade.set_color(1, Color(1, 1, 1, 0))
+	particles.color_ramp = fade
+	add_child(particles)
+	particles.emitting = true
+	get_tree().create_timer(settings["life"] + 0.3).timeout.connect(particles.queue_free)
+
+
 func _distance() -> float:
 	return BASE_DISTANCE / _zoom
 
@@ -190,10 +228,8 @@ func _process(delta: float) -> void:
 		_rebuild()
 	_update_camera(delta)
 	_update_units()
-	# Le décor animé suit le « tic » d'animation de la carte (voir dungeon_map.gd).
-	for entry: Array in _animated_props:
-		var cell: Vector2i = entry[2]
-		entry[0].texture = Art.prop_frame(entry[1], map.anim_tick + cell.x * 3 + cell.y * 5)
+	_update_props()
+	_update_effects()
 	# Le cœur tourne et bat (plus vite s'il est attaqué) ; les torches vacillent.
 	var attacked := Time.get_ticks_msec() - map.last_heart_hit_msec < 3000
 	_heart.rotation.y += delta * (2.5 if attacked else 0.8)
@@ -207,47 +243,226 @@ func _process(delta: float) -> void:
 		_torch_lights[cell].light_energy = 1.2 + 0.25 * sin(t * 9.0) + 0.1 * sin(t * 23.0)
 
 
-## Les personnages : un Sprite3D par unité, qui recopie sa position et son image.
+## Un matériau sans ombrage (qui ne dépend pas de la lumière), toujours visible.
+func _flat_material(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	if not _flat_materials.has(key):
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.albedo_color = color
+		material.no_depth_test = true # Les barres se voient même derrière un mur.
+		material.render_priority = 10
+		if color.a < 1.0:
+			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flat_materials[key] = material
+	return _flat_materials[key]
+
+
+func _quad_mesh(size: Vector2) -> QuadMesh:
+	var mesh := QuadMesh.new()
+	mesh.size = size
+	return mesh
+
+
+# ---------------------------------------------------------------------------
+# Les personnages
+# ---------------------------------------------------------------------------
+
+## Crée le modèle 3D d'une unité, avec son ombre, ses barres et ses accessoires.
+func _make_unit(unit: Unit) -> Dictionary:
+	var info := unit.sprite_info()
+	var holder := Node3D.new()
+	add_child(holder)
+	var tint := Color(unit.self_modulate.r, unit.self_modulate.g, unit.self_modulate.b)
+	var model := VoxelModels.character(info[0], tint, unit.self_modulate.a)
+	model.scale = Vector3.ONE * float(info[1])
+	holder.add_child(model)
+	# Une ombre ronde au sol (bleutée sous les héros, comme en 2D).
+	var shadow := MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 0.28 * float(info[1])
+	disc.bottom_radius = disc.top_radius
+	disc.height = 0.01
+	disc.radial_segments = 16
+	shadow.mesh = disc
+	var shadow_color := Color(0.2, 0.45, 1.0, 0.45) if unit.team == Unit.Team.HEROES else Color(0, 0, 0, 0.45)
+	var shadow_material := StandardMaterial3D.new()
+	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shadow_material.albedo_color = shadow_color
+	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shadow.material_override = shadow_material
+	shadow.position.y = 0.012
+	holder.add_child(shadow)
+	# L'anneau bleu d'une unité accélérée (sort Hâte, cri de guerre).
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.34
+	torus.outer_radius = 0.4
+	ring.mesh = torus
+	ring.material_override = VoxelModels.material(Color(0.3, 0.9, 1.0), true)
+	ring.position.y = 0.03
+	ring.visible = false
+	holder.add_child(ring)
+	# Le sac d'or (ouvrier chargé, Voleuse avec son butin), sur le dos.
+	var sack := VoxelModels.sphere(model, 0.09, Vector3(0, 0.5, -0.16), Color("ffd54a"), true)
+	sack.visible = false
+	# Les barres au-dessus de la tête : vie (rouge) et humeur (créatures).
+	var bars := Node3D.new()
+	bars.position.y = 1.0 * float(info[1]) + 0.15
+	holder.add_child(bars)
+	var hp_back := MeshInstance3D.new()
+	hp_back.mesh = _quad_mesh(Vector2(BAR_WIDTH, 0.07))
+	hp_back.material_override = _flat_material(Color(0, 0, 0, 0.7))
+	bars.add_child(hp_back)
+	var hp_bar := MeshInstance3D.new()
+	hp_bar.mesh = _quad_mesh(Vector2(BAR_WIDTH, 0.05))
+	hp_bar.material_override = _flat_material(Color("e53935"))
+	hp_bar.position.z = 0.001
+	bars.add_child(hp_bar)
+	var mood_bar: MeshInstance3D = null
+	if unit is Creature:
+		mood_bar = MeshInstance3D.new()
+		mood_bar.mesh = _quad_mesh(Vector2(BAR_WIDTH, 0.04))
+		mood_bar.position.y = 0.08
+		bars.add_child(mood_bar)
+	var parts: Array[MeshInstance3D] = []
+	_collect_parts(model, parts)
+	return {"holder": holder, "model": model, "rig": model.get_meta("rig"), "ring": ring, "sack": sack,
+			"bars": bars, "hp": hp_bar, "mood": mood_bar, "parts": parts, "flash": false,
+			"last": unit.position, "phase": randf() * TAU}
+
+
+func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			parts.append(child)
+		_collect_parts(child, parts)
+
+
 func _update_units() -> void:
 	for root in unit_roots:
 		for node in root.get_children():
 			var unit := node as Unit
-			if unit == null:
+			if unit == null or unit.is_queued_for_deletion():
 				continue
-			var sprite: Sprite3D = _unit_sprites.get(unit)
-			if sprite == null:
-				sprite = _make_sprite(null, Vector3.ZERO, 1.0)
-				_unit_sprites[unit] = sprite
-			_show_unit(unit, sprite)
-	# Les unités disparues (mortes, parties) : on retire leur image.
-	for unit in _unit_sprites.keys():
-		if not is_instance_valid(unit):
-			_unit_sprites[unit].queue_free()
-			_unit_sprites.erase(unit)
+			if not _units.has(unit):
+				_units[unit] = _make_unit(unit)
+			_show_unit(unit, _units[unit])
+	# Les unités disparues (mortes, parties) : leur modèle bascule, puis s'efface.
+	for unit in _units.keys():
+		if not is_instance_valid(unit) or unit.is_queued_for_deletion():
+			var data: Dictionary = _units[unit]
+			_units.erase(unit)
+			_fall_and_vanish(data)
 
 
-func _show_unit(unit: Unit, sprite: Sprite3D) -> void:
-	sprite.visible = not unit.in_hand and not unit.is_queued_for_deletion()
-	if not sprite.visible:
+func _fall_and_vanish(data: Dictionary) -> void:
+	var holder: Node3D = data["holder"]
+	var model: Node3D = data["model"]
+	data["bars"].visible = false
+	data["ring"].visible = false
+	var tween := holder.create_tween()
+	tween.tween_property(model, "rotation:x", -PI / 2, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_interval(0.4)
+	tween.tween_property(holder, "scale", Vector3(0.01, 0.01, 0.01), 0.3)
+	tween.tween_callback(holder.queue_free)
+
+
+func _show_unit(unit: Unit, data: Dictionary) -> void:
+	var holder: Node3D = data["holder"]
+	holder.visible = not unit.in_hand
+	if not holder.visible:
 		return
-	var info := unit.sprite_info()
-	sprite.texture = unit.animation_frame(info[0])
-	sprite.pixel_size = PIXEL_SIZE * float(info[1])
-	sprite.flip_h = unit.is_facing_left()
-	sprite.modulate = unit.modulate * unit.self_modulate
+	var model: Node3D = data["model"]
+	var rig: Dictionary = data["rig"]
+	# Position, et orientation : le modèle se tourne doucement vers où il va.
 	var height := 0.0
 	var lying := false
 	var hero := unit as Hero
 	if hero != null:
 		lying = hero.knocked_out or hero.carrier != null
 		if hero.carrier != null:
-			height = 0.9 # Porté au-dessus de l'Attrapeur.
-		if hero.is_captured():
-			sprite.modulate = sprite.modulate.darkened(0.35) # Derrière les barreaux.
-	# Un héros assommé est couché au sol : l'image est posée à plat.
-	sprite.billboard = BaseMaterial3D.BILLBOARD_DISABLED if lying else BaseMaterial3D.BILLBOARD_FIXED_Y
-	sprite.rotation_degrees = Vector3(-90, 0, 0) if lying else Vector3.ZERO
-	sprite.position = to_3d(unit.position, height + (0.05 if lying else 0.0))
+			height = 0.85 # Porté au-dessus de l'Attrapeur.
+	holder.position = to_3d(unit.position, height)
+	var moved: Vector2 = unit.position - data["last"]
+	data["last"] = unit.position
+	if moved.length() > 0.05:
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(moved.x, moved.y), 0.3)
+	model.rotation.x = -PI / 2 if lying else 0.0 # Assommé : couché sur le dos.
+	if lying:
+		model.position.y = 0.15
+	else:
+		model.position.y = 0.0
+	_animate(unit, rig, data)
+	# Le flash blanc quand l'unité est touchée (unit.gd met modulate à 2,5).
+	var flashing := unit.modulate.r > 1.3
+	if flashing != data["flash"]:
+		data["flash"] = flashing
+		for part: MeshInstance3D in data["parts"]:
+			part.material_overlay = _flash_material if flashing else null
+	data["ring"].visible = unit.is_hasted()
+	var gold := int(unit.get("carried_gold") if unit.get("carried_gold") != null else 0)
+	gold += int(unit.get("loot") if unit.get("loot") != null else 0)
+	data["sack"].visible = gold > 0
+	# Les barres : la vie (si blessée), l'humeur des créatures. Elles font face à la caméra.
+	var bars: Node3D = data["bars"]
+	var creature := unit as Creature
+	bars.visible = not lying and (unit.hp < unit.max_hp or creature != null)
+	if bars.visible:
+		bars.global_basis = camera.global_basis
+		var hp_bar: MeshInstance3D = data["hp"]
+		var ratio := clampf(unit.hp / unit.max_hp, 0.0, 1.0)
+		hp_bar.visible = unit.hp < unit.max_hp
+		data["hp"].get_parent().get_child(0).visible = hp_bar.visible
+		hp_bar.scale.x = maxf(ratio, 0.001)
+		hp_bar.position.x = -BAR_WIDTH * 0.5 * (1.0 - ratio)
+		if creature != null:
+			var mood: MeshInstance3D = data["mood"]
+			var happy := clampf(creature.happiness / 100.0, 0.0, 1.0)
+			mood.scale.x = maxf(happy, 0.001)
+			mood.position.x = -BAR_WIDTH * 0.5 * (1.0 - happy)
+			mood.material_override = _flat_material(Color.RED.lerp(Color.GREEN, snappedf(happy, 0.1)))
+
+
+## Les mouvements : jambes et bras qui balancent en marchant, bras qui frappe,
+## ailes qui battent, queue qui remue.
+func _animate(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
+	var walking := unit.is_walking()
+	var phase: float = data["phase"] + _time * 11.0
+	var legs: Array = rig["legs"]
+	var arms: Array = rig["arms"]
+	var body: Node3D = rig["body"]
+	match rig["kind"]:
+		"spider":
+			for i in legs.size():
+				legs[i].rotation.y = sin(phase + i * 1.3) * (0.35 if walking else 0.05)
+		"quadruped":
+			for i in legs.size():
+				legs[i].rotation.x = sin(phase + (PI if i == 1 or i == 2 else 0.0)) * (0.6 if walking else 0.0)
+		_:
+			for i in legs.size():
+				legs[i].rotation.x = sin(phase + i * PI) * (0.7 if walking else 0.0)
+			for i in arms.size():
+				arms[i].rotation.x = -sin(phase + i * PI) * (0.6 if walking else 0.05 * sin(_time * 2.0 + i))
+	# Respiration : le corps monte et descend un peu.
+	var bob := 0.012 * sin(_time * 2.5 + data["phase"])
+	body.position.y = (0.45 if rig["kind"] == "bat" else 0.0) + bob + (0.03 * absf(sin(phase)) if walking else 0.0)
+	# L'attaque : le bras droit frappe (ou tout le corps bondit, pour les bêtes).
+	var attack := unit.attack_progress()
+	if attack > 0.0:
+		var swing := sin((1.0 - attack) * PI)
+		if arms.size() >= 2:
+			arms[1].rotation.x = -2.2 * swing
+		else:
+			body.position.z = 0.15 * swing
+	else:
+		body.position.z = 0.0
+	for i in rig["wings"].size():
+		var side := -1.0 if i == 0 else 1.0
+		var speed := 16.0 if rig["kind"] == "bat" else 5.0
+		rig["wings"][i].rotation.z = sin(_time * speed + data["phase"]) * 0.6 * side
+	if rig["tail"] != null:
+		rig["tail"].rotation.y = sin(_time * 4.0 + data["phase"]) * 0.4
 
 
 # ---------------------------------------------------------------------------
@@ -399,75 +614,87 @@ func _add_floor(tools: Dictionary, cell: Vector2i) -> void:
 		_flat(_tool(tools, Art.ROOM_FLOORS[map.construction[cell]["type"]], Color(1, 1, 1, 0.5), true), cell, 0.005)
 	if map.decorations.has(cell) and map.decorations[cell]["kind"] == "rug":
 		_flat(_tool(tools, Art.DECORATIONS["rug"], Color.WHITE, true), cell, 0.01, 0.1)
+	if map.defenses.has(cell) and map.defenses[cell]["type"] == Defenses.Type.RUNE:
+		_flat(_tool(tools, Art.RUNE, Color.WHITE, true), cell, 0.01)
+
+
+# ---------------------------------------------------------------------------
+# Les objets (modèles en blocs)
+# ---------------------------------------------------------------------------
+
+## La liste des objets d'une case, sous forme de texte (« chest_2,torch »...).
+## Si elle n'a pas changé depuis la dernière fois, on garde les modèles existants.
+func _cell_signature(cell: Vector2i) -> String:
+	var parts: Array[String] = []
+	if map.get_tile(cell) == DungeonMap.Tile.ENTRANCE:
+		parts.append("entrance")
+	match map.get_room(cell):
+		Rooms.Type.TREASURY:
+			var fill: float = float(map.stored_gold.get(cell, 0)) / Rooms.TREASURY_CAPACITY
+			parts.append("chest_%d" % (0 if fill <= 0.0 else mini(3, 1 + int(fill * 3.0))))
+		Rooms.Type.LAIR:
+			parts.append("bed")
+		Rooms.Type.FARM:
+			if int(map.food.get(cell, 0)) > 0:
+				parts.append("mushrooms_%d" % int(map.food[cell]))
+		Rooms.Type.LIBRARY:
+			parts.append("bookshelf")
+		Rooms.Type.WORKSHOP:
+			parts.append("anvil")
+		Rooms.Type.TRAINING:
+			parts.append("dummy")
+		Rooms.Type.TEMPLE:
+			parts.append("altar")
+		Rooms.Type.PRISON:
+			parts.append("prison")
+		Rooms.Type.GRAVEYARD:
+			parts.append("tomb_full" if map.graves.has(cell) else "tomb_empty")
+	if map.torch_cells.has(cell) and not map.rooms.has(cell) and not map.defenses.has(cell):
+		parts.append("torch")
 	if map.defenses.has(cell):
 		var defense: Dictionary = map.defenses[cell]
-		if defense["type"] == Defenses.Type.SPIKES:
-			_flat(_tool(tools, Art.SPIKES_UP if defense["flash"] > 0.0 else Art.SPIKES_DOWN), cell, 0.01)
-		elif defense["type"] == Defenses.Type.RUNE:
-			_flat(_tool(tools, Art.RUNE, Color.WHITE, true), cell, 0.01)
+		match int(defense["type"]):
+			Defenses.Type.ALTAR:
+				parts.append("sacrifice_altar")
+			Defenses.Type.DOOR:
+				parts.append("door")
+			Defenses.Type.SPIKES:
+				parts.append("spikes_up" if defense["flash"] > 0.0 else "spikes")
+	if map.loose_gold.has(cell):
+		parts.append("gold_%d" % clampi(int(map.loose_gold[cell]) / 40, 0, 4))
+	if map.construction.has(cell):
+		parts.append("site")
+	return ",".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Les objets debout (des images qui font face à la caméra)
-# ---------------------------------------------------------------------------
-
-func _make_sprite(texture: Texture2D, at: Vector3, scale_factor: float, parent: Node = null) -> Sprite3D:
-	var sprite := Sprite3D.new()
-	sprite.texture = texture
-	sprite.pixel_size = PIXEL_SIZE * scale_factor
-	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.shaded = true
-	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-	sprite.offset = Vector2(0, 16) # Les pieds posés au sol.
-	sprite.position = at
-	(parent if parent != null else self).add_child(sprite)
-	return sprite
-
-
-func _prop(texture: Texture2D, cell: Vector2i, scale_factor := 1.0, offset := Vector2.ZERO,
-		tint := Color.WHITE) -> Sprite3D:
-	var at := Vector3(cell.x + 0.5 + offset.x, 0.0, cell.y + 0.5 + offset.y)
-	var sprite := _make_sprite(texture, at, scale_factor, _props_root)
-	sprite.modulate = tint
-	return sprite
-
-
-func _animated_prop(prop: String, cell: Vector2i, scale_factor := 1.0) -> void:
-	var sprite := _prop(Art.prop_frame(prop, 0), cell, scale_factor)
-	_animated_props.append([sprite, prop, cell])
-
-
-## Recrée tous les objets debout (la même liste que dungeon_map.gd, _draw_standing_objects).
 func _rebuild_props() -> void:
-	for child in _props_root.get_children():
-		child.queue_free()
-	_animated_props.clear()
 	var wanted_torches := {}
 	for y in DungeonMap.HEIGHT:
 		for x in DungeonMap.WIDTH:
 			var cell := Vector2i(x, y)
-			if _is_wall(cell):
-				continue
-			if map.get_tile(cell) == DungeonMap.Tile.ENTRANCE:
-				_prop(Art.ENTRANCE, cell, 1.3)
-			if map.rooms.has(cell):
-				_room_prop(cell)
-			if map.torch_cells.has(cell) and not map.rooms.has(cell) and not map.defenses.has(cell):
-				_animated_prop("torch", cell, 0.8)
+			var sig := "" if _is_wall(cell) else _cell_signature(cell)
+			if sig.contains("torch"):
 				wanted_torches[cell] = true
-			if map.defenses.has(cell):
-				match int(map.defenses[cell]["type"]):
-					Defenses.Type.ALTAR:
-						_animated_prop("sacrifice_altar", cell, 1.1)
-					Defenses.Type.DOOR:
-						_prop(Art.DOOR, cell, 1.1)
-			if map.loose_gold.has(cell):
-				var pile := clampi(int(map.loose_gold[cell]) / 40, 0, Art.GOLD_PILES.size() - 1)
-				_prop(Art.GOLD_PILES[pile], cell, 0.75)
-			if map.construction.has(cell):
-				# Un chantier : l'objet en transparence bleutée.
-				_prop(map._site_texture(map.construction[cell]), cell, 0.9, Vector2.ZERO, Color(0.7, 0.85, 1.0, 0.5))
+			var old: Dictionary = _cell_props.get(cell, {})
+			if old.get("sig", "") == sig:
+				continue
+			if old.has("node"):
+				old["node"].queue_free()
+			if sig == "":
+				_cell_props.erase(cell)
+				continue
+			var holder := Node3D.new()
+			holder.position = Vector3(cell.x + 0.5, 0.0, cell.y + 0.5)
+			# Portes et entrées : dans l'axe du couloir.
+			if _is_wall(cell + Vector2i.UP) and _is_wall(cell + Vector2i.DOWN):
+				holder.rotation.y = PI / 2
+			add_child(holder)
+			var anims := []
+			for kind in sig.split(","):
+				var model := VoxelModels.prop(kind)
+				holder.add_child(model)
+				anims.append(model.get_meta("anim"))
+			_cell_props[cell] = {"sig": sig, "node": holder, "anims": anims}
 	# Les lumières des torches : on garde celles qui existent déjà.
 	for cell: Vector2i in _torch_lights.keys():
 		if not wanted_torches.has(cell):
@@ -475,33 +702,60 @@ func _rebuild_props() -> void:
 			_torch_lights.erase(cell)
 	for cell: Vector2i in wanted_torches:
 		if not _torch_lights.has(cell):
-			_torch_lights[cell] = _light(Vector3(cell.x + 0.5, 1.0, cell.y + 0.5), Color(1.0, 0.7, 0.4), 4.5, 1.3)
+			_torch_lights[cell] = _light(Vector3(cell.x + 0.5, 1.1, cell.y + 0.5), Color(1.0, 0.7, 0.4), 4.5, 1.3)
 
 
-func _room_prop(cell: Vector2i) -> void:
-	match map.get_room(cell):
-		Rooms.Type.TREASURY:
-			var fill: float = float(map.stored_gold.get(cell, 0)) / Rooms.TREASURY_CAPACITY
-			_prop(Art.CHESTS[0 if fill <= 0.0 else mini(3, 1 + int(fill * 3.0))], cell, 0.95)
-		Rooms.Type.LAIR:
-			_prop(Art.BED, cell, 0.9)
-		Rooms.Type.FARM:
-			var spots := [Vector2(-0.25, 0.2), Vector2(0.22, -0.2), Vector2(0.12, 0.28)]
-			for i in int(map.food.get(cell, 0)):
-				_prop(Art.MUSHROOM, cell, 0.5, spots[i])
-		Rooms.Type.WORKSHOP:
-			_animated_prop("anvil", cell)
-		Rooms.Type.TRAINING:
-			_animated_prop("dummy", cell)
-		Rooms.Type.TEMPLE:
-			_animated_prop("altar", cell)
-		Rooms.Type.GRAVEYARD:
-			if map.graves.has(cell):
-				_animated_prop("tomb_full", cell, 0.95)
-			else:
-				_prop(Art.TOMB_EMPTY, cell, 0.95)
-		Rooms.Type.LIBRARY:
-			_prop(Art.ROOM_PROPS[Rooms.Type.LIBRARY], cell)
+## Le décor animé : flammes qui vacillent, mannequins qui se balancent, lueurs.
+func _update_props() -> void:
+	for cell: Vector2i in _cell_props:
+		var t := _time + cell.x * 1.3 + cell.y * 0.7
+		for anim: Dictionary in _cell_props[cell]["anims"]:
+			if anim.has("flame"):
+				anim["flame"].scale = Vector3.ONE * (1.0 + 0.18 * sin(t * 13.0) + 0.08 * sin(t * 31.0))
+			if anim.has("flames"):
+				for flame: Node3D in anim["flames"]:
+					flame.scale.y = 1.0 + 0.4 * sin(t * 11.0 + flame.position.x * 9.0)
+			if anim.has("sway"):
+				anim["sway"].rotation.z = sin(t * 2.0) * 0.08
+			if anim.has("wisp"):
+				anim["wisp"].position.y = 0.3 + 0.12 * sin(t * 2.0)
+			if anim.has("glow"):
+				anim["glow"].scale.x = 1.0 + 0.1 * sin(t * 6.0)
+
+
+# ---------------------------------------------------------------------------
+# Effets au sol : les cercles des explosions et des sorts (dungeon_map.gd, _effects)
+# ---------------------------------------------------------------------------
+
+func _update_effects() -> void:
+	var effects: Array = map._effects
+	while _effect_discs.size() < effects.size():
+		var disc := MeshInstance3D.new()
+		var shape := CylinderMesh.new()
+		shape.top_radius = 1.0
+		shape.bottom_radius = 1.0
+		shape.height = 0.02
+		shape.radial_segments = 24
+		disc.mesh = shape
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		disc.material_override = material
+		add_child(disc)
+		_effect_discs.append(disc)
+	for i in _effect_discs.size():
+		var disc := _effect_discs[i]
+		disc.visible = i < effects.size()
+		if not disc.visible:
+			continue
+		var effect: Dictionary = effects[i]
+		var progress: float = 1.0 - effect["time"] / DungeonMap.EFFECT_TIME
+		var radius: float = effect["radius"] / TILE * (0.4 + 0.6 * progress)
+		disc.position = to_3d(effect["position"], 0.03)
+		disc.scale = Vector3(radius, 1.0, radius)
+		var color: Color = effect["color"]
+		color.a *= 1.0 - progress
+		(disc.material_override as StandardMaterial3D).albedo_color = color
 
 
 # ---------------------------------------------------------------------------

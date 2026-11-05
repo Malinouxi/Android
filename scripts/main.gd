@@ -196,6 +196,8 @@ func _ready() -> void:
 	_setup_lighting()
 	if Sound.view_3d_enabled:
 		_enable_3d()
+	else:
+		Fx.view3d = null # (Le menu en 3D l'avait peut-être réglée.)
 	hud.fade_in()
 
 

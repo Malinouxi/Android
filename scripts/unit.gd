@@ -422,6 +422,19 @@ func is_facing_left() -> bool:
 	return _facing_left
 
 
+## Pour la vue 3D : l'unité marche-t-elle ? Où en est son coup (1 -> 0, ou 0) ?
+func is_walking() -> bool:
+	return not path.is_empty()
+
+
+func attack_progress() -> float:
+	return _attack_animation_left / ATTACK_ANIMATION_TIME
+
+
+func is_hasted() -> bool:
+	return _haste_left > 0.0
+
+
 ## Barre de vie rouge, affichée seulement si l'unité est blessée.
 func draw_health_bar(y: float) -> void:
 	if hp >= max_hp:

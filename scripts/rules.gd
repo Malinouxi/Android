@@ -14,10 +14,14 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.8"
+const VERSION := "1.9"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.9", "changes": [
+		"Tout en 3D : personnages et objets en volumes (blocs), barres de vie et d'humeur, cercles des sorts et particules dans la scène, menu principal en 3D.",
+		"3D : toucher le dessus d'un mur vise bien ce mur.",
+	]},
 	{"version": "1.8", "changes": [
 		"Le jeu passe en 3D (réglage « Vue 3D », activé par défaut) : murs en relief, lumières, caméra qu'on déplace, zoome et fait pivoter aux doigts. Les règles ne changent pas.",
 	]},

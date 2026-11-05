@@ -42,9 +42,15 @@ static func to_screen(map_position: Vector2) -> Vector2:
 
 ## Une gerbe de particules. color remplace la couleur par défaut si on la donne.
 static func burst(kind: String, map_position: Vector2, color := Color(0, 0, 0, 0)) -> void:
-	if not is_ready() or not BURSTS.has(kind):
+	if not BURSTS.has(kind):
 		return
 	var settings: Dictionary = BURSTS[kind]
+	if view3d != null and is_instance_valid(view3d):
+		# En 3D : les particules sont dans la scène (voir view_3d.gd).
+		view3d.burst(map_position, settings, color if color.a > 0.0 else settings["color"])
+		return
+	if not is_ready():
+		return
 	var particles := CPUParticles2D.new()
 	particles.position = to_screen(map_position)
 	particles.one_shot = true
@@ -91,6 +97,8 @@ static func number(map_position: Vector2, value: float, color := Color.WHITE) ->
 ## Un personnage qui meurt : sa dernière image bascule sur le côté, tombe et s'efface.
 static func death_fall(map_position: Vector2, texture: Texture2D, sprite_scale: float, facing_left: bool,
 		tint: Color) -> void:
+	if view3d != null and is_instance_valid(view3d):
+		return # En 3D, c'est le modèle qui bascule (voir view_3d.gd).
 	if not is_ready() or texture == null:
 		return
 	var sprite := Sprite2D.new()

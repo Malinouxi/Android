@@ -299,6 +299,18 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
 - Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
+**Étape 28 — Tout en 3D**
+- `scripts/voxel_models.gd` construit par code tous les **personnages** (fiches `CHARACTERS` : couleurs,
+  couvre-chef, arme, bouclier, cape, ailes, queue ; plus l'araignée, la chauve-souris et le Cerbère) et
+  tous les **objets** (coffres, lits, étagères, enclumes, mannequins, autels, portes, torches, tombes,
+  pièges, cages de prison, chantiers), en blocs colorés.
+- `view_3d.gd` les anime : jambes et bras en marchant, bras qui frappe, ailes, queues, flammes, mannequins
+  qui se balancent ; un personnage qui meurt bascule puis disparaît. Les objets d'une case ne sont
+  reconstruits que si elle change (« signature » de la case).
+- **Effets en 3D** : barres de vie et d'humeur au-dessus des têtes, ombres, anneau de Hâte, sac d'or,
+  cercles des sorts et explosions au sol, particules (`burst`) dans la scène.
+- **Menu en 3D** : le donjon vivant du menu tourne lentement en 3D.
+
 **Étape 26 — Décorations**
 - Quand ils n'ont plus rien à faire, les ouvriers fabriquent des **tableaux** et des **tapisseries**
   (plaqués sur les faces visibles des murs) et des **tapis** (dans les salles). Durées et limites dans

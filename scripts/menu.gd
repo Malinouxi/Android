@@ -17,6 +17,8 @@ var _heart_light: PointLight2D
 var _time := 0.0
 var _settings_overlay: Control
 var _ui_root: Control
+## Le fond en 3D (si « Vue 3D » est activée dans les réglages), sinon null.
+var _view3d: View3D
 
 
 func _ready() -> void:
@@ -56,6 +58,19 @@ func _build_background() -> void:
 	add_child(_camera)
 	_camera.make_current()
 
+	if Sound.view_3d_enabled:
+		# Le même donjon vivant, montré en 3D (voir view_3d.gd) : on cache la 2D.
+		_world.visible = false
+		_view3d = View3D.new()
+		add_child(_view3d)
+		_view3d.setup(_map, [workers] as Array[Node])
+		_view3d.set_zoom(1.25)
+		# Le cœur un peu à droite, pour être visible à côté du panneau de gauche.
+		_view3d.pan(Vector2(PANEL_WIDTH * 0.45, 0))
+		Fx.view3d = _view3d
+		return
+	Fx.view3d = null
+
 	# La pénombre et les lumières (si l'éclairage est activé dans les réglages).
 	if Sound.lighting_enabled:
 		if Fx.light_texture == null:
@@ -85,6 +100,9 @@ func _make_light(map_position: Vector2, color: Color, radius: float, energy: flo
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _view3d != null:
+		_view3d.rotate_view(delta * 0.07) # La caméra tourne lentement autour du donjon.
+		return
 	# La caméra dérive lentement. Le cœur est décalé vers la droite, pour être
 	# visible à côté du panneau de gauche.
 	var heart_screen := _world.to_global(_map.cell_to_world(_map.heart_cell))

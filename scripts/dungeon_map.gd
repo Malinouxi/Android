@@ -116,6 +116,12 @@ var torch_cells: Dictionary = {}
 ## se relève en Revenant (0 = prêt ; main.gd le fait se relever s'il y a un lit).
 var graves: Dictionary = {}
 
+## Les CHANTIERS : salles et défenses que les ouvriers doivent encore construire.
+## case -> {"kind": "room" ou "defense", "type", "left" (secondes de travail restantes),
+##          "total", "worker" (l'ouvrier qui y travaille, ou null)}.
+## Une case en chantier ne sert à rien tant qu'elle n'est pas terminée.
+var construction: Dictionary = {}
+
 ## L'or tombé par terre (le sac d'une Voleuse abattue) : case -> or.
 ## Les ouvriers le ramassent et le rapportent au Trésor (voir worker.gd).
 var loose_gold: Dictionary = {}
@@ -362,6 +368,7 @@ func to_save() -> Dictionary:
 		"rival_claimed": _cells_to_array_list(rival_claimed),
 		"graves": _cells_to_list(graves),
 		"loose_gold": _cells_to_list(loose_gold),
+		"construction": _construction_to_list(),
 	}
 
 
@@ -382,6 +389,13 @@ func load_save(data: Dictionary) -> bool:
 	stored_gold = _list_to_cells(data["stored_gold"])
 	food = _list_to_cells(data["food"])
 	loose_gold = _list_to_cells(data.get("loose_gold", []))
+	construction.clear()
+	for values in data.get("construction", []):
+		var kind: String = "room" if int(values[2]) == 0 else "defense"
+		var type := int(values[3])
+		var total := Rooms.build_time(type) if kind == "room" else Defenses.build_time(type)
+		construction[SaveGame.array_to_cell(values)] = {
+			"kind": kind, "type": type, "left": float(values[4]), "total": total, "worker": null}
 	graves.clear()
 	for values in data.get("graves", []):
 		graves[SaveGame.array_to_cell(values)] = float(values[2])
@@ -419,6 +433,15 @@ func load_save(data: Dictionary) -> bool:
 	gold_changed.emit()
 	_redraw_all()
 	return true
+
+
+## Les chantiers -> [[x, y, 0 = salle / 1 = défense, type, secondes restantes], ...]
+func _construction_to_list() -> Array:
+	var result := []
+	for cell: Vector2i in construction:
+		var site: Dictionary = construction[cell]
+		result.append([cell.x, cell.y, 0 if site["kind"] == "room" else 1, site["type"], site["left"]])
+	return result
 
 
 ## { case: true } -> [[x, y], ...]
@@ -629,6 +652,83 @@ func release_jobs(worker: Node) -> void:
 	for cell: Vector2i in reserved.keys():
 		if reserved[cell] == worker:
 			reserved.erase(cell)
+	for cell: Vector2i in construction:
+		if construction[cell]["worker"] == worker:
+			construction[cell]["worker"] = null
+
+
+# ---------------------------------------------------------------------------
+# Chantiers : les ouvriers construisent les salles et les défenses
+# ---------------------------------------------------------------------------
+
+## Ouvre un chantier. kind : "room" ou "defense".
+func start_construction(cell: Vector2i, kind: String, type: int) -> void:
+	var total := Rooms.build_time(type) if kind == "room" else Defenses.build_time(type)
+	construction[cell] = {"kind": kind, "type": type, "left": total, "total": total, "worker": null}
+	_redraw_all()
+
+
+## Pour un ouvrier : le chantier libre le plus proche qu'il peut atteindre.
+func find_build_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+	if construction.is_empty():
+		return {}
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in construction:
+		var builder = construction[cell]["worker"]
+		if builder == null or not is_instance_valid(builder) or builder == worker:
+			candidates.append(cell)
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if not best.is_empty():
+		best["type"] = "build"
+		construction[best["target"]]["worker"] = worker
+	return best
+
+
+## Un ouvrier travaille delta secondes sur un chantier. Renvoie true quand c'est fini :
+## la salle ou la défense est alors posée pour de bon.
+func work_on_construction(cell: Vector2i, delta: float) -> bool:
+	if not construction.has(cell):
+		return true
+	var site: Dictionary = construction[cell]
+	site["left"] -= delta
+	if site["left"] > 0.0:
+		return false
+	construction.erase(cell)
+	if site["kind"] == "room":
+		build_room(cell, site["type"])
+	else:
+		place_defense(cell, site["type"])
+	return true
+
+
+## Annule un chantier (outil Démolir). Renvoie ce qu'il était, pour rembourser.
+func cancel_construction(cell: Vector2i) -> Dictionary:
+	var site: Dictionary = construction.get(cell, {})
+	construction.erase(cell)
+	_redraw_all()
+	return site
+
+
+## L'image de l'objet en construction (dessinée en transparence sur le chantier).
+func _site_texture(site: Dictionary) -> Texture2D:
+	var type: int = site["type"]
+	if site["kind"] == "defense":
+		match type:
+			Defenses.Type.SPIKES:
+				return Art.SPIKES_UP
+			Defenses.Type.RUNE:
+				return Art.RUNE
+			Defenses.Type.DOOR:
+				return Art.DOOR
+		return Art.SACRIFICE_ALTAR
+	match type:
+		Rooms.Type.TREASURY:
+			return Art.CHESTS[0]
+		Rooms.Type.LAIR:
+			return Art.BED
+		Rooms.Type.FARM:
+			return Art.MUSHROOM
+	return Art.ROOM_PROPS.get(type, Art.CHESTS[0])
 
 
 # ---------------------------------------------------------------------------
@@ -642,7 +742,7 @@ func get_room(cell: Vector2i) -> int:
 ## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
 func can_build_room(cell: Vector2i) -> bool:
 	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
-			and not defenses.has(cell)
+			and not defenses.has(cell) and not construction.has(cell)
 
 
 func count_room_tiles(type: int) -> int:
@@ -798,7 +898,7 @@ func is_connected_to_heart(cell: Vector2i) -> bool:
 ## Les défenses se posent sur le sol des couloirs (pas dans les salles).
 func can_place_defense(cell: Vector2i) -> bool:
 	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
-			and not defenses.has(cell)
+			and not defenses.has(cell) and not construction.has(cell)
 
 
 func place_defense(cell: Vector2i, type: int) -> void:
@@ -826,6 +926,9 @@ func count_defenses(type: int) -> int:
 	var count := 0
 	for cell: Vector2i in defenses:
 		if defenses[cell]["type"] == type:
+			count += 1
+	for cell: Vector2i in construction: # Les défenses en cours d'installation comptent aussi.
+		if construction[cell]["kind"] == "defense" and construction[cell]["type"] == type:
 			count += 1
 	return count
 
@@ -1216,6 +1319,8 @@ func _draw() -> void:
 			else:
 				var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
 				draw_texture_rect(Art.pick(floor_images, cell), rect, false)
+			if construction.has(cell) and construction[cell]["kind"] == "room":
+				draw_texture_rect(Art.ROOM_FLOORS[construction[cell]["type"]], rect, false, Color(1, 1, 1, 0.4))
 			# Les pièges sont posés à plat sur le sol.
 			if defenses.has(cell):
 				var defense: Dictionary = defenses[cell]
@@ -1367,6 +1472,14 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 	# Une torche, sauf si la case est occupée par un meuble ou une défense.
 	if torch_cells.has(cell) and not rooms.has(cell) and not defenses.has(cell):
 		_billboard(layer, _animated("torch", cell), center, 0.8)
+
+	if construction.has(cell):
+		# Un chantier : l'objet en transparence, et une barre de progression.
+		_layer_is_animated = true # La barre avance : on redessine à chaque tic.
+		var site: Dictionary = construction[cell]
+		_billboard(layer, _site_texture(site), center, 0.9, Color(0.7, 0.85, 1.0, 0.45))
+		var progress := 1.0 - float(site["left"]) / float(site["total"])
+		_draw_bar(layer, -30.0, progress, Color("ffb74d"))
 
 	if loose_gold.has(cell):
 		# Un tas d'or par terre, plus gros s'il y a beaucoup d'or.

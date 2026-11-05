@@ -1259,9 +1259,11 @@ func _build(cell: Vector2i, room_type: int) -> void:
 	if not map.spend_gold(cost):
 		_fail("Pas assez d'or : %s coûte %d par case." % [Rooms.display_name(room_type), cost])
 		return
-	map.build_room(cell, room_type)
-	Sound.play("build", map.cell_to_world(cell))
-	Fx.burst("dust", map.cell_to_world(cell))
+	# Les ouvriers viendront construire la case (voir worker.gd) : en attendant,
+	# c'est un chantier, qui ne sert à rien.
+	map.start_construction(cell, "room", room_type)
+	Sound.play("build", map.cell_to_world(cell), -8.0)
+	_hint("Tes ouvriers vont construire : un chantier ne sert qu'une fois terminé.")
 
 
 ## Les pièges et portes ne s'achètent pas : on pose ceux fabriqués par l'Atelier.
@@ -1274,11 +1276,23 @@ func _place_defense(cell: Vector2i, type: int) -> void:
 				Defenses.display_name(type))
 		return
 	trap_stock[type] -= 1
-	map.place_defense(cell, type)
+	map.start_construction(cell, "defense", type) # Un ouvrier viendra l'installer.
 	Sound.play("trap_place", map.cell_to_world(cell))
 
 
 func _demolish(cell: Vector2i) -> void:
+	if map.construction.has(cell):
+		# Chantier annulé : on rend l'or de la salle, ou le piège à son stock.
+		var site := map.cancel_construction(cell)
+		if site["kind"] == "room":
+			var refund := Rooms.cost(site["type"])
+			var stored := map.add_gold_to_treasury(refund)
+			map.heart_gold += refund - stored # Pas de place au Trésor : l'or revient au cœur.
+			map.gold_changed.emit()
+		else:
+			trap_stock[site["type"]] += 1
+		Sound.play("build", map.cell_to_world(cell), -6.0)
+		return
 	if map.defenses.has(cell):
 		# Le piège retourne dans le stock (une porte abîmée est réparée au passage).
 		trap_stock[map.defenses[cell]["type"]] += 1

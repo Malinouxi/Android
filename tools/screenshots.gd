@@ -76,6 +76,10 @@ func _run() -> void:
 	game._add_hero(13, heart + Vector2i(2, 1)) # Heroes.Type.MONK
 	game._add_creature(11, heart + Vector2i(-1, -2)) # Creatures.Type.CERBERUS
 	map_node.drop_gold(heart + Vector2i(0, 2), 150)
+	# Deux chantiers : une Bibliothèque et une porte (les ouvriers vont les construire).
+	for cell: Vector2i in [heart + Vector2i(2, 2), heart + Vector2i(-2, 2)]:
+		if map_node.can_build_room(cell):
+			map_node.start_construction(cell, "room" if cell.x > heart.x else "defense", 4 if cell.x > heart.x else 2)
 	print("ÉTAPE missions : voleuse, moine, cerbère et sac d'or ajoutés")
 	await _frames(25)
 	_shot("07_missions")

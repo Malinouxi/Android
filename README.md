@@ -282,6 +282,13 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Cerbères limités** : un pour 6 cases de Trésor, 3 au maximum. Règles en version 1.5
   (réglages `PORTAL_BALANCE`, `CATCHER_PRIORITY`, `CERBERUS_TREASURY_TILES`, `MAX_CERBERUS`).
 
+**Étape 24 — Les ouvriers construisent**
+- Poser une salle, un piège, une porte ou un autel crée un **chantier** (objet en transparence, barre orange).
+  Un ouvrier vient le construire (coups de marteau) ; la case ne sert qu'une fois terminée.
+- Durée par case selon l'importance de l'objet (`build_time` dans `rooms.gd` et `defenses.gd`) : de 4 s
+  (coffre, pointes) à 12 s (autel du Temple, autel de sacrifice). Réglage global : `BUILD_TIME_FACTOR`.
+- Les ouvriers construisent avant de creuser. Démolir un chantier rend l'or ou le piège. Règles 1.6.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

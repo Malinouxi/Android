@@ -18,16 +18,18 @@ enum Type {
 	GRAVEYARD, ## Cimetière : les héros morts y sont enterrés, puis se relèvent en Revenants.
 }
 
+## "build_time" : secondes de travail d'un ouvrier pour construire UNE case
+## (le coffre, le lit, l'étagère... : plus l'objet est important, plus c'est long).
 const INFO := {
-	Type.TREASURY: {"name": "Trésor", "cost": 25, "color": Color("5a4a22")},
-	Type.LAIR: {"name": "Repaire", "cost": 40, "color": Color("3d2f4d")},
-	Type.FARM: {"name": "Champignonnière", "cost": 60, "color": Color("2c4630")},
-	Type.LIBRARY: {"name": "Bibliothèque", "cost": 70, "color": Color("2d4363")},
-	Type.WORKSHOP: {"name": "Atelier", "cost": 80, "color": Color("47423c")},
-	Type.TRAINING: {"name": "Entraînement", "cost": 90, "color": Color("5e352a")},
-	Type.PRISON: {"name": "Prison", "cost": 60, "color": Color("34343b")},
-	Type.TEMPLE: {"name": "Temple", "cost": 100, "color": Color("4a3a6a")},
-	Type.GRAVEYARD: {"name": "Cimetière", "cost": 70, "color": Color("2a3324")},
+	Type.TREASURY: {"name": "Trésor", "cost": 25, "color": Color("5a4a22"), "build_time": 4.0},
+	Type.LAIR: {"name": "Repaire", "cost": 40, "color": Color("3d2f4d"), "build_time": 5.0},
+	Type.FARM: {"name": "Champignonnière", "cost": 60, "color": Color("2c4630"), "build_time": 5.0},
+	Type.LIBRARY: {"name": "Bibliothèque", "cost": 70, "color": Color("2d4363"), "build_time": 8.0},
+	Type.WORKSHOP: {"name": "Atelier", "cost": 80, "color": Color("47423c"), "build_time": 10.0},
+	Type.TRAINING: {"name": "Entraînement", "cost": 90, "color": Color("5e352a"), "build_time": 8.0},
+	Type.PRISON: {"name": "Prison", "cost": 60, "color": Color("34343b"), "build_time": 9.0},
+	Type.TEMPLE: {"name": "Temple", "cost": 100, "color": Color("4a3a6a"), "build_time": 12.0},
+	Type.GRAVEYARD: {"name": "Cimetière", "cost": 70, "color": Color("2a3324"), "build_time": 7.0},
 }
 
 ## Les salles où les créatures viennent travailler (voir creature.gd).
@@ -47,6 +49,11 @@ static func display_name(type: int) -> String:
 
 static func cost(type: int) -> int:
 	return INFO[type]["cost"]
+
+
+## Secondes de travail pour construire une case (voir Rules.BUILD_TIME_FACTOR).
+static func build_time(type: int) -> float:
+	return INFO[type]["build_time"] * Rules.BUILD_TIME_FACTOR
 
 
 static func color(type: int) -> Color:

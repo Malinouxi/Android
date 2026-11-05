@@ -9,16 +9,21 @@ enum Type {
 	ALTAR,  ## Autel de sacrifice : les prisonniers y sont sacrifiés contre de l'or.
 }
 
+## "build_time" : secondes de travail d'un ouvrier pour l'installer.
 const INFO := {
-	Type.SPIKES: {"name": "Pointes", "cost": 80, "damage": 30.0, "rearm_time": 2.5},
-	Type.RUNE: {"name": "Rune", "cost": 120, "damage": 90.0, "radius": 56.0},
-	Type.DOOR: {"name": "Porte", "cost": 100, "hp": 300.0},
-	Type.ALTAR: {"name": "Autel", "cost": 150},
+	Type.SPIKES: {"name": "Pointes", "cost": 80, "damage": 30.0, "rearm_time": 2.5, "build_time": 4.0},
+	Type.RUNE: {"name": "Rune", "cost": 120, "damage": 90.0, "radius": 56.0, "build_time": 6.0},
+	Type.DOOR: {"name": "Porte", "cost": 100, "hp": 300.0, "build_time": 8.0},
+	Type.ALTAR: {"name": "Autel", "cost": 150, "build_time": 12.0},
 }
 
 
 static func display_name(type: int) -> String:
 	return INFO[type]["name"]
+
+
+static func build_time(type: int) -> float:
+	return INFO[type]["build_time"] * Rules.BUILD_TIME_FACTOR
 
 
 static func cost(type: int) -> int:

@@ -1,7 +1,8 @@
 class_name Worker
 extends Unit
-## Un ouvrier : il creuse les cases marquées, rapporte l'or au trésor et
-## revendique le sol creusé pour agrandir le territoire du donjon.
+## Un ouvrier : il creuse les cases marquées, rapporte l'or au trésor,
+## CONSTRUIT les salles et les défenses (les chantiers) et revendique le sol
+## creusé pour agrandir le territoire du donjon.
 ## (Il hérite de Unit : la marche et les chemins sont écrits dans unit.gd.)
 ##
 ## Son comportement est une « machine à états » : à chaque instant il est dans
@@ -9,13 +10,14 @@ extends Unit
 ## C'est la façon la plus simple et la plus lisible de programmer une IA de jeu.
 ##
 ## Son travail (« job ») est un petit dictionnaire :
-##   { "type": "dig", "deposit" ou "claim", "target": case visée, "path": chemin }
+##   { "type": "dig", "deposit", "pickup", "build" ou "claim", "target": case visée, "path": chemin }
 
 enum State {
 	IDLE,    ## Ne fait rien : cherche du travail ou se promène.
 	MOVING,  ## Suit un chemin.
 	DIGGING, ## Creuse une case.
 	CLAIMING, ## Revendique une case de sol pour le donjon.
+	BUILDING, ## Construit une salle, un piège ou une porte (un chantier).
 }
 
 const DIG_INTERVAL := 0.45   ## Secondes entre deux coups de pioche.
@@ -67,6 +69,8 @@ func _process(delta: float) -> void:
 			_process_digging(delta)
 		State.CLAIMING:
 			_process_claiming(delta)
+		State.BUILDING:
+			_process_building(delta)
 	queue_redraw()
 
 
@@ -104,11 +108,15 @@ func _choose_job() -> Dictionary:
 		var pickup := map.find_pickup_job(current_cell())
 		if not pickup.is_empty():
 			return pickup
-	# 3. Sinon on creuse. Avec les poches pleines, on évite les filons d'or.
+	# 3. Un chantier attend : on construit (salles, pièges, portes...).
+	var build := map.find_build_job(self, current_cell())
+	if not build.is_empty():
+		return build
+	# 4. Sinon on creuse. Avec les poches pleines, on évite les filons d'or.
 	var dig := map.find_dig_job(self, current_cell(), not is_full())
 	if not dig.is_empty():
 		return dig
-	# 4. Rien à creuser : on agrandit le territoire.
+	# 5. Rien à creuser : on agrandit le territoire.
 	return map.find_claim_job(self, current_cell())
 
 
@@ -131,6 +139,9 @@ func _arrive() -> void:
 	elif job["type"] == "claim":
 		state = State.CLAIMING
 		_dig_timer = CLAIM_TIME
+	elif job["type"] == "build":
+		state = State.BUILDING
+		_dig_timer = DIG_INTERVAL
 	elif job["type"] == "pickup":
 		var taken := map.pick_up_gold(job["target"], CARRY_CAPACITY - carried_gold)
 		carried_gold += taken
@@ -175,6 +186,26 @@ func _process_digging(delta: float) -> void:
 		_think_timer = 0.1 # On cherche tout de suite le travail suivant.
 
 
+## Construire : chaque seconde passée sur le chantier le fait avancer.
+## Un coup de marteau (son et poussière) toutes les DIG_INTERVAL secondes.
+func _process_building(delta: float) -> void:
+	if not _job_still_valid():
+		_stop_job()
+		return
+	_swing += delta * 12.0
+	_dig_timer -= delta
+	if _dig_timer <= 0.0:
+		_dig_timer = DIG_INTERVAL * 1.5
+		play_attack()
+		Sound.play("build", position, -12.0)
+		Fx.burst("dust", position)
+	if map.work_on_construction(job["target"], delta):
+		Sound.play("build", position, -4.0)
+		Fx.burst("sparks", position, Color("ffd54a"))
+		_stop_job()
+		_think_timer = 0.1
+
+
 ## Revendiquer : l'ouvrier reste un moment sur la case, puis elle devient à nous.
 func _process_claiming(delta: float) -> void:
 	if not _job_still_valid():
@@ -199,6 +230,8 @@ func _job_still_valid() -> bool:
 		return not map.is_claimed(job["target"])
 	if job["type"] == "pickup":
 		return map.loose_gold.has(job["target"])
+	if job["type"] == "build":
+		return map.construction.has(job["target"]) and map.construction[job["target"]]["worker"] == self
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
 
 
@@ -238,6 +271,13 @@ func _draw() -> void:
 		draw_line(Vector2.ZERO, tip, Color("8d6e63"), 3.0)
 		draw_line(tip - tip.orthogonal().normalized() * 5.0,
 				tip + tip.orthogonal().normalized() * 5.0, Color("cfd8dc"), 3.0)
+	# Pendant qu'il construit : un marteau qui frappe.
+	if state == State.BUILDING:
+		var hammer_angle := -PI * 0.75 + sin(_swing) * 0.8
+		var handle := Vector2.from_angle(hammer_angle) * 15.0
+		draw_line(Vector2(4, 0), Vector2(4, 0) + handle, Color("8d6e63"), 3.0)
+		draw_line(Vector2(4, 0) + handle - handle.orthogonal().normalized() * 5.0,
+				Vector2(4, 0) + handle + handle.orthogonal().normalized() * 5.0, Color("90a4ae"), 4.0)
 	# Pendant qu'il revendique : un halo rouge qui pulse sous ses pieds.
 	if state == State.CLAIMING:
 		draw_arc(Vector2(0, 8), 10.0 + 2.0 * sin(_swing), 0.0, TAU, 20, Color(0.9, 0.2, 0.3, 0.8), 2.0)

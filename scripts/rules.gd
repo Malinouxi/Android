@@ -14,10 +14,13 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.5"
+const VERSION := "1.6"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.6", "changes": [
+		"Les ouvriers construisent les salles, les pièges, les portes et les autels : chaque case devient un chantier, plus ou moins long selon l'objet. Elle ne sert qu'une fois terminée.",
+	]},
 	{"version": "1.5", "changes": [
 		"Portail équilibré : il favorise les espèces que tu as peu ou pas (un Attrapeur arrive vite si tu as une Prison).",
 		"Cerbères limités : un pour 6 cases de Trésor, 3 au maximum.",
@@ -50,6 +53,11 @@ const CHANGELOG := [
 const START_WORKERS := 3          ## Ouvriers au début d'une partie.
 const WORKER_COST := 100          ## Prix d'un ouvrier en plus.
 const PAYDAY_INTERVAL := 90.0     ## Secondes entre deux jours de paie.
+
+# --- Construction ------------------------------------------------------------
+## Multiplie toutes les durées de construction (rooms.gd et defenses.gd, "build_time").
+## 0.5 = deux fois plus rapide, 2.0 = deux fois plus lent.
+const BUILD_TIME_FACTOR := 1.0
 
 # --- Créatures ----------------------------------------------------------------
 const CREATURE_ARRIVAL_DELAY := 20.0 ## Secondes entre deux arrivées par le portail.

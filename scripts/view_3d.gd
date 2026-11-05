@@ -22,6 +22,8 @@ const PIXEL_SIZE := 0.026   ## Taille d'un pixel d'image (32 pixels -> 0,83 de h
 const CHUNK := 8            ## La carte est découpée en blocs de 8 x 8 cases (voir _rebuild).
 const REBUILD_DELAY := 0.2  ## Au plus 5 reconstructions par seconde.
 const BASE_DISTANCE := 15.0 ## Distance de la caméra au zoom 1.
+## Assombrissement du dessus des murs (0 = comme les côtés, 1 = noir).
+const TOP_DARKEN := 0.5
 const DECORATION_OFFSET := 0.012 ## Les tableaux sont décollés du mur, pour ne pas clignoter.
 
 var map: DungeonMap
@@ -76,13 +78,26 @@ static func to_3d(map_position: Vector2, height := 0.0) -> Vector3:
 	return Vector3(map_position.x / TILE, height, map_position.y / TILE)
 
 
-## Le point de l'écran -> le point du sol visé (en pixels de la carte).
+## Le point de l'écran -> le point visé (en pixels de la carte).
+## On suit le rayon qui part du doigt : il s'arrête sur le premier MUR qu'il
+## touche (son dessus ou son côté), sinon sur le sol. (Viser seulement le sol
+## donnait la case de derrière quand on touchait le dessus d'un mur.)
 func screen_to_map(screen_position: Vector2) -> Vector2:
 	var origin := camera.project_ray_origin(screen_position)
 	var direction := camera.project_ray_normal(screen_position)
-	if absf(direction.y) < 0.0001:
+	if direction.y > -0.0001:
 		return target_map()
-	var hit := origin + direction * (-origin.y / direction.y)
+	# On commence là où le rayon descend à la hauteur des murs : rien avant.
+	var point := origin + direction * maxf(0.0, (WALL_HEIGHT - origin.y) / direction.y)
+	var step := direction * 0.04
+	for i in 2000:
+		var cell := Vector2i(floori(point.x), floori(point.z))
+		if point.y <= WALL_HEIGHT and _is_wall(cell):
+			return (Vector2(cell) + Vector2(0.5, 0.5)) * TILE # Le centre du mur touché.
+		if point.y <= 0.0:
+			break
+		point += step
+	var hit := origin + direction * (-origin.y / direction.y) # Le sol.
 	return Vector2(hit.x, hit.z) * TILE
 
 
@@ -348,7 +363,10 @@ func _add_cell(tools: Dictionary, cell: Vector2i) -> void:
 	if map.damage.has(cell) and DungeonMap.DIG_HITS.has(tile):
 		tint = tint.darkened(0.5 * float(map.damage[cell]) / DungeonMap.DIG_HITS[tile])
 	var st := _tool(tools, texture, tint)
-	_flat(st, cell, WALL_HEIGHT)
+	# Le dessus des murs est plus sombre que le sol : on voit mieux le relief.
+	# (Sauf s'il est marqué : le jaune doit bien se voir.)
+	var top_tint := tint if map.marked.has(cell) else tint.darkened(TOP_DARKEN)
+	_flat(_tool(tools, texture, top_tint), cell, WALL_HEIGHT)
 	for direction in DungeonMap.DIRECTIONS:
 		var neighbour: Vector2i = cell + direction
 		if _is_wall(neighbour):

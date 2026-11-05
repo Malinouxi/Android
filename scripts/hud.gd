@@ -366,6 +366,7 @@ func _build_tool_panel() -> void:
 	set_hand([], 0)
 	_show_tab("Actions")
 	_tab_buttons["Actions"].button_pressed = true
+	_update_tool_name()
 
 
 func _show_tab(tab_name: String) -> void:

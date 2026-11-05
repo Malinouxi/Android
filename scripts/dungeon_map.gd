@@ -116,6 +116,10 @@ var torch_cells: Dictionary = {}
 ## se relève en Revenant (0 = prêt ; main.gd le fait se relever s'il y a un lit).
 var graves: Dictionary = {}
 
+## L'or tombé par terre (le sac d'une Voleuse abattue) : case -> or.
+## Les ouvriers le ramassent et le rapportent au Trésor (voir worker.gd).
+var loose_gold: Dictionary = {}
+
 ## Le décor animé (torches, portail, cœur...) change d'image ANIM_FPS fois par seconde.
 const ANIM_FPS := 6.0
 ## Le « tic » d'animation du décor : il augmente de 1 à chaque changement d'image.
@@ -357,6 +361,7 @@ func to_save() -> Dictionary:
 		"rival_heart_max_hp": rival_heart_max_hp,
 		"rival_claimed": _cells_to_array_list(rival_claimed),
 		"graves": _cells_to_list(graves),
+		"loose_gold": _cells_to_list(loose_gold),
 	}
 
 
@@ -376,6 +381,7 @@ func load_save(data: Dictionary) -> bool:
 	rooms = _list_to_cells(data["rooms"])
 	stored_gold = _list_to_cells(data["stored_gold"])
 	food = _list_to_cells(data["food"])
+	loose_gold = _list_to_cells(data.get("loose_gold", []))
 	graves.clear()
 	for values in data.get("graves", []):
 		graves[SaveGame.array_to_cell(values)] = float(values[2])
@@ -1038,6 +1044,59 @@ func deposit_gold(cell: Vector2i, amount: int) -> int:
 
 ## Cherche la case de trésor non pleine la plus proche.
 ## Renvoie { "type": "deposit", "target": case, "path": chemin }, ou {} si aucune.
+## Pour la Voleuse : le coffre plein le plus proche qu'elle peut atteindre.
+func find_loot_job(from_cell: Vector2i) -> Dictionary:
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in stored_gold:
+		if stored_gold[cell] > 0:
+			candidates.append(cell)
+	return _find_nearest_reachable(candidates, from_cell)
+
+
+## La Voleuse vide un coffre (jusqu'à amount). Renvoie l'or volé.
+func steal_gold(cell: Vector2i, amount: int) -> int:
+	var taken := mini(stored_gold.get(cell, 0), amount)
+	if taken <= 0:
+		return 0
+	stored_gold[cell] -= taken
+	gold_changed.emit()
+	_redraw_all()
+	return taken
+
+
+## Un sac d'or tombe par terre (la Voleuse a été abattue).
+func drop_gold(cell: Vector2i, amount: int) -> void:
+	if amount <= 0:
+		return
+	loose_gold[cell] = loose_gold.get(cell, 0) + amount
+	_redraw_all()
+
+
+## Pour les ouvriers : le tas d'or par terre le plus proche.
+func find_pickup_job(from_cell: Vector2i) -> Dictionary:
+	if loose_gold.is_empty():
+		return {}
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in loose_gold:
+		candidates.append(cell)
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if not best.is_empty():
+		best["type"] = "pickup"
+	return best
+
+
+## Un ouvrier ramasse jusqu'à amount pièces d'un tas. Renvoie l'or ramassé.
+func pick_up_gold(cell: Vector2i, amount: int) -> int:
+	var taken := mini(loose_gold.get(cell, 0), amount)
+	if taken <= 0:
+		return 0
+	loose_gold[cell] -= taken
+	if loose_gold[cell] <= 0:
+		loose_gold.erase(cell)
+	_redraw_all()
+	return taken
+
+
 func find_deposit_job(from_cell: Vector2i) -> Dictionary:
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in stored_gold:
@@ -1308,6 +1367,11 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 	# Une torche, sauf si la case est occupée par un meuble ou une défense.
 	if torch_cells.has(cell) and not rooms.has(cell) and not defenses.has(cell):
 		_billboard(layer, _animated("torch", cell), center, 0.8)
+
+	if loose_gold.has(cell):
+		# Un tas d'or par terre, plus gros s'il y a beaucoup d'or.
+		var pile := clampi(int(loose_gold[cell]) / 40, 0, Art.GOLD_PILES.size() - 1)
+		_billboard(layer, Art.GOLD_PILES[pile], center, 0.75)
 
 	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.ALTAR:
 		_billboard(layer, _animated("sacrifice_altar", cell), center, 1.1)

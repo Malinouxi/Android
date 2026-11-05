@@ -69,6 +69,17 @@ func _run() -> void:
 	await _frames(3)
 	_shot("06_contenu")
 
+	# Les héros en mission : une Voleuse avec son butin, un Moine libérateur,
+	# un Cerbère qui les flaire, et un sac d'or tombé par terre.
+	var thief: Node2D = game._add_hero(1, heart + Vector2i(-2, -1)) # Heroes.Type.THIEF
+	thief.loot = 150
+	game._add_hero(13, heart + Vector2i(2, 1)) # Heroes.Type.MONK
+	game._add_creature(11, heart + Vector2i(-1, -2)) # Creatures.Type.CERBERUS
+	map_node.drop_gold(heart + Vector2i(0, 2), 150)
+	print("ÉTAPE missions : voleuse, moine, cerbère et sac d'or ajoutés")
+	await _frames(25)
+	_shot("07_missions")
+
 	var hud := game.get_node("HUD")
 	hud.codex_pressed.emit()
 	await _frames(20)

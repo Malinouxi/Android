@@ -13,11 +13,22 @@ extends Unit
 ## creature.gd). Personne n'est venu au bout de Rules.CAPTURE_WINDOW secondes ?
 ## Il meurt. Sans Attrapeur ou sans cellule libre, il meurt tout de suite.
 ## Le Clerc soigne régulièrement les héros autour de lui.
+##
+## Certains héros ont une MISSION au lieu de foncer sur le cœur (voir plus bas) :
+##   - la Voleuse se faufile jusqu'au Trésor, vole de l'or et s'enfuit par l'entrée ;
+##   - le Moine libérateur va à la Prison et ouvre les cellules.
+## En mission, ils ne se battent que si un ennemi est tout près d'eux.
 
 ## Émis quand le héros arrive en prison.
 signal captured(hero: Hero)
 ## Émis quand le héros tombe assommé.
 signal fell(hero: Hero)
+## Émis quand la Voleuse vole de l'or dans un coffre.
+signal stole(hero: Hero, amount: int)
+## Émis quand la Voleuse sort du donjon avec son butin (il est perdu).
+signal escaped(hero: Hero, amount: int)
+## Émis quand le Moine ouvre une cellule.
+signal freed_prisoner(hero: Hero)
 
 const AGGRO_RADIUS := 128.0  ## Distance (pixels) à laquelle il repère un ennemi.
 const DIG_INTERVAL := 0.6    ## Secondes entre deux coups de pioche.
@@ -33,6 +44,15 @@ var _door_cell := Vector2i(-1, -1)
 var prison_cell := Vector2i(-1, -1)
 var _heal_timer := 0.0
 var _war_cry_timer := 3.0
+
+## Or volé que porte la Voleuse. Abattue, elle lâche son sac (voir die()).
+var loot := 0
+const NO_CELL := Vector2i(-1, -1)
+var _mission_cell := NO_CELL
+var _mission_timer := 0.0
+var _prisoner_target: Hero = null
+## Temps restant au Moine pour ouvrir la cellule (négatif : il n'ouvre rien).
+var _unlock_left := -1.0
 
 ## Assommé au sol, en attente d'un Attrapeur.
 var knocked_out := false
@@ -62,11 +82,13 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 	load_abilities(info)
 	if info.get("rival", false):
 		self_modulate = DungeonMap.RIVAL_TINT # Les troupes du rival sont teintées de bleu.
+	if info.get("stealth", false):
+		self_modulate.a = 0.55 # La Voleuse, discrète, est à moitié transparente.
 	setup(dungeon_map, cell)
 
 
 func to_save() -> Dictionary:
-	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp}
+	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp, "loot": loot}
 	if is_captured():
 		data["prison"] = SaveGame.cell_to_array(prison_cell)
 		data["sacrifice"] = sacrifice_requested
@@ -82,6 +104,11 @@ func is_captured() -> bool:
 
 ## Vaincu : assommé si un Attrapeur peut l'emmener en prison, sinon il meurt vraiment.
 func die() -> void:
+	if loot > 0:
+		# La Voleuse lâche son sac : tes ouvriers viendront le rapporter au Trésor.
+		map.drop_gold(current_cell(), loot)
+		Fx.burst("coins", position)
+		loot = 0
 	if not _dying and not is_captured() and not knocked_out and carrier == null:
 		var catchers := get_tree().get_nodes_in_group("catchers")
 		if not catchers.is_empty() and map.find_free_prison_cell() != Vector2i(-1, -1):
@@ -156,6 +183,14 @@ func capture_at(cell: Vector2i) -> void:
 	_target = null
 
 
+## Libéré par un Moine : il sort de sa cellule et reprend le combat.
+func release() -> void:
+	sacrifice_requested = false
+	reserved_by = null # Un Attrapeur qui venait le chercher abandonne.
+	_escape()
+	hp = maxf(hp, max_hp * 0.6)
+
+
 ## La cellule a été démolie : le prisonnier s'évade et redevient un héros actif.
 func _escape() -> void:
 	if map.prisoners.get(prison_cell) == self:
@@ -210,16 +245,18 @@ func _process(delta: float) -> void:
 	_think_timer -= delta
 	if _think_timer <= 0.0:
 		_think_timer = 0.3
-		var enemy := find_nearest_enemy(AGGRO_RADIUS)
+		var radius := Rules.MISSION_AGGRO_RADIUS if _has_mission() else AGGRO_RADIUS
+		var enemy := find_nearest_enemy(radius)
 		if enemy != _target:
 			_target = enemy
 			path.clear()
 
 	if _target != null:
+		_unlock_left = -1.0
 		if not fight(_target, delta):
 			_target = null
 			path.clear()
-	else:
+	elif not _do_mission(delta):
 		_march(delta)
 
 	# Une porte nous barre la route (en marchant ou en poursuivant) : on la frappe.
@@ -227,6 +264,120 @@ func _process(delta: float) -> void:
 		_attack_door(_door_cell)
 		_door_cell = Vector2i(-1, -1)
 	queue_redraw()
+
+
+# ---------------------------------------------------------------------------
+# Les missions : la Voleuse et le Moine libérateur
+# ---------------------------------------------------------------------------
+
+func _has_mission() -> bool:
+	var info := Heroes.info(type)
+	return info.get("stealth", false) or info.get("liberator", false)
+
+
+## Fait avancer la mission. Renvoie false s'il n'y a rien à faire : le héros
+## marche alors vers le cœur, comme les autres.
+func _do_mission(delta: float) -> bool:
+	var info := Heroes.info(type)
+	if info.get("stealth", false):
+		return _thief_mission(delta)
+	if info.get("liberator", false):
+		return _liberator_mission(delta)
+	return false
+
+
+## La Voleuse : vers le coffre plein le plus proche, puis vers la sortie avec le butin.
+func _thief_mission(delta: float) -> bool:
+	if loot > 0:
+		if current_cell() == map.entrance_cell:
+			_run_away()
+			return true
+		if path.is_empty() or _mission_cell != map.entrance_cell:
+			_mission_cell = map.entrance_cell
+			follow_path(map.find_path(current_cell(), map.entrance_cell))
+			if path.is_empty():
+				return false # Sortie bouchée : elle se fraie un chemin vers le cœur.
+		move_along_path(delta)
+		return true
+
+	# Un coffre à piller ? (On ne cherche que deux fois par seconde.)
+	if _mission_cell == NO_CELL or map.get_room(_mission_cell) != Rooms.Type.TREASURY:
+		_mission_timer -= delta
+		if _mission_timer > 0.0:
+			return false
+		_mission_timer = 0.5
+		var job := map.find_loot_job(current_cell())
+		if job.is_empty():
+			_mission_cell = NO_CELL
+			return false
+		_mission_cell = job["target"]
+		follow_path(job["path"])
+	if not move_along_path(delta):
+		return true
+	# Arrivée au coffre : elle le pille.
+	loot = map.steal_gold(_mission_cell, Rules.THIEF_LOOT)
+	_mission_cell = NO_CELL
+	if loot > 0:
+		play_attack()
+		Sound.play("coins", position)
+		Fx.burst("coins", position)
+		stole.emit(self, loot)
+	return true
+
+
+## La Voleuse sort par l'entrée : le butin est perdu pour toi.
+func _run_away() -> void:
+	escaped.emit(self, loot)
+	loot = 0
+	remove_from_group(_group_name(team))
+	Fx.burst("smoke", position, Color(0.5, 0.5, 0.6, 0.6))
+	queue_free()
+
+
+## Le Moine : vers le prisonnier le plus proche, puis il ouvre sa cellule.
+func _liberator_mission(delta: float) -> bool:
+	if _prisoner_target == null or not is_instance_valid(_prisoner_target) \
+			or not _prisoner_target.is_captured():
+		_prisoner_target = null
+		_unlock_left = -1.0
+		_mission_timer -= delta
+		if _mission_timer > 0.0:
+			return false
+		_mission_timer = 0.5
+		var best_distance := INF
+		for node in get_tree().get_nodes_in_group("prisoners"):
+			var prisoner := node as Hero
+			if prisoner != null and prisoner.is_captured() \
+					and position.distance_to(prisoner.position) < best_distance:
+				best_distance = position.distance_to(prisoner.position)
+				_prisoner_target = prisoner
+		if _prisoner_target == null:
+			return false
+		path.clear()
+
+	var prisoner := _prisoner_target
+	if position.distance_to(prisoner.position) > 20.0:
+		if path.is_empty():
+			follow_path(map.find_path(current_cell(), prisoner.prison_cell))
+			if path.is_empty():
+				_prisoner_target = null # Inaccessible (pour l'instant).
+				return false
+		move_along_path(delta)
+		return true
+
+	# Devant la cellule : il crochète la serrure.
+	path.clear()
+	if _unlock_left < 0.0:
+		_unlock_left = Rules.UNLOCK_TIME
+	_unlock_left -= delta
+	if _unlock_left <= 0.0:
+		_unlock_left = -1.0
+		prisoner.release()
+		Sound.play("door_break", position, -4.0)
+		Fx.burst("dust", prisoner.position)
+		freed_prisoner.emit(prisoner)
+		_prisoner_target = null
+	return true
 
 
 ## Les portes arrêtent les héros (les autres unités passent librement).
@@ -326,6 +477,15 @@ func _draw() -> void:
 	draw_sprite(info["sprite"], sprite_scale)
 	draw_strike()
 	draw_health_bar(-16.0 * sprite_scale - 6.0)
+	if loot > 0:
+		# Le sac d'or volé, sur l'épaule.
+		draw_circle(Vector2(9, -4), 5.0, Color("ffd54a"))
+		draw_arc(Vector2(9, -4), 5.0, 0.0, TAU, 12, Color("8d6e00"), 1.0)
+	if _unlock_left >= 0.0:
+		# Le Moine crochète une serrure : une barre bleue qui se remplit.
+		var progress := 1.0 - _unlock_left / Rules.UNLOCK_TIME
+		draw_rect(Rect2(-14, -36, 28, 4), Color(0, 0, 0, 0.7))
+		draw_rect(Rect2(-14, -36, 28 * progress, 4), Color("64b5f6"))
 	if is_captured():
 		# Les barreaux de la cellule, par-dessus le prisonnier.
 		draw_texture_rect(Art.PRISON_BARS, Rect2(-16, -16, 32, 32), false)

@@ -33,6 +33,8 @@ var splash_radius := 0.0  ## Les coups touchent aussi les ennemis à cette dista
 var regen := 0.0          ## Vie regagnée par seconde.
 var slow_on_hit := 0.0    ## Secondes de ralentissement infligées à la cible.
 var attack_sound := ""    ## Son d'attaque particulier (sinon choisi automatiquement).
+var stealthy := false     ## Discrète : on ne la repère que de tout près (la Voleuse).
+var keen_nose := false    ## Flaire les unités discrètes de loin (le Cerbère).
 const SPLASH_FACTOR := 0.5 ## Les ennemis touchés par ricochet prennent 50 % des dégâts.
 
 ## Vrai pendant que le joueur tient l'unité dans sa « main ».
@@ -226,6 +228,8 @@ func load_abilities(info: Dictionary) -> void:
 	regen = info.get("regen", 0.0)
 	slow_on_hit = info.get("slow", 0.0)
 	attack_sound = info.get("attack_sound", "")
+	stealthy = info.get("stealth", false)
+	keen_nose = info.get("keen_nose", false)
 
 
 func take_damage(amount: float) -> void:
@@ -269,6 +273,8 @@ func find_nearest_enemy(radius: float) -> Unit:
 		if unit == null or unit.is_dead():
 			continue
 		var distance := position.distance_to(unit.position)
+		if unit.stealthy and not keen_nose and distance > Rules.STEALTH_RADIUS:
+			continue # Trop discrète pour être repérée d'ici.
 		if distance <= best_distance:
 			best = unit
 			best_distance = distance

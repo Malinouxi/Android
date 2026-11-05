@@ -191,6 +191,8 @@ func describe() -> String:
 	var activity: String = STATE_NAMES[state]
 	if state == State.WORKING:
 		activity = WORK_NAMES[_work_room]
+	elif state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
+		activity = "garde le %s" % Rooms.display_name(_guarded_room())
 	return "%s niv. %d (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
 		display_name(), level, activity, hp, max_hp, happiness, hunger, energy, salary(),
 		"" if _has_bed() else ", SANS LIT !"]
@@ -455,6 +457,8 @@ func _process_working(delta: float) -> void:
 
 ## Choisit un travail utile et part vers un poste libre. Renvoie false si rien à faire.
 func _start_work() -> bool:
+	if _guarded_room() != Rooms.Type.NONE:
+		return false # Un gardien ne quitte pas son poste pour travailler.
 	var options: Array[int] = []
 	if research_needed and map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
 		options.append(Rooms.Type.LIBRARY)
@@ -546,9 +550,41 @@ func _process_wander(delta: float) -> void:
 	if energy > TIRED_LEVEL + 15.0 and hunger < HUNGRY_LEVEL and _start_work():
 		return
 
+	# Un gardien (le Cerbère) rôde dans la salle qu'il garde.
+	if _patrol():
+		_think_timer = randf_range(1.5, 3.5)
+		return
+
 	# Sinon : se promener un peu.
 	go_to(current_cell() + Vector2i(randi_range(-3, 3), randi_range(-3, 3)))
 	_think_timer = randf_range(1.0, 3.0)
+
+
+## La salle que garde cette créature (Rooms.Type.NONE si ce n'est pas un gardien).
+func _guarded_room() -> int:
+	return Creatures.info(type).get("guard", Rooms.Type.NONE)
+
+
+## Le gardien va vers une case de sa salle, choisie au hasard parmi les plus
+## proches (il reste près de l'endroit où on l'a posé). Renvoie false sans salle.
+func _patrol() -> bool:
+	var room := _guarded_room()
+	if room == Rooms.Type.NONE:
+		return false
+	var cells: Array[Vector2i] = []
+	for cell: Vector2i in map.rooms:
+		if map.rooms[cell] == room:
+			cells.append(cell)
+	if cells.is_empty():
+		return false
+	var here := current_cell()
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return (a - here).length_squared() < (b - here).length_squared())
+	var nearest := cells.slice(0, 8)
+	for attempt in 3:
+		if go_to(nearest.pick_random()):
+			return true
+	return false
 
 
 ## Une fois par seconde, l'humeur monte ou descend selon les besoins.

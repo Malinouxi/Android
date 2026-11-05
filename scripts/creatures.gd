@@ -3,7 +3,7 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT, CERBERUS }
 
 ## "requires" : nombre minimum de cases de chaque salle pour attirer la créature.
 ## "salary" : or versé à chaque jour de paie.
@@ -79,6 +79,14 @@ const INFO := {
 		"name": "Revenant", "sprite": "revenant", "color": Color("9e9a86"), "size": 9.0, "speed": 70.0,
 		"salary": 10, "requires": {Rooms.Type.GRAVEYARD: 1}, "graveyard": true,
 		"hp": 130.0, "damage": 12.0, "range": 28.0, "attack_interval": 1.1, "armor": 0.15,
+	},
+	Type.CERBERUS: {
+		# Le Cerbère : il ne travaille pas, il GARDE le Trésor (il y rôde sans cesse).
+		# Ses trois truffes flairent les Voleuses de loin, malgré leur discrétion.
+		"name": "Cerbère", "sprite": "cerberus", "color": Color("3b2a2a"), "size": 11.0, "speed": 95.0,
+		"salary": 35, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.TREASURY: 6},
+		"hp": 200.0, "damage": 16.0, "range": 28.0, "attack_interval": 0.9,
+		"guard": Rooms.Type.TREASURY, "keen_nose": true,
 	},
 }
 

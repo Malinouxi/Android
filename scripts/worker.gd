@@ -99,11 +99,16 @@ func _choose_job() -> Dictionary:
 		var deposit := map.find_deposit_job(current_cell())
 		if not deposit.is_empty():
 			return deposit
-	# 2. Sinon on creuse. Avec les poches pleines, on évite les filons d'or.
+	# 2. De l'or traîne par terre (le sac d'une Voleuse) : on le ramasse.
+	if not is_full():
+		var pickup := map.find_pickup_job(current_cell())
+		if not pickup.is_empty():
+			return pickup
+	# 3. Sinon on creuse. Avec les poches pleines, on évite les filons d'or.
 	var dig := map.find_dig_job(self, current_cell(), not is_full())
 	if not dig.is_empty():
 		return dig
-	# 3. Rien à creuser : on agrandit le territoire.
+	# 4. Rien à creuser : on agrandit le territoire.
 	return map.find_claim_job(self, current_cell())
 
 
@@ -126,6 +131,14 @@ func _arrive() -> void:
 	elif job["type"] == "claim":
 		state = State.CLAIMING
 		_dig_timer = CLAIM_TIME
+	elif job["type"] == "pickup":
+		var taken := map.pick_up_gold(job["target"], CARRY_CAPACITY - carried_gold)
+		carried_gold += taken
+		if taken > 0:
+			Sound.play("gold", position, -3.0)
+			Fx.burst("coins", position)
+		_stop_job()
+		_think_timer = 0.1
 	else: # "deposit"
 		var accepted := map.deposit_gold(job["target"], carried_gold)
 		carried_gold -= accepted
@@ -184,6 +197,8 @@ func _job_still_valid() -> bool:
 		return map.marked.has(job["target"])
 	if job["type"] == "claim":
 		return not map.is_claimed(job["target"])
+	if job["type"] == "pickup":
+		return map.loose_gold.has(job["target"])
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY
 
 

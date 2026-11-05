@@ -485,6 +485,14 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	hero.captured.connect(_on_hero_captured)
 	hero.fell.connect(func(_hero: Hero) -> void:
 		_hint("Un héros est assommé ! Tes Attrapeurs de cauchemar vont l'emmener en prison."))
+	hero.stole.connect(func(thief: Hero, amount: int) -> void:
+		Sound.play("horn", thief.position, -14.0)
+		hud.show_message("Une Voleuse a pillé ton Trésor : %d or ! Arrête-la avant qu'elle ne sorte !" % amount, 5.0))
+	hero.escaped.connect(func(_thief: Hero, amount: int) -> void:
+		Sound.play("error")
+		hud.show_message("La Voleuse s'est enfuie avec %d or. Un Cerbère au Trésor l'aurait flairée..." % amount, 5.0))
+	hero.freed_prisoner.connect(func(prisoner: Hero) -> void:
+		hud.show_message("Un Moine a ouvert une cellule : %s s'évade !" % prisoner.display_name(), 4.0))
 	heroes_root.add_child(hero)
 	return hero
 
@@ -805,6 +813,7 @@ func _load_game(data: Dictionary) -> bool:
 		elif values.has("knocked_out"):
 			hero.fall_down(float(values["knocked_out"]))
 		hero.hp = float(values["hp"])
+		hero.loot = int(values.get("loot", 0))
 
 	Levels.current_id = int(data.get("level_id", 0))
 	level = Levels.current()

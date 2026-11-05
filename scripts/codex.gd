@@ -160,6 +160,16 @@ func _abilities(info: Dictionary) -> String:
 		parts.append("portes x%d" % info["door_damage"])
 	if info.get("catcher", false):
 		parts.append("capture les héros")
+	if info.get("stealth", false):
+		parts.append("discrète, vole l'or")
+	if info.get("liberator", false):
+		parts.append("libère les prisonniers")
+	if info.get("keen_nose", false):
+		parts.append("flaire les voleuses")
+	if info.has("guard"):
+		parts.append("garde le %s" % Rooms.display_name(info["guard"]))
+	if info.has("war_cry"):
+		parts.append("cri de guerre")
 	if info["range"] > 50.0:
 		parts.append("à distance")
 	return ", ".join(parts) if not parts.is_empty() else "-"

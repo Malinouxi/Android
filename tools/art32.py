@@ -880,13 +880,56 @@ def draw_champion(step):
     return sp.finish()
 
 
+def draw_cerberus(step):
+    # Le Cerbère : un grand chien noir à trois têtes, collier à pointes, gardien des coffres.
+    sp = Sprite()
+    fur, light, dark = "#3b2a2a", "#5d4040", "#1e1414"
+    tail = 1 if step else 0
+    sp.part("polygon", [(25, 17), (30, 11 - tail), (31, 13 - tail), (27, 19)], fur, light, dark)  # queue
+    for i, x in enumerate((9, 13, 20, 24)):                                   # quatre pattes
+        up = (i + step) % 2
+        sp.part("rectangle", [x, 23 - up, x + 2, 29 - up], fur, light, dark)
+        sp.part("rectangle", [x - 1, 29 - up, x + 3, 30 - up], dark)
+    sp.part("ellipse", [7, 14, 27, 26], fur, light, dark)                    # corps
+    sp.flat("line", [(12, 19), (22, 19)], "#4e3434")
+    heads = [(4, 9), (10, 4), (16, 9)]                                        # trois têtes
+    for index, (hx, hy) in enumerate(heads):
+        bob = -1 if (index + step) % 2 else 0
+        hy += bob
+        sp.part("ellipse", [hx, hy, hx + 9, hy + 8], fur, light, dark)
+        sp.part("rectangle", [hx - 2, hy + 4, hx + 3, hy + 7], "#4e3434")      # museau
+        sp.part("polygon", [(hx + 5, hy), (hx + 7, hy - 3), (hx + 8, hy + 1)], fur, light, dark)  # oreille
+        sp.dots([(hx + 3, hy + 3)], "#ff3d00")                                 # œil de braise
+        sp.dots([(hx - 2, hy + 7), (hx, hy + 7)], "#fffde7")                   # crocs
+        sp.dots([(hx - 2, hy + 4)], "#120a08")                                 # truffe
+    sp.part("rectangle", [6, 15, 20, 17], "#8d6e63")                          # collier
+    sp.dots([(8, 14), (11, 14), (14, 14), (17, 14)], "#cfd8dc")              # pointes
+    return sp.finish()
+
+
+def draw_monk(step):
+    # Le Moine libérateur : robe de bure, crâne tonsuré, trousseau de clés.
+    sp, m = humanoid(step, "#ffccbc", "#795548", "#795548", "#4e342e", robe="#795548")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(9, hy + 5), (9, hy + 1), (13, hy - 1), (18, hy - 1), (22, hy + 1), (22, hy + 5),
+                        (19, hy + 2), (12, hy + 2)], "#8d6e63")             # couronne de cheveux
+    eyes(sp, hy + 6)
+    sp.flat("line", [(14, hy + 10), (17, hy + 10)], "#a1665e")
+    sp.flat("rectangle", [10, 20 + bob, 21, 21 + bob], "#d7ccc8")            # cordelière
+    sp.flat("line", [(19, 21 + bob), (20, 26 + bob)], "#d7ccc8")
+    x, y = m["left_hand"]                                                    # trousseau de clés
+    _draw(sp).ellipse([x - 3, y - 1, x + 2, y + 4], outline=rgb("#ffca28"))
+    sp.dots([(x - 3, y + 5), (x - 3, y + 6), (x - 2, y + 6), (x + 2, y + 5), (x + 2, y + 6)], "#ffca28")
+    return sp.finish()
+
+
 CHARACTERS_32 = {
     "worker": draw_worker, "kobold": draw_kobold, "orc": draw_orc, "warlock": draw_warlock,
     "spider": draw_spider, "demon": draw_demon, "bat": draw_bat, "golem": draw_golem,
     "vampire": draw_vampire, "salamander": draw_salamander, "catcher": draw_catcher,
     "adventurer": draw_adventurer, "thief": draw_thief, "knight": draw_knight, "cleric": draw_cleric,
     "archer": draw_archer, "dwarf": draw_dwarf, "mage": draw_mage, "paladin": draw_paladin,
-    "giant": draw_giant, "revenant": draw_revenant, "champion": draw_champion,
+    "giant": draw_giant, "revenant": draw_revenant, "champion": draw_champion, "cerberus": draw_cerberus, "monk": draw_monk,
 }
 
 
@@ -906,7 +949,7 @@ def shifted(image, dx, dy):
 
 
 ## Les créatures sans bras attaquent en se ramassant puis en bondissant.
-LUNGERS = {"spider", "bat", "salamander", "kobold"}
+LUNGERS = {"spider", "bat", "salamander", "kobold", "cerberus"}
 
 
 def make_characters():

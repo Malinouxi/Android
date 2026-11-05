@@ -14,10 +14,15 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.3"
+const VERSION := "1.4"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "1.4", "changes": [
+		"La Voleuse est discrète : elle se faufile jusqu'au Trésor, vole jusqu'à 150 or et s'enfuit par l'entrée. Abattue, elle lâche son sac, que les ouvriers rapportent.",
+		"Nouveau héros : le Moine libérateur, qui ouvre les cellules de la Prison.",
+		"Nouvelle créature : le Cerbère, gardien du Trésor, qui flaire les voleuses de loin.",
+	]},
 	{"version": "1.3", "changes": [
 		"Nouvelle salle : le Cimetière (recherche). Les héros morts y sont enterrés et se relèvent en Revenants.",
 		"Nouveau héros : le Champion du royaume, qui mène une vague sur 5 et accélère les héros par son cri de guerre.",
@@ -59,6 +64,17 @@ const MAX_ALTARS := 2
 ## Secondes entre l'enterrement d'un héros et le moment où il se relève en Revenant
 ## (il faut aussi un lit libre au Repaire).
 const REVENANT_RISE_TIME := 60.0
+
+# --- Héros en mission ------------------------------------------------------------
+## Or que la Voleuse emporte d'un coffre.
+const THIEF_LOOT := 150
+## Distance (pixels) en dessous de laquelle on repère une Voleuse (sauf le Cerbère,
+## qui la flaire de bien plus loin).
+const STEALTH_RADIUS := 40.0
+## Les héros en mission (Voleuse, Moine) ne se battent que si un ennemi est aussi proche.
+const MISSION_AGGRO_RADIUS := 40.0
+## Secondes qu'il faut au Moine pour ouvrir une cellule de Prison.
+const UNLOCK_TIME := 3.0
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

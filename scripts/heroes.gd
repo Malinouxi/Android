@@ -3,7 +3,7 @@ class_name Heroes
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
 enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK,
-		DWARF, MAGE, PALADIN, GIANT, CHAMPION }
+		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
@@ -17,9 +17,10 @@ const INFO := {
 		"reward": 40, "first_wave": 1,
 	},
 	Type.THIEF: {
+		# La Voleuse : discrète, elle file au Trésor, vole de l'or et s'enfuit (voir hero.gd).
 		"name": "Voleuse", "sprite": "thief", "color": Color("80deea"), "size": 7.0, "speed": 105.0,
 		"hp": 50.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.7,
-		"reward": 30, "first_wave": 2,
+		"reward": 30, "first_wave": 2, "stealth": true,
 	},
 	Type.KNIGHT: {
 		"name": "Chevalier", "sprite": "knight", "color": Color("eceff1"), "size": 10.0, "speed": 55.0,
@@ -86,7 +87,13 @@ const INFO := {
 		# héros autour de lui (voir hero.gd, _war_cry).
 		"name": "Champion du royaume", "sprite": "champion", "size": 12.0, "speed": 55.0,
 		"hp": 900.0, "damage": 26.0, "range": 32.0, "attack_interval": 1.2,
-		"reward": 400, "first_wave": 999, "armor": 0.2, "regen": 4.0, "boss": true,
+		"reward": 400, "first_wave": 999, "armor": 0.2, "regen": 4.0, "boss": true, "war_cry": true,
+	},
+	Type.MONK: {
+		# Le Moine libérateur : il va droit à la Prison et ouvre les cellules (voir hero.gd).
+		"name": "Moine libérateur", "sprite": "monk", "size": 8.0, "speed": 70.0,
+		"hp": 100.0, "damage": 6.0, "range": 26.0, "attack_interval": 1.2,
+		"reward": 50, "first_wave": 3, "liberator": true,
 	},
 }
 ## Une vague sur CHAMPION_EVERY est menée par le Champion du royaume.

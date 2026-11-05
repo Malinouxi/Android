@@ -268,6 +268,14 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   fait courir les héros autour de lui.
 - Nouveau niveau de campagne (9) : **Le Champion du royaume**. Règles en version 1.3.
 
+**Étape 22 — Héros en mission et Cerbère**
+- La **Voleuse** est discrète (à moitié transparente, repérée seulement de tout près). Elle file au Trésor,
+  vole jusqu'à 150 or et s'enfuit par l'entrée. Abattue, elle lâche un **sac d'or** que les ouvriers rapportent.
+- Nouveau héros : le **Moine libérateur**. Il va à la Prison et crochète les cellules (barre bleue) :
+  les prisonniers repartent au combat.
+- Nouvelle créature : le **Cerbère** (2 Repaire + 6 Trésor). Il ne travaille pas : il **garde le Trésor**
+  le plus proche, et flaire les Voleuses de loin. Règles en version 1.4.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

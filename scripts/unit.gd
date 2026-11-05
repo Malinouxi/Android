@@ -366,15 +366,7 @@ func play_attack() -> void:
 ## L'image est retournée en miroir quand l'unité va vers la gauche.
 func draw_sprite(sprite_name: String, sprite_scale := 1.0) -> void:
 	var time := Time.get_ticks_msec() / 1000.0 + _animation_offset
-	var animation := "idle"
-	var index := int(time * 2.0) % 2
-	if _attack_animation_left > 0.0:
-		animation = "attack"
-		index = 0 if _attack_animation_left > ATTACK_ANIMATION_TIME * 0.5 else 1
-	elif not path.is_empty():
-		animation = "walk"
-		index = int(time * 8.0) % 4
-	var frame: Texture2D = Art.unit_frames(sprite_name, animation)[index]
+	var frame := animation_frame(sprite_name)
 	_last_frame = frame
 	_last_scale = sprite_scale
 
@@ -403,6 +395,31 @@ func draw_sprite(sprite_name: String, sprite_scale := 1.0) -> void:
 	# 3. Pour la suite (barres, textes...), l'origine est placée au centre du
 	#    personnage, comme avant la vue isométrique.
 	draw_set_transform_matrix(Iso.billboard(Vector2.ZERO, Vector2(0, -size.y / 2 + 4)))
+
+
+## L'image d'animation à afficher maintenant (attaque, marche ou respiration).
+## Sert au dessin 2D (draw_sprite) et à la vue 3D (view_3d.gd).
+func animation_frame(sprite_name: String) -> Texture2D:
+	var time := Time.get_ticks_msec() / 1000.0 + _animation_offset
+	var animation := "idle"
+	var index := int(time * 2.0) % 2
+	if _attack_animation_left > 0.0:
+		animation = "attack"
+		index = 0 if _attack_animation_left > ATTACK_ANIMATION_TIME * 0.5 else 1
+	elif not path.is_empty():
+		animation = "walk"
+		index = int(time * 8.0) % 4
+	return Art.unit_frames(sprite_name, animation)[index]
+
+
+## Le nom de l'image du personnage et sa taille (1 = 32 pixels). Les classes
+## filles (worker.gd, creature.gd, hero.gd) donnent les leurs.
+func sprite_info() -> Array:
+	return ["worker", 1.0]
+
+
+func is_facing_left() -> bool:
+	return _facing_left
 
 
 ## Barre de vie rouge, affichée seulement si l'unité est blessée.

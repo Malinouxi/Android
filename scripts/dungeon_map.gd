@@ -21,6 +21,8 @@ signal heart_destroyed
 signal rival_heart_destroyed
 ## Émis quand les héros ont cassé une porte.
 signal door_destroyed(cell: Vector2i)
+## Émis à chaque changement de la carte (la vue 3D se reconstruit alors).
+signal redrawn
 
 ## Les différents types de tuiles.
 enum Tile {
@@ -1376,6 +1378,7 @@ func _create_layers() -> void:
 
 ## Demande à toutes les couches de se redessiner.
 func _redraw_all() -> void:
+	redrawn.emit()
 	queue_redraw()
 	for layer in _wall_layers:
 		layer.queue_redraw()

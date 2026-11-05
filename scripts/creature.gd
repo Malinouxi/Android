@@ -654,6 +654,11 @@ func _leave_now() -> void:
 	queue_free()
 
 
+func sprite_info() -> Array:
+	var info := Creatures.info(type)
+	return [info["sprite"], info["size"] / 8.0]
+
+
 func _draw() -> void:
 	var info := Creatures.info(type)
 	var sprite_scale: float = info["size"] / 8.0 # Taille 8 = image normale (32 pixels).

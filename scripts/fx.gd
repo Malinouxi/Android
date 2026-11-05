@@ -13,6 +13,8 @@ static var world: Node2D
 static var camera: CameraController
 ## Texture ronde et floue, partagée par toutes les lumières.
 static var light_texture: Texture2D
+## La vue 3D, si le jeu est en 3D (sinon null) : elle place les effets à l'écran.
+static var view3d = null
 
 ## Réglages de chaque type de particules : couleur, nombre, vitesse, gravité, durée, taille.
 const BURSTS := {
@@ -33,6 +35,8 @@ static func is_ready() -> bool:
 
 ## Position à l'écran d'un point de la carte.
 static func to_screen(map_position: Vector2) -> Vector2:
+	if view3d != null and is_instance_valid(view3d):
+		return view3d.unproject(map_position, 0.4)
 	return world.to_global(map_position)
 
 
@@ -138,6 +142,9 @@ static func shake(strength: float, duration := 0.25) -> void:
 
 ## Un éclair de lumière bref (explosion, sort), si l'éclairage est activé.
 static func flash_light(map_position: Vector2, color: Color, radius := 120.0, duration := 0.35) -> void:
+	if view3d != null and is_instance_valid(view3d):
+		view3d.flash(map_position, color, radius, duration)
+		return
 	if not is_ready() or light_texture == null or not Sound.lighting_enabled:
 		return
 	var light := PointLight2D.new()

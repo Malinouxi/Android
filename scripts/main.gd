@@ -124,6 +124,8 @@ var _paint_mark := true
 var _paint_failed := false
 ## Position à l'écran du dernier toucher (pour savoir quel personnage est touché).
 var _screen_tap := Vector2.ZERO
+## Position à l'écran (vraie, en pixels) du dernier toucher : sert en vue 3D.
+var _screen_touch := Vector2.ZERO
 
 ## Éclairage (voir _setup_lighting).
 const DARKNESS := Color(0.42, 0.38, 0.48) ## La pénombre du donjon (1, 1, 1 = pleine lumière).
@@ -192,7 +194,25 @@ func _ready() -> void:
 		_start_new_game()
 	_refresh_hud()
 	_setup_lighting()
+	if Sound.view_3d_enabled:
+		_enable_3d()
 	hud.fade_in()
+
+
+## La VUE 3D (voir view_3d.gd) : le jeu reste le même, seul l'affichage change.
+## On cache le monde 2D, et on branche la caméra et les effets sur la 3D.
+var _view3d: View3D = null
+
+
+func _enable_3d() -> void:
+	_view3d = View3D.new()
+	add_child(_view3d)
+	_view3d.setup(map, [workers_root, creatures_root, heroes_root] as Array[Node])
+	world_root.visible = false
+	$FxLayer.follow_viewport_enabled = false # Les effets se placent à l'écran (Fx.to_screen).
+	Fx.view3d = _view3d
+	camera.view3d = _view3d
+	_view3d.set_zoom(camera.zoom.x)
 
 
 func _start_new_game() -> void:
@@ -1132,6 +1152,7 @@ func _iso_bounds() -> Rect2:
 
 func _on_paint_started(screen_position: Vector2, world_position: Vector2) -> void:
 	_screen_tap = world_position
+	_screen_touch = screen_position
 	world_position = _to_map(world_position)
 	_paint_cells.clear()
 	_paint_failed = false
@@ -1167,6 +1188,7 @@ func _paint_cell(cell: Vector2i) -> void:
 
 func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> void:
 	_screen_tap = world_position
+	_screen_touch = screen_position
 	world_position = _to_map(world_position)
 	if hud.is_over_ui(screen_position):
 		return
@@ -1204,6 +1226,11 @@ func _creature_at(world_position: Vector2) -> Creature:
 func _unit_at(_map_position: Vector2, root: Node) -> Unit:
 	for unit: Unit in root.get_children():
 		if unit.in_hand:
+			continue
+		if _view3d != null:
+			# En 3D : on compare à l'écran avec le milieu du corps du personnage.
+			if _view3d.unproject(unit.position, 0.45).distance_to(_screen_touch) < 40.0:
+				return unit
 			continue
 		var body_center := world_root.to_global(unit.position) + Vector2(0, -14)
 		if body_center.distance_to(_screen_tap) < 22.0:

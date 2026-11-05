@@ -32,6 +32,10 @@ var bounds := Rect2()
 var paint_mode := false
 ## La transformation de la carte vers l'écran (la vue isométrique, voir iso.gd).
 var world_transform := Transform2D.IDENTITY
+## En vue 3D (voir view_3d.gd) : déplacer, zoomer et tourner pilotent la caméra 3D,
+## et les touchers visent la case sous le doigt à travers la 3D.
+var view3d: View3D = null
+var _twist_angle := 0.0
 
 var _shake_strength := 0.0
 var _shake_time := 0.0
@@ -63,6 +67,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Déplace la vue comme si on faisait glisser la carte de `screen_relative` pixels.
 func move_by(screen_relative: Vector2) -> void:
+	if view3d != null:
+		view3d.pan(screen_relative)
+		return
 	# On divise par le zoom pour que la carte suive exactement le doigt.
 	position -= screen_relative / zoom
 	_clamp_position()
@@ -70,12 +77,18 @@ func move_by(screen_relative: Vector2) -> void:
 
 ## Centre la vue sur un point de la carte (utilisé par la mini-carte).
 func center_on(map_position: Vector2) -> void:
+	if view3d != null:
+		view3d.center_on(map_position)
+		return
 	position = world_transform * map_position
 	_clamp_position()
 
 
 ## Tremblement d'écran : on décale la vue au hasard pendant un court instant.
 func shake(strength: float, duration: float) -> void:
+	if view3d != null:
+		view3d.shake(strength, duration)
+		return
 	_shake_strength = maxf(_shake_strength, strength)
 	_shake_time = maxf(_shake_time, duration)
 
@@ -102,6 +115,7 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 			_drag_distance = INF # Deux doigts : ce ne sera pas un « tap ».
 			_pinch_start_distance = _pinch_distance()
 			_pinch_start_zoom = zoom.x
+			_twist_angle = _twist()
 	else:
 		var was_single_finger := _touches.size() == 1
 		_touches.erase(event.index)
@@ -124,6 +138,11 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 		move_by(event.relative / 2.0)
 		if _pinch_start_distance > 0.0:
 			_set_zoom(_pinch_start_zoom * _pinch_distance() / _pinch_start_distance)
+		if view3d != null:
+			# En 3D, tourner deux doigts fait pivoter la caméra autour du point visé.
+			var angle := _twist()
+			view3d.rotate_view(angle_difference(_twist_angle, angle))
+			_twist_angle = angle
 
 
 func _stop_painting() -> void:
@@ -133,7 +152,18 @@ func _stop_painting() -> void:
 
 
 func screen_to_world(screen_position: Vector2) -> Vector2:
+	if view3d != null:
+		# La case visée à travers la 3D, ramenée dans le « monde incliné » qu'attend main.gd.
+		return world_transform * view3d.screen_to_map(screen_position)
 	return get_canvas_transform().affine_inverse() * screen_position
+
+
+## L'angle de la ligne entre les deux doigts (pour tourner la vue 3D).
+func _twist() -> float:
+	var points := _touches.values()
+	if points.size() < 2:
+		return 0.0
+	return (points[1] - points[0]).angle()
 
 
 func _pinch_distance() -> float:
@@ -144,6 +174,8 @@ func _pinch_distance() -> float:
 func _set_zoom(value: float) -> void:
 	value = clampf(value, MIN_ZOOM, MAX_ZOOM)
 	zoom = Vector2(value, value)
+	if view3d != null:
+		view3d.set_zoom(value)
 
 
 func _clamp_position() -> void:

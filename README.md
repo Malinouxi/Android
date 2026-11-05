@@ -289,11 +289,15 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   (coffre, pointes) à 12 s (autel du Temple, autel de sacrifice). Réglage global : `BUILD_TIME_FACTOR`.
 - Les ouvriers construisent avant de creuser. Démolir un chantier rend l'or ou le piège. Règles 1.6.
 
-**Étape 27 — Prototype 3D** (bouton « Prototype 3D » du menu)
-- Une scène à part (`scenes/proto_3d.tscn`, `scripts/proto_3d.gd`) : la carte du niveau 1 en vrais
-  blocs 3D, avec les mêmes images pixel art plaquées sur le sol et les murs. Cœur en gemme qui tourne,
-  portail en anneau, torches et ouvriers en images qui font face à la caméra (Sprite3D).
-- Un doigt pour tourner autour du cœur, deux doigts pour zoomer. Le jeu 2D n'est pas modifié.
+**Étape 27 — Le jeu en 3D** (réglage « Vue 3D », activé par défaut)
+- `scripts/view_3d.gd` montre le jeu en 3D sans changer sa logique : la carte (toujours en coordonnées
+  2D, 1 case = 32 pixels = 1 unité 3D) devient des blocs texturés avec les images pixel art, découpés en
+  morceaux de 8 x 8 cases (chacun éclairé par ses lumières proches) et reconstruits quand la carte change
+  (signal `redrawn`). Objets et personnages sont des Sprite3D qui recopient l'animation des unités
+  (`Unit.animation_frame`, `sprite_info`). Cœur en gemme, portail en anneau, torches et éclairs de lumière.
+- La caméra (`camera_controller.gd`) pilote la vue 3D : glisser pour se déplacer, pincer pour zoomer,
+  tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
+- Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
 **Étape 26 — Décorations**
 - Quand ils n'ont plus rien à faire, les ouvriers fabriquent des **tableaux** et des **tapisseries**

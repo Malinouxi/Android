@@ -80,6 +80,9 @@ func _draw() -> void:
 
 	# Le cadre de ce qui est visible à l'écran. En vue isométrique, l'écran
 	# (un rectangle) correspond à un losange sur la carte vue de dessus.
+	if camera.view3d != null:
+		draw_arc(camera.view3d.target_map() * scale_factor, 5.0, 0.0, TAU, 16, Color.WHITE, 1.5)
+		return
 	var half := get_viewport_rect().size / camera.zoom / 2
 	var to_map := camera.world_transform.affine_inverse()
 	var outline := PackedVector2Array()

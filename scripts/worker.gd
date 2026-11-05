@@ -292,6 +292,10 @@ func _stop_job() -> void:
 	state = State.IDLE
 
 
+func sprite_info() -> Array:
+	return ["worker", 0.85]
+
+
 func _draw() -> void:
 	draw_sprite("worker", 0.85)
 	# Un petit sac doré quand il transporte de l'or.

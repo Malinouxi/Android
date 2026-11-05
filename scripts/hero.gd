@@ -473,6 +473,11 @@ func _attack_heart() -> void:
 	map.damage_heart(attack_damage)
 
 
+func sprite_info() -> Array:
+	var info := Heroes.info(type)
+	return [info["sprite"], info["size"] / 8.0]
+
+
 func _draw() -> void:
 	var info := Heroes.info(type)
 	if knocked_out or carrier != null:

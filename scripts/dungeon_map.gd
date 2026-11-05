@@ -1048,6 +1048,14 @@ func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
 	return best
 
 
+## Chemin d'un héros vers n'importe quelle case, en creusant la terre au besoin
+## (le Moine s'en sert pour rejoindre la Prison). Vide si c'est impossible (roche).
+func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+	if hero_astar.is_point_solid(from_cell) or hero_astar.is_point_solid(to_cell):
+		return []
+	return hero_astar.get_id_path(from_cell, to_cell)
+
+
 func is_next_to_rival_heart(cell: Vector2i) -> bool:
 	return has_rival and _manhattan(cell, rival_heart_cell) == 1
 

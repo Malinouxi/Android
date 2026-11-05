@@ -358,11 +358,12 @@ func _liberator_mission(delta: float) -> bool:
 	var prisoner := _prisoner_target
 	if position.distance_to(prisoner.position) > 20.0:
 		if path.is_empty():
-			follow_path(map.find_path(current_cell(), prisoner.prison_cell))
+			# Sa priorité : la Prison. Pas de couloir ? Il CREUSE droit vers elle.
+			follow_path(map.find_hero_path_to(current_cell(), prisoner.prison_cell))
 			if path.is_empty():
-				_prisoner_target = null # Inaccessible (pour l'instant).
+				_prisoner_target = null # Vraiment inaccessible (de la roche partout).
 				return false
-		move_along_path(delta)
+		_walk_or_dig(delta)
 		return true
 
 	# Devant la cellule : il crochète la serrure.
@@ -442,7 +443,11 @@ func _march(delta: float) -> void:
 		follow_path(map.find_hero_path(current_cell()))
 		if path.is_empty():
 			return
+	_walk_or_dig(delta)
 
+
+## Avance d'un pas sur le chemin, en creusant la case suivante si c'est de la terre.
+func _walk_or_dig(delta: float) -> void:
 	var next_cell := path[0]
 	if map.is_diggable(next_cell):
 		# La case suivante est de la terre : on creuse.

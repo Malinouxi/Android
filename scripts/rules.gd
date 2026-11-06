@@ -23,6 +23,7 @@ const CHANGELOG := [
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
 		"La roche se creuse (plus lentement) et cache parfois un trésor.",
 		"Créatures : les conditions d'arrivée comptent des salles entières (Salamandre : 1 Entraînement, Sorcier : 1 Bibliothèque, Vampire : 2 Prisons...). Sorciers, Démons, Vampires et Cerbères sont limités selon le nombre de leurs salles.",
+		"Nouveau : le Brasero (Défenses, 80 or). Son feu rouge éclaire et apaise les créatures proches. Le maître rival a ses braseros violets.",
 		"Les ouvriers désœuvrés accrochent des chandeliers aux murs des salles : ils les éclairent.",
 		"Économie : ton territoire rapporte 1 or par case à chaque paie ; les filons sont plus riches loin du cœur ; 2 gemmes inépuisables par carte. Le HUD montre la paie prévue.",
 		"La première vague laisse le temps de bâtir un Trésor, une Champignonnière et un Repaire (7 minutes au moins).",
@@ -122,6 +123,14 @@ const FIRST_WAVE_MIN := 420.0
 const DECORATION_TIME := {"rug": 6.0, "painting": 8.0, "tapestry": 10.0}
 ## Nombre maximum de décorations dans le donjon.
 const MAX_DECORATIONS := 40
+
+# --- Braseros ------------------------------------------------------------------
+## Une créature à moins de BRAZIER_RADIUS cases d'un de tes braseros gagne
+## BRAZIER_MOOD d'humeur en plus à chaque mise à jour (un seul brasero compte).
+const BRAZIER_RADIUS := 3
+const BRAZIER_MOOD := 0.6
+## Braseros violets autour du cœur du maître rival.
+const RIVAL_BRAZIERS := 2
 
 # --- Chandeliers ---------------------------------------------------------------
 ## Quand ils n'ont rien à faire, les ouvriers accrochent des CHANDELIERS aux murs

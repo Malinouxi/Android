@@ -147,6 +147,8 @@ const DECORATION_KINDS := ["rug", "painting", "tapestry"]
 ## Les CHANDELIERS accrochés aux murs des salles : case de salle -> côté du mur
 ## (une des 4 directions). Ils éclairent la salle (voir view_3d.gd).
 var candelabras: Dictionary = {}
+## Les braseros violets du maître rival : case -> true (voir _place_rival).
+var rival_braziers: Dictionary = {}
 const DECORATION_SIDES := [Vector2i.ZERO, Vector2i.UP, Vector2i.LEFT]
 ## Les tapis ne se posent que dans ces salles.
 const RUG_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LAIR, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
@@ -258,6 +260,7 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	heart_hp = HEART_MAX_HP
 	has_rival = with_rival
 	rival_claimed.clear()
+	rival_braziers.clear()
 	var avoid: Array[Vector2i] = []
 	if with_rival:
 		_place_rival(rng, rival_hp)
@@ -360,6 +363,10 @@ func _place_rival(rng: RandomNumberGenerator, max_hp: float) -> void:
 			_set_tile(cell, Tile.FLOOR)
 			rival_claimed[cell] = true
 	_set_tile(best, Tile.RIVAL_HEART)
+	# Ses braseros violets, aux coins de sa salle.
+	var corners := [Vector2i(-2, -2), Vector2i(2, 2), Vector2i(2, -2), Vector2i(-2, 2)]
+	for i in mini(Rules.RIVAL_BRAZIERS, corners.size()):
+		rival_braziers[best + corners[i]] = true
 	rival_heart_max_hp = max_hp
 	rival_heart_hp = max_hp
 	_carve_to_heart(best)
@@ -432,6 +439,7 @@ func to_save() -> Dictionary:
 		"blocks": _blocks_to_list(),
 		"decorations": _decorations_to_list(),
 		"candelabras": _candelabras_to_list(),
+		"rival_braziers": _cells_to_array_list(rival_braziers),
 	}
 
 
@@ -464,6 +472,9 @@ func load_save(data: Dictionary) -> bool:
 		blocks[_next_block] = {"room": int(values[4]), "origin": SaveGame.array_to_cell(values),
 				"size": Vector2i(int(values[2]), int(values[3])), "done": bool(values[5])}
 		_next_block += 1
+	rival_braziers.clear()
+	for values in data.get("rival_braziers", []):
+		rival_braziers[SaveGame.array_to_cell(values)] = true
 	candelabras.clear()
 	for values in data.get("candelabras", []):
 		candelabras[SaveGame.array_to_cell(values)] = DIRECTIONS[int(values[2])]
@@ -758,6 +769,7 @@ func claim(cell: Vector2i) -> void:
 	if get_tile(cell) == Tile.FLOOR:
 		claimed[cell] = true
 		rival_claimed.erase(cell) # On peut voler le territoire du rival !
+		rival_braziers.erase(cell) # ... et éteindre ses braseros.
 		reserved.erase(cell)
 		_redraw_all()
 
@@ -807,6 +819,15 @@ func _decoration_near(cell: Vector2i) -> bool:
 		for dx in range(-1, 2):
 			if decorations.has(cell + Vector2i(dx, dy)):
 				return true
+	return false
+
+
+## Vrai s'il y a un de TES braseros à moins de « radius » cases.
+func near_brazier(cell: Vector2i, radius: int) -> bool:
+	for other: Vector2i in defenses:
+		if defenses[other]["type"] == Defenses.Type.BRAZIER \
+				and maxi(absi(other.x - cell.x), absi(other.y - cell.y)) <= radius:
+			return true
 	return false
 
 

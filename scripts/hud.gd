@@ -25,7 +25,7 @@ signal tool_selected(tool: int)
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE,
-		ALTAR, SACRIFICE, GRAVEYARD }
+		ALTAR, SACRIFICE, GRAVEYARD, BRAZIER }
 
 var _top_panel: PanelContainer
 var _tool_panel: PanelContainer
@@ -87,14 +87,14 @@ const TOOL_ICON_NAMES := {
 	Tool.WORKSHOP: "anvil", Tool.TRAINING: "dummy", Tool.PRISON: "cage", Tool.TEMPLE: "temple",
 	Tool.GRAVEYARD: "tomb", Tool.SPIKES: "spikes", Tool.RUNE: "rune", Tool.DOOR: "door",
 	Tool.ALTAR: "sacrifice_altar", Tool.SPELL_HEAL: "heal", Tool.SPELL_LIGHTNING: "bolt",
-	Tool.SPELL_HASTE: "haste",
+	Tool.SPELL_HASTE: "haste", Tool.BRAZIER: "brazier",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
 	"Actions": ["pickaxe", [Tool.DIG, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
 	"Salles": ["chest", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
 			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
-	"Défenses": ["spikes", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR]],
+	"Défenses": ["spikes", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
 	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE]],
 }
 ## Vitesses de jeu proposées par le bouton « Vitesse ».

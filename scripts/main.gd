@@ -65,6 +65,7 @@ const TOOL_DEFENSES := {
 	Hud.Tool.RUNE: Defenses.Type.RUNE,
 	Hud.Tool.DOOR: Defenses.Type.DOOR,
 	Hud.Tool.ALTAR: Defenses.Type.ALTAR,
+	Hud.Tool.BRAZIER: Defenses.Type.BRAZIER,
 }
 
 ## Le monde incliné en vue isométrique (voir iso.gd) : la carte et toutes les unités.
@@ -1056,6 +1057,10 @@ func _refresh_tools() -> void:
 		_set_tool(tool, text, Rooms.display_name(room), research.is_unlocked("room", room))
 	for tool: int in TOOL_DEFENSES:
 		var defense: int = TOOL_DEFENSES[tool]
+		if Defenses.bought_with_gold(defense):
+			_set_tool(tool, "%s (%d)" % [Defenses.display_name(defense), Defenses.cost(defense)],
+					Defenses.display_name(defense), true)
+			continue
 		var text := "%s x%d" % [Defenses.display_name(defense), trap_stock[defense]]
 		var unlocked := research.is_unlocked("defense", defense)
 		if defense == Defenses.Type.ALTAR:
@@ -1363,6 +1368,14 @@ func _place_defense(cell: Vector2i, type: int) -> void:
 	if not map.can_place_defense(cell):
 		_fail("Les pièges et les portes se posent sur le sol revendiqué des couloirs.")
 		return
+	if Defenses.bought_with_gold(type):
+		# Le brasero s'achète : un ouvrier viendra l'installer.
+		if not map.spend_gold(Defenses.cost(type)):
+			_fail("Pas assez d'or : le %s coûte %d." % [Defenses.display_name(type), Defenses.cost(type)])
+			return
+		map.start_construction(cell, "defense", type)
+		Sound.play("build", map.cell_to_world(cell), -8.0)
+		return
 	if trap_stock[type] <= 0:
 		_fail("Aucun(e) %s en stock : construis un Atelier, tes créatures en fabriqueront." %
 				Defenses.display_name(type))
@@ -1382,13 +1395,20 @@ func _demolish(cell: Vector2i) -> void:
 			var stored := map.add_gold_to_treasury(refund)
 			map.heart_gold += refund - stored # Pas de place au Trésor : l'or revient au cœur.
 			map.gold_changed.emit()
+		elif Defenses.bought_with_gold(site["type"]):
+			_refund(Defenses.cost(site["type"]))
 		else:
 			trap_stock[site["type"]] += 1
 		Sound.play("build", map.cell_to_world(cell), -6.0)
 		return
 	if map.defenses.has(cell):
 		# Le piège retourne dans le stock (une porte abîmée est réparée au passage).
-		trap_stock[map.defenses[cell]["type"]] += 1
+		# Un brasero démoli rend la moitié de son prix.
+		var defense_type: int = map.defenses[cell]["type"]
+		if Defenses.bought_with_gold(defense_type):
+			_refund(Defenses.cost(defense_type) / 2)
+		else:
+			trap_stock[defense_type] += 1
 		map.remove_defense(cell)
 		Sound.play("build", map.cell_to_world(cell), -6.0)
 		return
@@ -1398,6 +1418,13 @@ func _demolish(cell: Vector2i) -> void:
 	Sound.play("build", map.cell_to_world(cell), -6.0)
 	if lost > 0:
 		hud.show_message("Plus de place dans le trésor : %d or perdu !" % lost)
+
+
+## Rend de l'or (au Trésor, ou au cœur s'il n'y a plus de place).
+func _refund(amount: int) -> void:
+	var stored := map.add_gold_to_treasury(amount)
+	map.heart_gold += amount - stored
+	map.gold_changed.emit()
 
 
 func _on_summon_pressed() -> void:

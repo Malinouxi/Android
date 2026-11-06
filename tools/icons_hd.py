@@ -291,6 +291,22 @@ def sacrifice_altar():
     return ic.finish()
 
 
+def brazier():
+    ic = Icon()
+    ic.glow((256, 200), 190, "#ff3d00")
+    # Trois pieds en fer, la vasque en pierre, et le feu rouge du cœur.
+    ic.line([(170, 450), (220, 330)], "#2a2a30", 26)
+    ic.line([(342, 450), (292, 330)], "#2a2a30", 26)
+    ic.line([(256, 460), (256, 330)], "#2a2a30", 26)
+    ic.part("polygon", [(120, 250), (392, 250), (350, 340), (162, 340)], "#7a7a84", "#2e2e34")
+    ic.part("rounded_rectangle", [104, 232, 408, 262], "#9a9aa4", "#4a4a52", radius=10)
+    ic.part("polygon", [(160, 240), (200, 130), (230, 180), (256, 60), (290, 170), (320, 120), (352, 240)],
+            "#ffab40", "#d50000", shine=False)
+    ic.part("polygon", [(210, 240), (240, 170), (256, 120), (276, 175), (304, 240)], "#fff59d", "#ff6d00",
+            outline=0, shine=False)
+    return ic.finish()
+
+
 # ---------------------------------------------------------------------------
 # Sorts et compteurs
 # ---------------------------------------------------------------------------
@@ -413,7 +429,7 @@ ICONS = {
     "spikes": spikes, "rune": rune, "door": door, "sacrifice_altar": sacrifice_altar,
     "heal": heal, "bolt": bolt, "haste": haste, "mana": mana, "blood": blood, "gold": gold,
     "skull": skull, "demon": demon, "worker": worker, "heart": heart, "hourglass": hourglass,
-    "pause": pause,
+    "pause": pause, "brazier": brazier,
 }
 
 
@@ -425,4 +441,10 @@ def make_all():
 
 
 if __name__ == "__main__":
-    make_all()
+    import sys
+    if len(sys.argv) > 1: # Seulement certaines icônes : python3 tools/icons_hd.py brazier
+        os.makedirs(OUT, exist_ok=True)
+        for name in sys.argv[1:]:
+            ICONS[name]().save(os.path.join(OUT, name + ".png"))
+    else:
+        make_all()

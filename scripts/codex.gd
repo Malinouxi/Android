@@ -167,6 +167,8 @@ func _room_img(type: int) -> String:
 
 
 func _defense_img(type: int) -> String:
+	if type == Defenses.Type.BRAZIER:
+		return _img("res://assets/icons_hd/brazier.png", TABLE_IMAGE_SIZE)
 	var texture: Texture2D = [Art.SPIKES_UP, Art.RUNE, Art.DOOR, Art.SACRIFICE_ALTAR][type]
 	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
 
@@ -285,7 +287,8 @@ func _rooms_table() -> String:
 func _defenses_table() -> String:
 	var text := "[table=4]" + _header(["", "Défense", "Fabrication (Atelier)", "Installation"])
 	for type: int in Defenses.INFO:
-		text += _cell(_defense_img(type)) + _cell(Defenses.display_name(type)) + _cell(Defenses.cost(type)) \
+		var price := ("%d or" % Defenses.cost(type)) if Defenses.bought_with_gold(type) else str(Defenses.cost(type))
+		text += _cell(_defense_img(type)) + _cell(Defenses.display_name(type)) + _cell(price) \
 				+ _cell("%d s" % roundi(Defenses.build_time(type)))
 	return text + "[/table]"
 

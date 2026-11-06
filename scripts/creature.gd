@@ -634,6 +634,9 @@ func _update_mood(delta: float) -> void:
 		change = 1.0
 	# Le prestige : un donjon bien décoré rend les créatures plus heureuses.
 	change += minf(map.decorations.size() * Rules.DECORATION_MOOD, Rules.MAX_DECORATION_MOOD)
+	# Le feu rouge du cœur : près d'un brasero, on se sent chez soi.
+	if map.near_brazier(map.world_to_cell(position), Rules.BRAZIER_RADIUS):
+		change += Rules.BRAZIER_MOOD
 	happiness = clampf(happiness + change, 0.0, 100.0)
 
 	if happiness <= 0.0:

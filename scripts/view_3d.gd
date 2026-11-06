@@ -52,6 +52,10 @@ const WALL_TOP := preload("res://assets/tiles_hd/wall_top.png")
 const FLOOR_STONE := preload("res://assets/tiles_hd/floor_stone.png")
 const TORCH_COLOR := Color(1.0, 0.58, 0.26)
 const GEM_TINT := Color(0.55, 0.75, 1.0)
+## Le feu des braseros : rouge comme ton cœur, violet pour le maître rival.
+const HEART_FIRE := Color(1.0, 0.22, 0.12)
+const RIVAL_FIRE := Color(0.7, 0.3, 1.0)
+var _brazier_lights := {} ## case -> OmniLight3D
 ## Les salles dont l'objet occupe plusieurs cases (un seul modèle par objet).
 const MULTI_CELL_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
 		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]        ## case marquée « à creuser » -> Sprite3D (une pioche)
@@ -736,6 +740,10 @@ func _cell_signature(cell: Vector2i) -> String:
 				parts.append("door")
 			Defenses.Type.SPIKES:
 				parts.append("spikes_up" if defense["flash"] > 0.0 else "spikes")
+			Defenses.Type.BRAZIER:
+				parts.append("brazier")
+	if map.rival_braziers.has(cell):
+		parts.append("brazier_rival")
 	if map.loose_gold.has(cell):
 		parts.append("gold_%d" % clampi(int(map.loose_gold[cell]) / 40, 0, 4))
 	if map.construction.has(cell):
@@ -775,12 +783,17 @@ func _update_dig_icons() -> void:
 func _rebuild_props() -> void:
 	_update_dig_icons()
 	var wanted_torches := {}
+	var wanted_braziers := {} # case -> couleur du feu
 	for y in DungeonMap.HEIGHT:
 		for x in DungeonMap.WIDTH:
 			var cell := Vector2i(x, y)
 			var sig := "" if _is_wall(cell) else _cell_signature(cell)
 			if sig.contains("torch"):
 				wanted_torches[cell] = _wall_side(cell)
+			if sig.contains("brazier_rival"):
+				wanted_braziers[cell] = RIVAL_FIRE
+			elif sig.contains("brazier"):
+				wanted_braziers[cell] = HEART_FIRE
 			if sig.contains("candelabra"):
 				wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
 			var old: Dictionary = _cell_props.get(cell, {})
@@ -822,6 +835,14 @@ func _rebuild_props() -> void:
 					model.position = Vector3(side.x, 0.0, side.y) * 0.42
 					model.rotation.y = atan2(-side.x, -side.y)
 			_cell_props[cell] = {"sig": sig, "node": holder, "anims": anims}
+	# Les lumières des braseros (rouge pour toi, violet pour le rival).
+	for cell: Vector2i in _brazier_lights.keys():
+		if wanted_braziers.get(cell) != _brazier_lights[cell].light_color:
+			_brazier_lights[cell].queue_free()
+			_brazier_lights.erase(cell)
+	for cell: Vector2i in wanted_braziers:
+		if not _brazier_lights.has(cell):
+			_brazier_lights[cell] = _light(Vector3(cell.x + 0.5, 1.1, cell.y + 0.5), wanted_braziers[cell], 6.0, 1.6)
 	# Les lumières des torches : on garde celles qui existent déjà.
 	for cell: Vector2i in _torch_lights.keys():
 		if not wanted_torches.has(cell):

@@ -543,6 +543,28 @@ static func prop(kind: String) -> Node3D:
 		box(root, Vector3(0.76, 0.9, 0.08), Vector3(0, 0.45, 0), Color("8d6e63"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.25, 0), Color("37474f"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.68, 0), Color("37474f"))
+	elif kind == "brazier" or kind == "brazier_rival":
+		# Un brasero : trois pieds en fer, une vasque de pierre et le feu du cœur
+		# (rouge pour toi, violet pour le maître rival).
+		var rival := kind == "brazier_rival"
+		var outer := Color("d500f9") if rival else Color("ff1744")
+		var inner := Color("ea80fc") if rival else Color("ffab40")
+		var iron := Color("2a2a30")
+		for i in 3:
+			var angle := TAU * i / 3.0
+			var leg := box(root, Vector3(0.06, 0.5, 0.06), Vector3(cos(angle) * 0.2, 0.25, sin(angle) * 0.2), iron)
+			leg.rotation = Vector3(sin(angle) * 0.25, 0.0, -cos(angle) * 0.25)
+		cylinder(root, 0.2, 0.34, 0.2, Vector3(0, 0.58, 0), Color("6a6a74"))
+		cylinder(root, 0.36, 0.36, 0.05, Vector3(0, 0.69, 0), Color("8a8a94"))
+		var fire := Node3D.new()
+		fire.position = Vector3(0, 0.72, 0)
+		root.add_child(fire)
+		sphere(fire, 0.2, Vector3(0, 0.08, 0), outer, true)
+		sphere(fire, 0.13, Vector3(0.06, 0.2, 0.02), outer, true)
+		sphere(fire, 0.1, Vector3(-0.02, 0.12, 0), inner, true)
+		for i in 4: # Des braises.
+			sphere(root, 0.05, Vector3(cos(i * 1.6) * 0.22, 0.71, sin(i * 1.6) * 0.22), inner, true)
+		anim["flame"] = fire
 	elif kind == "candelabra":
 		# Un chandelier mural (le support pointe vers -z, là où est le mur) :
 		# une platine, un bras en fer forgé et trois bougies.

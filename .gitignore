@@ -19,3 +19,6 @@ android/
 # APK construit localement ou par GitHub Actions
 build/
 __pycache__/
+
+# Textures extraites des modèles .glb par l'import de Godot (recréées à chaque import)
+assets/models/**/*_tex_*.png

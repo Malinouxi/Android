@@ -313,6 +313,38 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout reconstruire : `blender --background --python tools/blender/build_all.py`. Construire un
   personnage remplace dans Blender la scène du précédent (les noms des pivots doivent rester uniques).
 
+**Étape 34 — Salles et ambiance d'après l'image de référence**
+- Le mobilier des salles est refait en low-poly **texturé** (textures peintes calculées par
+  `tools/blender/textures.py` : pierre, dalles, planches, bois, fer, or, tissu, paille, cuir, bave) :
+  Trésor couvert d'or avec coffres, calice et idole dorée, cellules de prison avec chaînes et ossements,
+  lits à fourrure, champignons lumineux, tombes, forge, arène, temple.
+- La **Bibliothèque devient un laboratoire d'alchimie** : chaudron bouillonnant vert sur son feu,
+  alambic à cuve lumineuse, établi couvert de fioles, rayonnage de grimoires, flaque de bave.
+- **Salle du trône** au cœur (`rooms/throne.glb`) : estrade à marches, tapis rouge, trône à tête de
+  démon cornu, bassins de lave, braseros, bannières. Le cœur flotte devant la gueule du démon.
+- **Murs en remparts** : gros moellons (`tiles_hd/wall_stone.png`), plinthe, corniche et merlons
+  (`_rampart` dans `view_3d.gd`) ; sol des salles en dalles (`floor_stone.png`) ; **bannières au
+  trident** le long des couloirs ; torches murales et sur pied en low-poly.
+- **Ambiance** : pénombre plus profonde avec une brume sombre, une lumière colorée par salle (or au
+  Trésor, vert au laboratoire et au Temple, orange à la forge), lave au trône. Jusqu'à 24 lumières par
+  objet (`project.godot`, `limits/opengl`).
+- Les parties animées sont des pivots nommés `flame_*` (flammes, braises, bulles), `sway_*`
+  (mannequins) et `wisp` (feu follet). Script : `tools/blender/rooms.py`.
+
+**Étape 32 — Personnages modélisés dans Blender**
+- Les 24 personnages passent du modèle en blocs à un modèle **low-poly** fait dans Blender, exporté en
+  `assets/models/<sprite>.glb` (300 à 1 300 triangles, ombrage plat). S'il existe, `VoxelModels.character`
+  le charge à la place du modèle en blocs (supprimer un `.glb` fait revenir le modèle en blocs).
+- Pas de squelette : des pièces rigides accrochées aux mêmes pivots que les modèles en blocs (`body`,
+  `leg_*`, `arm_l`, `arm_r`, `weapon`, `head`, `wing_l`, `wing_r`, `tail`), que `view_3d.gd` anime comme
+  avant. La teinte des troupes rivales et la transparence de la Voleuse marchent aussi.
+- Les modèles sont construits par des scripts Python pour Blender (`tools/blender/`) :
+  `lowpoly.py` (briques : tubes, cônes, plaques, pivots, export), `humanoid.py` (le corps commun, les
+  couvre-chefs et les armes), `cast.py` (les fiches de 19 humanoïdes et leurs détails), `beasts.py`
+  (Araignée, Chauve-souris, Cerbère), `demon.py` et `knight.py` (faits à la main).
+- Tout reconstruire : `blender --background --python tools/blender/build_all.py`. Construire un
+  personnage remplace dans Blender la scène du précédent (les noms des pivots doivent rester uniques).
+
 **Étape 33 — Salles modélisées dans Blender**
 - Le mobilier des salles passe aussi en low-poly (`assets/models/rooms/<nom>.glb`) : lit (Repaire),
   champignons 1 à 3 (Champignonnière), cellule (Prison), tombe vide ou occupée (Cimetière), Trésor 1 x 2

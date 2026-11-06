@@ -45,13 +45,43 @@ def new_scene(name):
     return scene
 
 
-def material(name, color, emission=0.0, double_sided=False):
-    """Un matériau mat (couleur « rrggbb »). emission > 0 : il brille (yeux, orbes)."""
+def material(name, color, emission=0.0, double_sided=False, texture=None):
+    """Un matériau mat (couleur « rrggbb »). emission > 0 : il brille (yeux, orbes).
+
+    « texture » : le nom d'une texture peinte de textures.py (stone, planks, gold...),
+    multipliée par la couleur. Les UV sont calculés par Part.finish.
+    """
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.use_nodes = True
     rgba = _srgb_to_linear(color)
-    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    nodes = mat.node_tree.nodes
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    for node in [n for n in nodes if n.type in ("TEX_IMAGE", "MIX")]:
+        nodes.remove(node)
     bsdf.inputs["Base Color"].default_value = rgba
+    if texture:
+        import textures
+        image_node = nodes.new("ShaderNodeTexImage")
+        image_node.image = textures.blender_image(texture)
+        mix = nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        mix.blend_type = "MULTIPLY"
+        mix.inputs[0].default_value = 1.0
+        # La texture assombrit (sa moyenne est < 1) : on éclaircit la couleur d'autant.
+        boost = 1.0 / textures.linear_mean(texture)
+        mix.inputs[7].default_value = tuple(min(1.0, c * boost) for c in rgba[:3]) + (1.0,)
+        links = mat.node_tree.links
+        links.new(image_node.outputs["Color"], mix.inputs[6])
+        links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+        mat["uv_tile"] = textures.TILE[texture]
+        if emission > 0.0:
+            # Une lueur texturée (lave, bave, or) : une image déjà teintée, branchée
+            # directement sur l'émission (c'est ce que l'export glTF sait lire).
+            glow_node = nodes.new("ShaderNodeTexImage")
+            glow_node.image = textures.blender_image(texture, tint=color)
+            links.new(glow_node.outputs["Color"], bsdf.inputs["Emission Color"])
+    elif "uv_tile" in mat:
+        del mat["uv_tile"]
     bsdf.inputs["Roughness"].default_value = 0.85
     if emission > 0.0:
         bsdf.inputs["Emission Color"].default_value = rgba
@@ -201,10 +231,32 @@ class Part:
             mesh.materials.append(mat)
         for poly in mesh.polygons:
             poly.use_smooth = False
+        if any("uv_tile" in mat for mat in self.materials):
+            _box_uv(mesh)
         obj = bpy.data.objects.new(self.name, mesh)
         self.scene.collection.objects.link(obj)
         obj.parent = self.parent
         return obj
+
+
+def _box_uv(mesh):
+    """Des UV « en boîte » : chaque face est projetée sur le plan de son axe principal,
+    à l'échelle de la texture de son matériau (une répétition = uv_tile mètres)."""
+    layer = mesh.uv_layers.new(name="UVMap")
+    for poly in mesh.polygons:
+        mat = mesh.materials[poly.material_index]
+        tile = mat.get("uv_tile", 1.0) if mat else 1.0
+        n = poly.normal
+        axis = max(range(3), key=lambda i: abs(n[i]))
+        for loop_index in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[loop_index].vertex_index].co
+            if axis == 2:
+                u, v = co.x, co.y
+            elif axis == 1:
+                u, v = co.x, co.z
+            else:
+                u, v = co.y, co.z
+            layer.data[loop_index].uv = (u / tile, v / tile)
 
 
 def mirrored(points, side):

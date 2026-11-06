@@ -38,3 +38,7 @@ renderer/rendering_method.mobile="gl_compatibility"
 ; Pixel art : on agrandit les images sans les flouter.
 textures/canvas_textures/default_texture_filter=0
 textures/vram_compression/import_etc2_astc=true
+; Les salles ont chacune leur lumière, en plus des torches : on en autorise plus
+; par objet (8 par défaut) et dans toute la vue (32 par défaut).
+limits/opengl/max_lights_per_object=24
+limits/opengl/max_renderable_lights=128

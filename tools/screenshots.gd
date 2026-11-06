@@ -85,6 +85,31 @@ func _run() -> void:
 	await _frames(25)
 	_shot("07_missions")
 
+	# Les salles meublées : on creuse trois salles à gauche du cœur et on les construit.
+	var plans := [[Vector2i(-11, -2), Vector2i(4, 3), 4], [Vector2i(-11, 2), Vector2i(2, 4), 6],
+			[Vector2i(-8, 2), Vector2i(2, 2), 1], [Vector2i(-11, -5), Vector2i(3, 2), 8]]
+	for plan in plans:
+		for dy in plan[1].y:
+			for dx in plan[1].x:
+				var cell: Vector2i = heart + plan[0] + Vector2i(dx, dy)
+				if not map_node.is_inside(cell):
+					continue
+				var guard := 0
+				while map_node.is_diggable(cell) and guard < 20:
+					map_node.dig(cell)
+					guard += 1
+				if map_node.get_tile(cell) == 3: # DungeonMap.Tile.FLOOR
+					map_node.claimed[cell] = true
+					map_node.build_room(cell, plan[2]) # 4 = Bibliothèque, 6 = Entraînement, 1 = Trésor, 8 = Temple
+	map_node.add_gold_to_treasury(600)
+	print("ÉTAPE salles : objets posés = ", map_node.furniture.size())
+	var view: Node = game.get("_view3d")
+	if view != null:
+		view.center_on(map_node.cell_to_world(heart + Vector2i(-9, 0)))
+		view.set_zoom(1.7)
+	await _frames(40)
+	_shot("08_salles")
+
 	var hud := game.get_node("HUD")
 	hud.codex_pressed.emit()
 	await _frames(20)

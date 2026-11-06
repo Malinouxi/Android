@@ -160,21 +160,58 @@ static func pivot(parent: Node3D, at: Vector3, pivot_name: String) -> Node3D:
 ## Le modèle regarde vers +z ; ses pivots sont rangés dans les métadonnées
 ## « rig » : {"legs": [...], "arms": [gauche, droit], "wings": [...], "tail": ...}.
 static func character(sprite: String, tint := Color.WHITE, alpha := 1.0) -> Node3D:
-	var root := Node3D.new()
-	var body := pivot(root, Vector3.ZERO, "body")
-	var rig := {"body": body, "legs": [], "arms": [], "wings": [], "tail": null, "kind": "humanoid"}
-	match sprite:
-		"spider":
-			_spider(body, rig)
-		"bat":
-			_bat(body, rig)
-		"cerberus":
-			_cerberus(body, rig)
-		_:
-			_humanoid(body, rig, CHARACTERS.get(sprite, CHARACTERS["worker"]))
-	root.set_meta("rig", rig)
+	var root := _blender_character(sprite)
+	if root == null:
+		root = Node3D.new()
+		var body := pivot(root, Vector3.ZERO, "body")
+		var rig := {"body": body, "legs": [], "arms": [], "wings": [], "tail": null, "kind": "humanoid"}
+		match sprite:
+			"spider":
+				_spider(body, rig)
+			"bat":
+				_bat(body, rig)
+			"cerberus":
+				_cerberus(body, rig)
+			_:
+				_humanoid(body, rig, CHARACTERS.get(sprite, CHARACTERS["worker"]))
+		root.set_meta("rig", rig)
 	if tint != Color.WHITE or alpha < 1.0:
 		_recolor(root, tint, alpha)
+	return root
+
+
+## Les modèles low-poly faits dans Blender (scripts de tools/blender/) : s'il
+## existe assets/models/<sprite>.glb, il remplace le modèle en blocs. Ses pivots
+## portent les mêmes noms : body, leg_*, arm_l, arm_r, wing_l, wing_r, tail.
+const BLENDER_MODELS := "res://assets/models/%s.glb"
+## Le genre de squelette des bêtes (pour les animer comme leur modèle en blocs).
+const RIG_KINDS := {"spider": "spider", "bat": "bat", "cerberus": "quadruped"}
+## Les modèles déjà chargés : sprite -> PackedScene (ou null s'il n'y en a pas).
+static var _blender_scenes := {}
+
+
+static func _blender_character(sprite: String) -> Node3D:
+	if not _blender_scenes.has(sprite):
+		var path := BLENDER_MODELS % sprite
+		_blender_scenes[sprite] = load(path) if ResourceLoader.exists(path) else null
+	var scene: PackedScene = _blender_scenes[sprite]
+	if scene == null:
+		return null
+	var root := scene.instantiate() as Node3D
+	var body := root.get_node("body") as Node3D
+	var rig := {"body": body, "legs": [], "arms": [], "wings": [], "tail": body.get_node_or_null("tail"),
+			"kind": RIG_KINDS.get(sprite, "humanoid")}
+	for child in body.get_children():
+		if String(child.name).begins_with("leg"):
+			rig["legs"].append(child)
+	rig["legs"].sort_custom(func(a: Node, b: Node) -> bool: return String(a.name) < String(b.name))
+	for pivot_name in ["arm_l", "arm_r"]:
+		if body.has_node(pivot_name):
+			rig["arms"].append(body.get_node(pivot_name))
+	for pivot_name in ["wing_l", "wing_r"]:
+		if body.has_node(pivot_name):
+			rig["wings"].append(body.get_node(pivot_name))
+	root.set_meta("rig", rig)
 	return root
 
 
@@ -186,6 +223,17 @@ static func _recolor(node: Node, tint: Color, alpha: float) -> void:
 			var old: StandardMaterial3D = part.material_override
 			var color := old.albedo_color * Color(tint.r, tint.g, tint.b)
 			part.material_override = material(color.clamp(), old.emission_enabled, alpha)
+		elif part != null and part.mesh != null:
+			# Un modèle Blender : ses matériaux sont dans le maillage (un par surface).
+			for i in part.mesh.get_surface_count():
+				var old := part.get_active_material(i) as BaseMaterial3D
+				if old == null:
+					continue
+				var copy := old.duplicate() as BaseMaterial3D
+				copy.albedo_color = Color((old.albedo_color * Color(tint.r, tint.g, tint.b)).clamp(), alpha)
+				if alpha < 1.0:
+					copy.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				part.set_surface_override_material(i, copy)
 		_recolor(child, tint, alpha)
 
 

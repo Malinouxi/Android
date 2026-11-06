@@ -299,6 +299,20 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
 - Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
+**Étape 32 — Personnages modélisés dans Blender**
+- Les 24 personnages passent du modèle en blocs à un modèle **low-poly** fait dans Blender, exporté en
+  `assets/models/<sprite>.glb` (300 à 1 300 triangles, ombrage plat). S'il existe, `VoxelModels.character`
+  le charge à la place du modèle en blocs (supprimer un `.glb` fait revenir le modèle en blocs).
+- Pas de squelette : des pièces rigides accrochées aux mêmes pivots que les modèles en blocs (`body`,
+  `leg_*`, `arm_l`, `arm_r`, `weapon`, `head`, `wing_l`, `wing_r`, `tail`), que `view_3d.gd` anime comme
+  avant. La teinte des troupes rivales et la transparence de la Voleuse marchent aussi.
+- Les modèles sont construits par des scripts Python pour Blender (`tools/blender/`) :
+  `lowpoly.py` (briques : tubes, cônes, plaques, pivots, export), `humanoid.py` (le corps commun, les
+  couvre-chefs et les armes), `cast.py` (les fiches de 19 humanoïdes et leurs détails), `beasts.py`
+  (Araignée, Chauve-souris, Cerbère), `demon.py` et `knight.py` (faits à la main).
+- Tout reconstruire : `blender --background --python tools/blender/build_all.py`. Construire un
+  personnage remplace dans Blender la scène du précédent (les noms des pivots doivent rester uniques).
+
 **Étape 31 — Salles à objets, pierre taillée, interface HD**
 - Chaque salle se couvre automatiquement d'**objets de plusieurs cases** (`footprint` dans `rooms.gd`,
   `_refurnish` dans `dungeon_map.gd`) : coffre 1 x 2, rayonnages 2 x 3, forge 2 x 2, arène 2 x 4, autel
@@ -458,6 +472,7 @@ assets/                    Les images PNG (pixel art 32 x 32) et les sons WAV (a
 tools/generate_art.py      Lance la génération de toutes les images
 tools/art32.py             Les dessins en 32 x 32 (tuiles, personnages, objets, icônes)
 tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
+tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb)
 ```
 
 Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau

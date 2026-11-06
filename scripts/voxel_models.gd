@@ -543,6 +543,19 @@ static func prop(kind: String) -> Node3D:
 		box(root, Vector3(0.76, 0.9, 0.08), Vector3(0, 0.45, 0), Color("8d6e63"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.25, 0), Color("37474f"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.68, 0), Color("37474f"))
+	elif kind == "candelabra":
+		# Un chandelier mural (le support pointe vers -z, là où est le mur) :
+		# une platine, un bras en fer forgé et trois bougies.
+		var iron := Color("3a3a40")
+		box(root, Vector3(0.14, 0.24, 0.03), Vector3(0, 1.0, -0.38), iron)
+		box(root, Vector3(0.04, 0.04, 0.3), Vector3(0, 0.92, -0.24), iron)
+		box(root, Vector3(0.44, 0.04, 0.04), Vector3(0, 0.92, -0.1), iron)
+		for x in [-0.2, 0.0, 0.2]:
+			cylinder(root, 0.05, 0.04, 0.03, Vector3(x, 0.95, -0.1), Color("8d6e3a"))
+		var spots := [Vector3(-0.2, 0.96, -0.1), Vector3(0.0, 1.02, -0.1), Vector3(0.2, 0.96, -0.1)]
+		anim["flames"] = _candles(root, spots, Color("efe6d0"), Color("ffb74d"))
+		for flame: Node3D in anim["flames"]:
+			sphere(flame, 0.035, Vector3.ZERO, Color("ffee58"), true)
 	elif kind == "wall_torch":
 		# Une torche fixée au mur (le support pointe vers -z, là où est le mur).
 		box(root, Vector3(0.06, 0.06, 0.3), Vector3(0, 0.95, -0.15), Color("37474f"))

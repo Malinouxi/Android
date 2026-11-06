@@ -23,6 +23,7 @@ const CHANGELOG := [
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
 		"La roche se creuse (plus lentement) et cache parfois un trésor.",
 		"Créatures : les conditions d'arrivée comptent des salles entières (Salamandre : 1 Entraînement, Sorcier : 1 Bibliothèque, Vampire : 2 Prisons...). Sorciers, Démons, Vampires et Cerbères sont limités selon le nombre de leurs salles.",
+		"Les ouvriers désœuvrés accrochent des chandeliers aux murs des salles : ils les éclairent.",
 		"Économie : ton territoire rapporte 1 or par case à chaque paie ; les filons sont plus riches loin du cœur ; 2 gemmes inépuisables par carte. Le HUD montre la paie prévue.",
 		"La première vague laisse le temps de bâtir un Trésor, une Champignonnière et un Repaire (7 minutes au moins).",
 	]},
@@ -121,6 +122,13 @@ const FIRST_WAVE_MIN := 420.0
 const DECORATION_TIME := {"rug": 6.0, "painting": 8.0, "tapestry": 10.0}
 ## Nombre maximum de décorations dans le donjon.
 const MAX_DECORATIONS := 40
+
+# --- Chandeliers ---------------------------------------------------------------
+## Quand ils n'ont rien à faire, les ouvriers accrochent des CHANDELIERS aux murs
+## des salles (avant les autres décorations) : ils éclairent la salle.
+const CANDELABRA_TIME := 7.0      ## Secondes de travail pour en poser un.
+const MAX_CANDELABRAS := 30       ## Au plus (chaque chandelier est une lumière).
+const CANDELABRA_SPACING := 2     ## Pas d'autre chandelier à moins de 2 cases.
 ## Humeur gagnée chaque seconde par les créatures, par décoration (le « prestige »)...
 const DECORATION_MOOD := 0.05
 ## ... sans dépasser ce bonus.

@@ -144,6 +144,9 @@ var construction: Dictionary = {}
 ## ou Vector2i.ZERO pour un tapis.
 var decorations: Dictionary = {}
 const DECORATION_KINDS := ["rug", "painting", "tapestry"]
+## Les CHANDELIERS accrochés aux murs des salles : case de salle -> côté du mur
+## (une des 4 directions). Ils éclairent la salle (voir view_3d.gd).
+var candelabras: Dictionary = {}
 const DECORATION_SIDES := [Vector2i.ZERO, Vector2i.UP, Vector2i.LEFT]
 ## Les tapis ne se posent que dans ces salles.
 const RUG_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LAIR, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
@@ -273,6 +276,7 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	furniture.clear()
 	cell_furniture.clear()
 	blocks.clear()
+	candelabras.clear()
 	food.clear()
 	beds.clear()
 	defenses.clear()
@@ -427,6 +431,7 @@ func to_save() -> Dictionary:
 		"construction": _construction_to_list(),
 		"blocks": _blocks_to_list(),
 		"decorations": _decorations_to_list(),
+		"candelabras": _candelabras_to_list(),
 	}
 
 
@@ -459,6 +464,9 @@ func load_save(data: Dictionary) -> bool:
 		blocks[_next_block] = {"room": int(values[4]), "origin": SaveGame.array_to_cell(values),
 				"size": Vector2i(int(values[2]), int(values[3])), "done": bool(values[5])}
 		_next_block += 1
+	candelabras.clear()
+	for values in data.get("candelabras", []):
+		candelabras[SaveGame.array_to_cell(values)] = DIRECTIONS[int(values[2])]
 	construction.clear()
 	for values in data.get("construction", []):
 		var kind: String = "room" if int(values[2]) == 0 else "defense"
@@ -507,6 +515,14 @@ func load_save(data: Dictionary) -> bool:
 	gold_changed.emit()
 	_redraw_all()
 	return true
+
+
+## Les chandeliers -> [[x, y, numéro de la direction du mur], ...]
+func _candelabras_to_list() -> Array:
+	var result := []
+	for cell: Vector2i in candelabras:
+		result.append([cell.x, cell.y, DIRECTIONS.find(candelabras[cell])])
+	return result
 
 
 ## Les décorations -> [[x, y, numéro de la sorte, numéro du côté], ...]
@@ -681,6 +697,9 @@ func dig(cell: Vector2i) -> Dictionary:
 			decorations.erase(cell + Vector2i.DOWN)
 		if decorations.get(cell + Vector2i.RIGHT, {}).get("side") == Vector2i.LEFT:
 			decorations.erase(cell + Vector2i.RIGHT)
+		for direction in DIRECTIONS: # ... et les chandeliers aussi.
+			if candelabras.get(cell - direction) == direction:
+				candelabras.erase(cell - direction)
 	_redraw_all()
 	return {"finished": finished, "gold": gold}
 
@@ -791,9 +810,58 @@ func _decoration_near(cell: Vector2i) -> bool:
 	return false
 
 
+## Le mur où accrocher un chandelier sur une case de salle, ou ZERO.
+func _candelabra_side(cell: Vector2i) -> Vector2i:
+	if not rooms.has(cell) or candelabras.has(cell) or construction.has(cell):
+		return Vector2i.ZERO
+	var side := Vector2i.ZERO
+	for direction in DIRECTIONS:
+		if _is_wall(cell + direction) and is_inside(cell + direction):
+			side = direction
+			break
+	if side == Vector2i.ZERO:
+		return side
+	var spacing := Rules.CANDELABRA_SPACING
+	for dy in range(-spacing, spacing + 1):
+		for dx in range(-spacing, spacing + 1):
+			if candelabras.has(cell + Vector2i(dx, dy)):
+				return Vector2i.ZERO
+	return side
+
+
+## Le chantier du chandelier le plus proche (les salles d'abord, voir find_decorate_job).
+func _find_candelabra_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+	if candelabras.size() >= Rules.MAX_CANDELABRAS:
+		return {}
+	var candidates: Array[Vector2i] = []
+	for cell: Vector2i in rooms:
+		if reserved.get(cell, worker) == worker and _candelabra_side(cell) != Vector2i.ZERO:
+			candidates.append(cell)
+	var best := _find_nearest_reachable(candidates, from_cell)
+	if best.is_empty():
+		return best
+	best["type"] = "decorate"
+	best["kind"] = "candelabra"
+	best["side"] = _candelabra_side(best["target"])
+	release_jobs(worker)
+	reserved[best["target"]] = worker
+	return best
+
+
+## La décoration prévue peut-elle encore être posée sur cette case ?
+func decoration_still_free(cell: Vector2i, kind: String) -> bool:
+	if kind == "candelabra":
+		return not candelabras.has(cell)
+	return not decorations.has(cell)
+
+
 ## Pour un ouvrier sans travail : la case à décorer la plus proche.
 ## Renvoie aussi la sorte de décoration choisie ("kind") et son côté ("side").
+## Les chandeliers des salles passent avant le reste.
 func find_decorate_job(worker: Node, from_cell: Vector2i) -> Dictionary:
+	var candelabra := _find_candelabra_job(worker, from_cell)
+	if not candelabra.is_empty():
+		return candelabra
 	if decorations.size() >= Rules.MAX_DECORATIONS:
 		return {}
 	var candidates: Array[Vector2i] = []
@@ -819,6 +887,11 @@ func find_decorate_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 ## L'ouvrier a fini : la décoration est posée.
 func add_decoration(cell: Vector2i, kind: String, side: Vector2i) -> void:
 	reserved.erase(cell)
+	if kind == "candelabra":
+		if _is_wall(cell + side):
+			candelabras[cell] = side
+		_redraw_all()
+		return
 	decorations[cell] = {"kind": kind, "side": side}
 	_redraw_all()
 

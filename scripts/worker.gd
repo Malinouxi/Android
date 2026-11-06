@@ -150,7 +150,7 @@ func _arrive() -> void:
 		_dig_timer = CLAIM_TIME
 	elif job["type"] == "decorate":
 		state = State.DECORATING
-		_craft_left = Rules.DECORATION_TIME[job["kind"]]
+		_craft_left = Rules.CANDELABRA_TIME if job["kind"] == "candelabra" else Rules.DECORATION_TIME[job["kind"]]
 		_dig_timer = DIG_INTERVAL
 	elif job["type"] == "build":
 		state = State.BUILDING
@@ -266,7 +266,7 @@ func _job_still_valid() -> bool:
 	if job["type"] == "pickup":
 		return map.loose_gold.has(job["target"])
 	if job["type"] == "decorate":
-		return map.reserved.get(job["target"]) == self and not map.decorations.has(job["target"])
+		return map.reserved.get(job["target"]) == self and map.decoration_still_free(job["target"], job["kind"])
 	if job["type"] == "build":
 		return map.construction.has(job["target"]) and map.construction[job["target"]]["worker"] == self
 	return map.get_room(job["target"]) == Rooms.Type.TREASURY

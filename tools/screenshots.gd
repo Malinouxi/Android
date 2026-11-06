@@ -114,6 +114,12 @@ func _run() -> void:
 				if site.get("block", -1) == id:
 					site["left"] = site["total"] * (1.0 - plan[3])
 			map_node._redraw_all()
+	# Les chandeliers que les ouvriers accrochent d'habitude quand ils n'ont rien à faire.
+	for cell: Vector2i in map_node.rooms.keys():
+		var side: Vector2i = map_node._candelabra_side(cell)
+		if side != Vector2i.ZERO:
+			map_node.add_decoration(cell, "candelabra", side)
+	print("ÉTAPE salles : chandeliers = ", map_node.candelabras.size())
 	map_node.add_gold_to_treasury(600)
 	print("ÉTAPE salles : objets posés = ", map_node.furniture.size(), ", blocs = ", map_node.blocks.size())
 	var view: Node = game.get("_view3d")

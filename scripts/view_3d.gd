@@ -719,6 +719,8 @@ func _cell_signature(cell: Vector2i) -> String:
 				parts.append("prison")
 			Rooms.Type.GRAVEYARD:
 				parts.append("tomb_full" if map.graves.has(cell) else "tomb_empty")
+	if map.candelabras.has(cell):
+		parts.append("candelabra")
 	if map.torch_cells.has(cell) and not map.rooms.has(cell) and not map.defenses.has(cell):
 		parts.append("wall_torch" if _wall_side(cell) != Vector2i.ZERO else "torch")
 	elif map.claimed.has(cell) and not map.rooms.has(cell) and not map.defenses.has(cell) \
@@ -778,7 +780,9 @@ func _rebuild_props() -> void:
 			var cell := Vector2i(x, y)
 			var sig := "" if _is_wall(cell) else _cell_signature(cell)
 			if sig.contains("torch"):
-				wanted_torches[cell] = true
+				wanted_torches[cell] = _wall_side(cell)
+			if sig.contains("candelabra"):
+				wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
 			var old: Dictionary = _cell_props.get(cell, {})
 			if old.get("sig", "") == sig:
 				continue
@@ -807,6 +811,11 @@ func _rebuild_props() -> void:
 					# Portes et entrées : dans l'axe du couloir.
 					if _is_wall(cell + Vector2i.UP) and _is_wall(cell + Vector2i.DOWN):
 						model.rotation.y = PI / 2
+				elif kind == "candelabra":
+					# Accroché au mur choisi par l'ouvrier.
+					var wall: Vector2i = map.candelabras[cell]
+					model.position = Vector3(wall.x, 0.0, wall.y) * 0.42
+					model.rotation.y = atan2(-wall.x, -wall.y)
 				elif kind == "wall_torch" or kind == "banner":
 					# Accroché au mur voisin (le support part vers le mur).
 					var side := _wall_side(cell)
@@ -820,7 +829,7 @@ func _rebuild_props() -> void:
 			_torch_lights.erase(cell)
 	for cell: Vector2i in wanted_torches:
 		if not _torch_lights.has(cell):
-			var side := _wall_side(cell)
+			var side: Vector2i = wanted_torches[cell]
 			var at := Vector3(cell.x + 0.5 + side.x * 0.3, 1.2, cell.y + 0.5 + side.y * 0.3)
 			_torch_lights[cell] = _light(at, TORCH_COLOR, 5.0, 1.1)
 

@@ -97,7 +97,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
-          xvfb-run -a -s "-screen 0 1280x720x24" timeout 120 ./godot --path . \
+          xvfb-run -a -s "-screen 0 1280x720x24" timeout 600 ./godot --path . \
             --rendering-driver opengl3 --resolution 1280x720 -s res://tools/screenshots.gd 2>&1 | tee screenshots.log
           echo "----- Étapes -----"
           grep -E "ÉTAPE|CAPTURE" screenshots.log || true

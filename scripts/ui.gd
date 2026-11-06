@@ -5,16 +5,22 @@ extends Node
 ## (Button, PanelContainer, Label...). On le pose sur la fenêtre principale :
 ## tous les écrans du jeu (menus, interface en jeu) l'utilisent automatiquement.
 ##
-## La police est « Pixelify Sans » (licence libre OFL, voir assets/fonts/OFL.txt).
+## Le thème « Seigneur des Profondeurs » : pierre volcanique, liserés de braise, or.
+## Polices (licence libre OFL, voir assets/fonts/) :
+##   - Alegreya pour les textes (lisible, avec de beaux accents) ;
+##   - Cinzel pour les titres (des capitales gravées dans la pierre).
 
-const FONT := preload("res://assets/fonts/PixelifySans-Regular.ttf")
+const FONT := preload("res://assets/fonts/Alegreya.ttf")
+const TITLE_FONT := preload("res://assets/fonts/Cinzel.ttf")
+const EMBER := Color("c2410c")   ## Le liseré de braise des cadres.
+const BLOOD := Color("8b1a1a")
 
 const TEXT_COLOR := Color("efe6d8")
 const GOLD := Color("ffd54a")
-const STONE := Color("3e3530")
-const STONE_LIGHT := Color("54483f")
-const STONE_DARK := Color("1d1916")
-const WOOD := Color("6d4c41")
+const STONE := Color("2b2220")
+const STONE_LIGHT := Color("3d2f2b")
+const STONE_DARK := Color("140f0e")
+const WOOD := Color("7a2e1c")
 
 
 func _ready() -> void:
@@ -22,18 +28,17 @@ func _ready() -> void:
 
 
 func build_theme() -> Theme:
-	# Police nette, sans lissage : elle reste « pixel » comme les images du jeu.
-	# (On passe par une variable : Godot interdit de modifier une constante.)
-	var font: FontFile = FONT
-	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	# Une version un peu plus grasse de la police, plus lisible sur un petit écran.
+	var font := FontVariation.new()
+	font.base_font = FONT
+	font.variation_opentype = {"wght": 560}
 
 	var theme := Theme.new()
 	theme.default_font = font
-	theme.default_font_size = 18
+	theme.default_font_size = 24
 
-	# Les panneaux : fond sombre, bordure de bois.
-	theme.set_stylebox("panel", "PanelContainer", _box(Color(0.11, 0.09, 0.08, 0.92), WOOD, 2, 8))
+	# Les panneaux : pierre volcanique, liseré de braise.
+	theme.set_stylebox("panel", "PanelContainer", _box(Color(0.07, 0.05, 0.05, 0.94), EMBER.darkened(0.3), 3, 10))
 
 	# Les boutons : des dalles de pierre avec un bord inférieur plus épais (effet de relief).
 	theme.set_stylebox("normal", "Button", _box(STONE, WOOD, 2, 6, 4, true))
@@ -51,7 +56,7 @@ func build_theme() -> Theme:
 	theme.set_color("font_disabled_color", "Button", Color("7a6f66"))
 	theme.set_color("icon_disabled_color", "Button", Color(1, 1, 1, 0.35))
 	theme.set_constant("h_separation", "Button", 8) # Espace entre l'icône et le texte.
-	theme.set_constant("icon_max_width", "Button", 34)
+	theme.set_constant("icon_max_width", "Button", 48)
 
 	theme.set_color("font_color", "Label", TEXT_COLOR)
 	theme.set_color("font_shadow_color", "Label", Color(0, 0, 0, 0.6))
@@ -85,3 +90,11 @@ func _box(background: Color, border: Color, border_width: int, margin: int, bott
 	box.content_margin_top = margin * 0.6
 	box.content_margin_bottom = margin * 0.6
 	return box
+
+
+## La police des titres (Cinzel), un peu grasse.
+func title_font() -> FontVariation:
+	var font := FontVariation.new()
+	font.base_font = TITLE_FONT
+	font.variation_opentype = {"wght": 700}
+	return font

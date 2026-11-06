@@ -172,6 +172,7 @@ func _build_ui() -> void:
 
 	var title := _make_label("Seigneur\ndes Profondeurs", 44, Color("e53935"), 12)
 	title.add_theme_color_override("font_outline_color", Color("2a0505"))
+	title.add_theme_font_override("font", Ui.title_font())
 	column.add_child(title)
 	column.add_child(_make_label("Creuse, bâtis, et défends ton cœur contre les héros.", 16, Color("d7ccc8"), 6))
 
@@ -202,7 +203,7 @@ func _build_ui() -> void:
 	if not save.is_empty():
 		column.add_child(_make_label("Dernière sauvegarde : %s" % save.get("summary", {}).get("date", "?"),
 				14, Color("a1887f"), 4))
-	column.add_child(_make_label("Fait avec Godot  -  Police Pixelify Sans (OFL)", 13, Color("8d7f74"), 4))
+	column.add_child(_make_label("Fait avec Godot  -  Polices Cinzel et Alegreya (OFL)", 13, Color("8d7f74"), 4))
 
 	_settings_overlay = _make_settings_overlay()
 	root.add_child(_settings_overlay)

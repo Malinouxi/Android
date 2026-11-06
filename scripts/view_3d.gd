@@ -43,7 +43,14 @@ var _flat_materials := {}   ## Couleur -> matériau sans ombrage (barres, cercle
 var _cell_props := {}       ## case -> {"sig": texte, "node": Node3D, "anims": [...]}
 var _units := {}            ## Unit -> données de son modèle (voir _make_unit)
 var _torch_lights := {}     ## case -> OmniLight3D
-var _dig_icons := {}        ## case marquée « à creuser » -> Sprite3D (une pioche)
+var _dig_icons := {}
+const BRICK_WALL := preload("res://assets/tiles_hd/brick_wall.png")
+const WALL_CAP := preload("res://assets/tiles_hd/wall_cap.png")
+const COBBLES := [preload("res://assets/tiles_hd/cobble_0.png"), preload("res://assets/tiles_hd/cobble_1.png")]
+const TORCH_COLOR := Color(1.0, 0.58, 0.26)
+## Les salles dont l'objet occupe plusieurs cases (un seul modèle par objet).
+const MULTI_CELL_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
+		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]        ## case marquée « à creuser » -> Sprite3D (une pioche)
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 var _effect_discs: Array[MeshInstance3D] = []
 var _heart: MeshInstance3D
@@ -242,7 +249,7 @@ func _process(delta: float) -> void:
 		_rival_heart.rotation.y -= delta * 0.8
 	for cell: Vector2i in _torch_lights:
 		var t := _time + cell.x * 1.7 + cell.y * 2.3
-		_torch_lights[cell].light_energy = 1.2 + 0.25 * sin(t * 9.0) + 0.1 * sin(t * 23.0)
+		_torch_lights[cell].light_energy = 1.5 + 0.3 * sin(t * 9.0) + 0.12 * sin(t * 23.0)
 
 
 ## Un matériau sans ombrage (qui ne dépend pas de la lumière), toujours visible.
@@ -520,7 +527,11 @@ func _material(key: String, texture: Texture2D, tint: Color, transparent: bool) 
 		var material := StandardMaterial3D.new()
 		material.albedo_texture = texture
 		material.albedo_color = tint
-		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		# Les images HD (pierre taillée, pavés) sont lissées ; le pixel art reste net.
+		if texture.get_width() > 32:
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		else:
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		material.roughness = 1.0
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if transparent:
@@ -579,14 +590,21 @@ func _add_cell(tools: Dictionary, cell: Vector2i) -> void:
 	if map.damage.has(cell) and DungeonMap.DIG_HITS.has(tile):
 		tint = tint.darkened(0.5 * float(map.damage[cell]) / DungeonMap.DIG_HITS[tile])
 	var st := _tool(tools, texture, tint)
+	# Les murs de ton territoire sont en PIERRE TAILLÉE (ceux qui bordent un sol
+	# revendiqué ou une salle) ; le reste est de la roche brute. Les filons d'or
+	# gardent leur image, pour qu'on les repère.
+	var reinforced := tile != DungeonMap.Tile.GOLD and _borders_territory(cell)
+	var top_texture: Texture2D = WALL_CAP if reinforced else texture
 	# Le dessus des murs est un peu plus sombre que le sol : on voit mieux le relief.
-	var top_tint := tint.darkened(TOP_DARKEN)
-	_flat(_tool(tools, texture, top_tint), cell, WALL_HEIGHT)
+	_flat(_tool(tools, top_texture, tint.darkened(TOP_DARKEN)), cell, WALL_HEIGHT)
 	for direction in DungeonMap.DIRECTIONS:
 		var neighbour: Vector2i = cell + direction
 		if _is_wall(neighbour):
 			continue # Face cachée par le bloc voisin : inutile de la dessiner.
-		_side(st, cell, direction)
+		var face_tool := st
+		if reinforced and _is_territory(neighbour):
+			face_tool = _tool(tools, BRICK_WALL, tint)
+		_side(face_tool, cell, direction)
 		# Un tableau ou une tapisserie accroché sur cette face, vu depuis la case voisine ?
 		var deco: Dictionary = map.decorations.get(neighbour, {})
 		if deco.get("side") == -direction:
@@ -605,7 +623,7 @@ func _add_floor(tools: Dictionary, cell: Vector2i) -> void:
 		texture = Art.pick(Art.CLAIMED, cell)
 		tint = Color(0.6, 0.7, 1.0)
 	elif map.claimed.has(cell):
-		texture = Art.pick(Art.CLAIMED, cell)
+		texture = COBBLES[(cell.x * 7 + cell.y * 13) % COBBLES.size()] # Les pavés de ton territoire.
 	else:
 		texture = Art.pick(Art.FLOOR, cell)
 	_flat(_tool(tools, texture, tint), cell, 0.0)
@@ -628,29 +646,36 @@ func _cell_signature(cell: Vector2i) -> String:
 	var parts: Array[String] = []
 	if map.get_tile(cell) == DungeonMap.Tile.ENTRANCE:
 		parts.append("entrance")
-	match map.get_room(cell):
-		Rooms.Type.TREASURY:
-			var fill: float = float(map.stored_gold.get(cell, 0)) / Rooms.TREASURY_CAPACITY
-			parts.append("chest_%d" % (0 if fill <= 0.0 else mini(3, 1 + int(fill * 3.0))))
-		Rooms.Type.LAIR:
-			parts.append("bed")
-		Rooms.Type.FARM:
-			if int(map.food.get(cell, 0)) > 0:
-				parts.append("mushrooms_%d" % int(map.food[cell]))
-		Rooms.Type.LIBRARY:
-			parts.append("bookshelf")
-		Rooms.Type.WORKSHOP:
-			parts.append("anvil")
-		Rooms.Type.TRAINING:
-			parts.append("dummy")
-		Rooms.Type.TEMPLE:
-			parts.append("altar")
-		Rooms.Type.PRISON:
-			parts.append("prison")
-		Rooms.Type.GRAVEYARD:
-			parts.append("tomb_full" if map.graves.has(cell) else "tomb_empty")
+	# Les objets de plusieurs cases (Trésor, Bibliothèque, Atelier, Entraînement,
+	# Temple) : un seul modèle, posé sur la case d'origine de l'objet.
+	var furniture_id: int = map.cell_furniture.get(cell, -1)
+	var room := map.get_room(cell)
+	if furniture_id >= 0 and room in MULTI_CELL_ROOMS:
+		var item: Dictionary = map.furniture[furniture_id]
+		if item["origin"] == cell:
+			var size: Vector2i = item["size"]
+			var extra := 0
+			if room == Rooms.Type.TREASURY:
+				var stored := 0
+				for dy in size.y:
+					for dx in size.x:
+						stored += int(map.stored_gold.get(cell + Vector2i(dx, dy), 0))
+				var fill := float(stored) / (Rooms.TREASURY_CAPACITY * size.x * size.y)
+				extra = 0 if stored <= 0 else mini(3, 1 + int(fill * 3.0))
+			parts.append("furn_%d_%d_%d_%d" % [room, size.x, size.y, extra])
+	elif furniture_id >= 0:
+		match room:
+			Rooms.Type.LAIR:
+				parts.append("bed")
+			Rooms.Type.FARM:
+				if int(map.food.get(cell, 0)) > 0:
+					parts.append("mushrooms_%d" % int(map.food[cell]))
+			Rooms.Type.PRISON:
+				parts.append("prison")
+			Rooms.Type.GRAVEYARD:
+				parts.append("tomb_full" if map.graves.has(cell) else "tomb_empty")
 	if map.torch_cells.has(cell) and not map.rooms.has(cell) and not map.defenses.has(cell):
-		parts.append("torch")
+		parts.append("wall_torch" if _wall_side(cell) != Vector2i.ZERO else "torch")
 	if map.defenses.has(cell):
 		var defense: Dictionary = map.defenses[cell]
 		match int(defense["type"]):
@@ -707,15 +732,26 @@ func _rebuild_props() -> void:
 				continue
 			var holder := Node3D.new()
 			holder.position = Vector3(cell.x + 0.5, 0.0, cell.y + 0.5)
-			# Portes et entrées : dans l'axe du couloir.
-			if _is_wall(cell + Vector2i.UP) and _is_wall(cell + Vector2i.DOWN):
-				holder.rotation.y = PI / 2
 			add_child(holder)
 			var anims := []
 			for kind in sig.split(","):
 				var model := VoxelModels.prop(kind)
 				holder.add_child(model)
 				anims.append(model.get_meta("anim"))
+				if kind.begins_with("furn_"):
+					# L'objet est centré sur son emprise (plusieurs cases).
+					var parts := kind.split("_")
+					model.position = Vector3((int(parts[2]) - 1) * 0.5, 0.0, (int(parts[3]) - 1) * 0.5)
+					_add_furniture_light(model, int(parts[1]), Vector2i(int(parts[2]), int(parts[3])))
+				elif kind == "door" or kind == "entrance":
+					# Portes et entrées : dans l'axe du couloir.
+					if _is_wall(cell + Vector2i.UP) and _is_wall(cell + Vector2i.DOWN):
+						model.rotation.y = PI / 2
+				elif kind == "wall_torch":
+					# La torche est accrochée au mur voisin (le support part vers le mur).
+					var side := _wall_side(cell)
+					model.position = Vector3(side.x, 0.0, side.y) * 0.42
+					model.rotation.y = atan2(-side.x, -side.y)
 			_cell_props[cell] = {"sig": sig, "node": holder, "anims": anims}
 	# Les lumières des torches : on garde celles qui existent déjà.
 	for cell: Vector2i in _torch_lights.keys():
@@ -724,7 +760,49 @@ func _rebuild_props() -> void:
 			_torch_lights.erase(cell)
 	for cell: Vector2i in wanted_torches:
 		if not _torch_lights.has(cell):
-			_torch_lights[cell] = _light(Vector3(cell.x + 0.5, 1.1, cell.y + 0.5), Color(1.0, 0.7, 0.4), 4.5, 1.3)
+			var side := _wall_side(cell)
+			var at := Vector3(cell.x + 0.5 + side.x * 0.3, 1.2, cell.y + 0.5 + side.y * 0.3)
+			_torch_lights[cell] = _light(at, TORCH_COLOR, 5.5, 1.6)
+
+
+## Le mur le plus proche d'une case (pour y accrocher une torche), ou ZERO.
+func _wall_side(cell: Vector2i) -> Vector2i:
+	for direction in DungeonMap.DIRECTIONS:
+		if _is_wall(cell + direction):
+			return direction
+	return Vector2i.ZERO
+
+
+## Une case de ton territoire (sol revendiqué ou salle).
+func _is_territory(cell: Vector2i) -> bool:
+	return map.claimed.has(cell) or map.rooms.has(cell)
+
+
+## Un mur qui borde ton territoire (il devient de la pierre taillée).
+func _borders_territory(cell: Vector2i) -> bool:
+	for direction in DungeonMap.DIRECTIONS:
+		if _is_territory(cell + direction):
+			return true
+	return false
+
+
+## Les objets lumineux ont leur propre lumière : la forge de l'Atelier (orange),
+## les braseros du Temple (verts).
+func _add_furniture_light(model: Node3D, room: int, size: Vector2i) -> void:
+	var color := Color.BLACK
+	match room:
+		Rooms.Type.WORKSHOP:
+			color = Color(1.0, 0.45, 0.15)
+		Rooms.Type.TEMPLE:
+			color = Color(0.45, 1.0, 0.3)
+		_:
+			return
+	var light := OmniLight3D.new()
+	light.light_color = color
+	light.omni_range = 3.5 + maxf(size.x, size.y)
+	light.light_energy = 1.4
+	light.position = Vector3(0, 1.0, 0)
+	model.add_child(light)
 
 
 ## Le décor animé : flammes qui vacillent, mannequins qui se balancent, lueurs.
@@ -743,6 +821,9 @@ func _update_props() -> void:
 					flame.scale.y = 1.0 + 0.4 * sin(t * 11.0 + flame.position.x * 9.0)
 			if anim.has("sway"):
 				anim["sway"].rotation.z = sin(t * 2.0) * 0.08
+			if anim.has("sways"):
+				for i in anim["sways"].size():
+					anim["sways"][i].rotation.z = sin(t * 2.0 + i * 1.7) * 0.1
 			if anim.has("wisp"):
 				anim["wisp"].position.y = 0.3 + 0.12 * sin(t * 2.0)
 			if anim.has("glow"):
@@ -793,17 +874,23 @@ func _build_environment() -> void:
 	_environment.background_mode = Environment.BG_COLOR
 	_environment.background_color = Color("0b0809")
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_environment.ambient_light_color = Color(0.45, 0.38, 0.5)
+	# Une ambiance chaude : pénombre brun-rouge, et un halo autour des flammes (glow).
+	_environment.ambient_light_color = Color(0.55, 0.36, 0.3)
 	# Sans « éclairage » (réglages), tout est bien éclairé.
-	_environment.ambient_light_energy = 0.55 if Sound.lighting_enabled else 1.4
+	_environment.ambient_light_energy = 0.45 if Sound.lighting_enabled else 1.4
 	_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_environment.tonemap_exposure = 1.1
+	_environment.glow_enabled = true
+	_environment.glow_intensity = 0.9
+	_environment.glow_bloom = 0.08
+	_environment.glow_hdr_threshold = 0.9
 	var world := WorldEnvironment.new()
 	world.environment = _environment
 	add_child(world)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-60, 35, 0)
 	sun.light_energy = 0.35
-	sun.light_color = Color(0.7, 0.65, 0.9)
+	sun.light_color = Color(0.75, 0.6, 0.6)
 	add_child(sun)
 
 

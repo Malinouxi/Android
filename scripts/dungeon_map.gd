@@ -82,7 +82,12 @@ var last_heart_hit_msec := -100000
 
 ## Les salles construites : Vector2i -> Rooms.Type.
 var rooms: Dictionary = {}
-## Or rangé dans chaque case de trésor : Vector2i -> int.
+## Le MOBILIER des salles (voir _refurnish) : identifiant -> {"room", "origin",
+## "size"}, et pour chaque case couverte : case -> identifiant. Une case de salle
+## qu'aucun objet ne couvre ne sert à rien (ni lit, ni coffre, ni poste de travail).
+var furniture: Dictionary = {}
+var cell_furniture: Dictionary = {}
+## Or rangé dans chaque case de trésor (couverte par un coffre) : Vector2i -> int.
 var stored_gold: Dictionary = {}
 ## Or de départ, gardé dans le cœur. On peut le dépenser, mais pas le remplir.
 var heart_gold := 0
@@ -255,6 +260,8 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	reserved.clear()
 	rooms.clear()
 	stored_gold.clear()
+	furniture.clear()
+	cell_furniture.clear()
 	food.clear()
 	beds.clear()
 	defenses.clear()
@@ -449,6 +456,7 @@ func load_save(data: Dictionary) -> bool:
 	prisoners.clear()
 	_effects.clear()
 	_setup_pathfinding()
+	_refurnish() # Les objets des salles (et l'or des coffres).
 	gold_changed.emit()
 	_redraw_all()
 	return true
@@ -835,21 +843,72 @@ func can_build_room(cell: Vector2i) -> bool:
 			and not defenses.has(cell) and not construction.has(cell)
 
 
+## Le nombre de cases UTILES d'une salle (couvertes par un objet).
 func count_room_tiles(type: int) -> int:
 	var count := 0
 	for cell: Vector2i in rooms:
-		if rooms[cell] == type:
+		if rooms[cell] == type and cell_furniture.has(cell):
 			count += 1
 	return count
 
 
+func is_furnished(cell: Vector2i) -> bool:
+	return cell_furniture.has(cell)
+
+
 func build_room(cell: Vector2i, type: int) -> void:
 	rooms[cell] = type
-	if type == Rooms.Type.TREASURY:
-		stored_gold[cell] = 0
-	elif type == Rooms.Type.FARM:
+	if type == Rooms.Type.FARM:
 		food[cell] = 0
+	_refurnish()
 	_redraw_all()
+
+
+## Couvre les salles d'objets : on parcourt les cases de haut en bas et de gauche
+## à droite, et on pose l'objet de la salle (par exemple 2 x 3 cases pour la
+## Bibliothèque) partout où il rentre, droit ou tourné d'un quart de tour.
+## Le Trésor : seules les cases couvertes par un coffre rangent de l'or ; l'or
+## des cases qui en perdent un est déplacé dans les autres coffres.
+func _refurnish() -> void:
+	furniture.clear()
+	cell_furniture.clear()
+	var cells: Array = rooms.keys()
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.y < b.y or (a.y == b.y and a.x < b.x))
+	var next_id := 0
+	for cell: Vector2i in cells:
+		if cell_furniture.has(cell):
+			continue
+		var type: int = rooms[cell]
+		var size := Rooms.footprint(type)
+		for option in [size, Vector2i(size.y, size.x)]:
+			if _furniture_fits(cell, option, type):
+				furniture[next_id] = {"room": type, "origin": cell, "size": option}
+				for dy in option.y:
+					for dx in option.x:
+						cell_furniture[cell + Vector2i(dx, dy)] = next_id
+				next_id += 1
+				break
+	# Le Trésor : l'or suit les coffres.
+	var loose := 0
+	for cell: Vector2i in stored_gold.keys():
+		if get_room(cell) != Rooms.Type.TREASURY or not cell_furniture.has(cell):
+			loose += stored_gold[cell]
+			stored_gold.erase(cell)
+	for cell: Vector2i in rooms:
+		if rooms[cell] == Rooms.Type.TREASURY and cell_furniture.has(cell) and not stored_gold.has(cell):
+			stored_gold[cell] = 0
+	if loose > 0:
+		heart_gold += loose - add_gold_to_treasury(loose) # Pas de place : l'or revient au cœur.
+	gold_changed.emit()
+
+
+func _furniture_fits(origin: Vector2i, size: Vector2i, type: int) -> bool:
+	for dy in size.y:
+		for dx in size.x:
+			var cell := origin + Vector2i(dx, dy)
+			if get_room(cell) != type or cell_furniture.has(cell):
+				return false
+	return true
 
 
 ## Démolit la salle d'une case. L'or qu'elle contenait est déplacé dans les
@@ -865,6 +924,7 @@ func remove_room(cell: Vector2i) -> int:
 	prisoners.erase(cell) # Le prisonnier s'évadera (voir hero.gd).
 	var lost: int = stored_gold.get(cell, 0)
 	stored_gold.erase(cell)
+	_refurnish() # Les objets voisins peuvent disparaître (la salle est trop petite).
 	for other: Vector2i in stored_gold:
 		var moved := mini(lost, Rooms.TREASURY_CAPACITY - stored_gold[other])
 		stored_gold[other] += moved
@@ -924,7 +984,7 @@ func release_bed(creature: Node) -> void:
 func find_work_spot(creature: Node, room_type: int, from_cell: Vector2i) -> Dictionary:
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in rooms:
-		if rooms[cell] == room_type and work_spots.get(cell, creature) == creature:
+		if rooms[cell] == room_type and cell_furniture.has(cell) and work_spots.get(cell, creature) == creature:
 			candidates.append(cell)
 	var best := _find_nearest_reachable(candidates, from_cell)
 	if not best.is_empty():

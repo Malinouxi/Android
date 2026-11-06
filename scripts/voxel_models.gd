@@ -200,7 +200,7 @@ static func _humanoid(body: Node3D, rig: Dictionary, spec: Dictionary) -> void:
 	var top := _c(spec, "top")
 	var hip := 0.3
 	# Les jambes (ou une robe, avec de petits pieds qui dépassent).
-	for side in [-1, 1]:
+	for side: int in [-1, 1]:
 		var leg := pivot(body, Vector3(0.08 * side * width, hip, 0), "leg")
 		if spec.has("robe"):
 			box(leg, Vector3(0.1, 0.06, 0.14), Vector3(0, -0.27, 0.02), _c(spec, "boots", "3e2723"))
@@ -215,7 +215,7 @@ static func _humanoid(body: Node3D, rig: Dictionary, spec: Dictionary) -> void:
 	if spec.has("cape"):
 		box(body, Vector3(0.34 * width, 0.52, 0.03), Vector3(0, 0.32, -0.11), _c(spec, "cape"))
 	if spec.has("wings"):
-		for side in [-1, 1]:
+		for side: int in [-1, 1]:
 			var wing := pivot(body, Vector3(0.1 * side, 0.52, -0.1), "wing")
 			wing.rotation.y = 0.5 * side
 			box(wing, Vector3(0.4, 0.28, 0.02), Vector3(0.2 * side, 0.05, 0), _c(spec, "wings"))
@@ -225,7 +225,7 @@ static func _humanoid(body: Node3D, rig: Dictionary, spec: Dictionary) -> void:
 		box(tail, Vector3(0.07, 0.07, 0.3), Vector3(0, -0.03, -0.15), _c(spec, "tail"))
 		rig["tail"] = tail
 	# Les bras (pivots aux épaules), avec les mains.
-	for side in [-1, 1]:
+	for side: int in [-1, 1]:
 		var arm := pivot(body, Vector3(0.2 * side * width, 0.58, 0), "arm")
 		box(arm, Vector3(0.09, 0.24, 0.09), Vector3(0, -0.11, 0), top if not spec.has("robe") else _c(spec, "robe"))
 		box(arm, Vector3(0.08, 0.07, 0.08), Vector3(0, -0.26, 0), skin)
@@ -255,14 +255,14 @@ static func _head(head: Node3D, spec: Dictionary, skin: Color) -> void:
 		_:
 			box(head, Vector3(0.26, 0.24, 0.24), Vector3.ZERO, skin)
 	# Les yeux.
-	for side in [-1, 1]:
+	for side: int in [-1, 1]:
 		box(head, Vector3(0.05, 0.04, 0.02), Vector3(0.06 * side, 0.02, 0.125), eyes, glowing)
 	match kind:
 		"ears":
-			for side in [-1, 1]:
+			for side: int in [-1, 1]:
 				box(head, Vector3(0.14, 0.06, 0.04), Vector3(0.18 * side, 0.03, 0), skin)
 		"horns":
-			for side in [-1, 1]:
+			for side: int in [-1, 1]:
 				var horn := box(head, Vector3(0.05, 0.14, 0.05), Vector3(0.09 * side, 0.17, 0), hat)
 				horn.rotation.z = -0.4 * side
 		"hair":
@@ -291,7 +291,7 @@ static func _head(head: Node3D, spec: Dictionary, skin: Color) -> void:
 	if spec.has("beard"):
 		box(head, Vector3(0.24, 0.16, 0.06), Vector3(0, -0.14, 0.11), _c(spec, "beard"))
 	if spec.get("tusks", false):
-		for side in [-1, 1]:
+		for side: int in [-1, 1]:
 			box(head, Vector3(0.03, 0.06, 0.03), Vector3(0.06 * side, -0.1, 0.13), Color("fffde7"))
 
 
@@ -335,7 +335,7 @@ static func _spider(body: Node3D, rig: Dictionary) -> void:
 	var dark := Color("2a1838")
 	box(body, Vector3(0.34, 0.2, 0.4), Vector3(0, 0.22, -0.08), Color("6a3d8f"))
 	box(body, Vector3(0.22, 0.16, 0.2), Vector3(0, 0.2, 0.2), Color("4a2a66"))
-	for side in [-1, 1]:
+	for side: int in [-1, 1]:
 		box(body, Vector3(0.04, 0.04, 0.02), Vector3(0.05 * side, 0.24, 0.31), Color("ff1744"), true)
 		for i in 4:
 			var leg := pivot(body, Vector3(0.12 * side, 0.22, 0.12 - i * 0.1), "leg")
@@ -351,7 +351,7 @@ static func _bat(body: Node3D, rig: Dictionary) -> void:
 	body.position.y = 0.45 # Elle vole.
 	box(body, Vector3(0.18, 0.2, 0.16), Vector3.ZERO, Color("6d5a85"))
 	box(body, Vector3(0.16, 0.14, 0.14), Vector3(0, 0.15, 0.03), Color("5d4a75"))
-	for side in [-1, 1]:
+	for side: int in [-1, 1]:
 		box(body, Vector3(0.04, 0.08, 0.03), Vector3(0.06 * side, 0.25, 0.03), Color("5d4a75"))
 		box(body, Vector3(0.03, 0.03, 0.02), Vector3(0.04 * side, 0.17, 0.1), Color("ff5252"), true)
 		var wing := pivot(body, Vector3(0.08 * side, 0.04, 0), "wing")
@@ -374,7 +374,7 @@ static func _cerberus(body: Node3D, rig: Dictionary) -> void:
 		var head := pivot(body, Vector3(x, 0.62 + (0.06 if i == 1 else 0.0), 0.3), "head")
 		box(head, Vector3(0.15, 0.15, 0.17), Vector3.ZERO, fur)
 		box(head, Vector3(0.1, 0.07, 0.1), Vector3(0, -0.03, 0.12), Color("4e3434"))
-		for side in [-1, 1]:
+		for side: int in [-1, 1]:
 			box(head, Vector3(0.03, 0.03, 0.02), Vector3(0.04 * side, 0.03, 0.09), Color("ff3d00"), true)
 			box(head, Vector3(0.03, 0.06, 0.03), Vector3(0.05 * side, 0.1, -0.02), fur)
 	var tail := pivot(body, Vector3(0, 0.5, -0.36), "tail")
@@ -391,6 +391,10 @@ static func _cerberus(body: Node3D, rig: Dictionary) -> void:
 ## "tomb_empty", "tomb_full", "spikes", "spikes_up", "gold_N", "entrance",
 ## "prison", "site". Les parties animées sont notées dans la métadonnée « anim ».
 static func prop(kind: String) -> Node3D:
+	if kind.begins_with("furn_"):
+		# Un objet de salle : "furn_<salle>_<largeur>_<profondeur>_<remplissage>".
+		var parts := kind.split("_")
+		return furniture(int(parts[1]), Vector2i(int(parts[2]), int(parts[3])), int(parts[4]))
 	var root := Node3D.new()
 	var anim := {}
 	var wood := Color("6d4c41")
@@ -460,6 +464,13 @@ static func prop(kind: String) -> Node3D:
 		box(root, Vector3(0.76, 0.9, 0.08), Vector3(0, 0.45, 0), Color("8d6e63"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.25, 0), Color("37474f"))
 		box(root, Vector3(0.78, 0.05, 0.1), Vector3(0, 0.68, 0), Color("37474f"))
+	elif kind == "wall_torch":
+		# Une torche fixée au mur (le support pointe vers -z, là où est le mur).
+		box(root, Vector3(0.06, 0.06, 0.3), Vector3(0, 0.95, -0.15), Color("37474f"))
+		cylinder(root, 0.09, 0.05, 0.12, Vector3(0, 1.0, 0.0), Color("5d4037"))
+		var wall_flame := sphere(root, 0.09, Vector3(0, 1.12, 0.0), Color("ff9100"), true)
+		sphere(wall_flame, 0.05, Vector3(0, 0.02, 0), Color("ffee58"), true)
+		anim["flame"] = wall_flame
 	elif kind == "torch":
 		box(root, Vector3(0.08, 0.6, 0.08), Vector3(0, 0.3, 0), Color("5d4037"))
 		cylinder(root, 0.14, 0.08, 0.1, Vector3(0, 0.64, 0), Color("6d4c41"))
@@ -520,3 +531,167 @@ static func _candles(parent: Node3D, spots: Array, wax: Color, fire: Color) -> A
 		box(parent, Vector3(0.05, 0.16, 0.05), at + Vector3(0, 0.08, 0), wax)
 		flames.append(box(parent, Vector3(0.04, 0.06, 0.04), at + Vector3(0, 0.2, 0), fire, true))
 	return flames
+
+
+# ---------------------------------------------------------------------------
+# Le mobilier des salles (objets de plusieurs cases, voir dungeon_map.gd, _refurnish)
+# ---------------------------------------------------------------------------
+
+## Le modèle d'un objet de salle de « size » cases (x = largeur, y = profondeur),
+## centré sur son milieu. « extra » : le remplissage du Trésor (0 à 3).
+## Les modèles sont dessinés dans le sens « long = profondeur (z) », puis tournés
+## d'un quart de tour si l'objet est posé dans l'autre sens.
+static func furniture(type: int, size: Vector2i, extra := 0) -> Node3D:
+	var root := Node3D.new()
+	var inner := Node3D.new()
+	root.add_child(inner)
+	var short := float(mini(size.x, size.y))
+	var long := float(maxi(size.x, size.y))
+	if size.x > size.y:
+		inner.rotation.y = PI / 2
+	var anim := {"flames": [], "sways": []}
+	match type:
+		Rooms.Type.TREASURY:
+			_treasure_hoard(inner, short, long, extra, anim)
+		Rooms.Type.LIBRARY:
+			_library(inner, short, long, anim)
+		Rooms.Type.WORKSHOP:
+			_workshop(inner, short, long, anim)
+		Rooms.Type.TRAINING:
+			_arena(inner, short, long, anim)
+		Rooms.Type.TEMPLE:
+			_temple(inner, short, long, anim)
+	root.set_meta("anim", anim)
+	return root
+
+
+## Le Trésor : un coffre ouvert et un tas d'or qui déborde, plus haut s'il est plein.
+static func _treasure_hoard(node: Node3D, w: float, d: float, level: int, anim: Dictionary) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var chest_z := -d * 0.5 + 0.35
+	box(node, Vector3(0.62, 0.36, 0.4), Vector3(0, 0.18, chest_z), Color("8d5a2b"))
+	box(node, Vector3(0.64, 0.05, 0.42), Vector3(0, 0.1, chest_z), Color("546e7a"))
+	box(node, Vector3(0.64, 0.05, 0.42), Vector3(0, 0.3, chest_z), Color("546e7a"))
+	var lid := box(node, Vector3(0.62, 0.06, 0.4), Vector3(0, 0.5, chest_z - 0.2), Color("7a4a22"))
+	lid.rotation.x = -1.1
+	if level <= 0:
+		return
+	# Le tas d'or : des pièces en monticule, du coffre jusqu'au bout de la place.
+	var coins := 10 + level * 14
+	for i in coins:
+		var t := rng.randf()
+		var z := lerpf(chest_z + 0.15, d * 0.5 - 0.15, t)
+		var spread := (1.0 - absf(t - 0.4)) * 0.35
+		var height := (0.12 + 0.12 * level) * (1.0 - absf(t - 0.35) * 1.2)
+		sphere(node, rng.randf_range(0.05, 0.09),
+				Vector3(rng.randf_range(-spread, spread), maxf(0.04, rng.randf_range(0.0, height)), z),
+				Color("f2b632"), true)
+	# Quelques pièces qui débordent du coffre.
+	for i in level * 3:
+		sphere(node, 0.05, Vector3(rng.randf_range(-0.22, 0.22), 0.38, chest_z + rng.randf_range(-0.1, 0.1)),
+				Color("ffd54a"), true)
+
+
+## La Bibliothèque : deux rayonnages pleins de livres le long des grands côtés,
+## un pupitre avec un livre ouvert et une bougie, un tapis rouge au milieu.
+static func _library(node: Node3D, w: float, d: float, anim: Dictionary) -> void:
+	var wood := Color("5d3a24")
+	var colors := [Color("8e1b1b"), Color("1a3a6b"), Color("2e5b2a"), Color("8d6e00"), Color("4a148c"), Color("6d4c41")]
+	box(node, Vector3(w * 0.36, 0.02, d - 0.4), Vector3(0, 0.011, 0), Color("7f1d2d"))  # tapis
+	for side: int in [-1, 1]:
+		var x := side * (w * 0.5 - 0.2)
+		box(node, Vector3(0.3, 1.35, d - 0.2), Vector3(x, 0.675, 0), wood)   # le meuble
+		var count := int((d - 0.3) / 0.38)
+		for shelf in 4:
+			var y := 0.18 + shelf * 0.31
+			box(node, Vector3(0.32, 0.03, d - 0.2), Vector3(x, y - 0.03, 0), Color("3e2716"))
+			for i in count:
+				var z := -d * 0.5 + 0.3 + i * 0.38
+				var height := 0.2 + 0.04 * ((i + shelf) % 3)
+				box(node, Vector3(0.22, height, 0.33), Vector3(x - side * 0.03, y + height * 0.5, z),
+						colors[(i * 3 + shelf * 2 + (1 if side > 0 else 0)) % colors.size()])
+	# Le pupitre au milieu, avec un livre ouvert et une bougie.
+	box(node, Vector3(0.5, 0.06, 0.4), Vector3(0, 0.62, 0), wood)
+	box(node, Vector3(0.1, 0.6, 0.1), Vector3(0, 0.3, 0), wood)
+	box(node, Vector3(0.34, 0.03, 0.26), Vector3(0, 0.67, 0), Color("efe6d8"))
+	box(node, Vector3(0.04, 0.12, 0.04), Vector3(0.2, 0.72, 0.12), Color("f5f5f5"))
+	anim["flames"].append(box(node, Vector3(0.04, 0.06, 0.04), Vector3(0.2, 0.81, 0.12), Color("ffb300"), true))
+
+
+## L'Atelier : une forge aux braises rougeoyantes, une enclume, un établi et un tonneau.
+static func _workshop(node: Node3D, w: float, d: float, anim: Dictionary) -> void:
+	var stone := Color("4e4440")
+	# La forge, dans un coin, avec sa hotte.
+	box(node, Vector3(0.7, 0.55, 0.6), Vector3(-w * 0.5 + 0.45, 0.275, -d * 0.5 + 0.4), stone)
+	var coals := box(node, Vector3(0.56, 0.05, 0.46), Vector3(-w * 0.5 + 0.45, 0.57, -d * 0.5 + 0.4),
+			Color("ff6d00"), true)
+	anim["flames"].append(coals)
+	box(node, Vector3(0.5, 0.55, 0.4), Vector3(-w * 0.5 + 0.45, 1.15, -d * 0.5 + 0.35), Color("3a302c"))
+	# L'enclume, au milieu.
+	box(node, Vector3(0.22, 0.22, 0.22), Vector3(0.1, 0.11, 0.1), Color("795548"))
+	box(node, Vector3(0.16, 0.12, 0.12), Vector3(0.1, 0.28, 0.1), Color("546e7a"))
+	box(node, Vector3(0.44, 0.1, 0.18), Vector3(0.14, 0.39, 0.1), Color("78909c"))
+	anim["flames"].append(box(node, Vector3(0.18, 0.03, 0.05), Vector3(0.1, 0.455, 0.1), Color("ff7043"), true))
+	# L'établi avec ses outils, et un tonneau.
+	box(node, Vector3(0.9, 0.08, 0.36), Vector3(w * 0.5 - 0.55, 0.55, d * 0.5 - 0.3), Color("6d4c41"))
+	for x in [-0.35, 0.35]:
+		box(node, Vector3(0.07, 0.5, 0.07), Vector3(w * 0.5 - 0.55 + x, 0.26, d * 0.5 - 0.3), Color("4e342e"))
+	box(node, Vector3(0.3, 0.04, 0.06), Vector3(w * 0.5 - 0.65, 0.61, d * 0.5 - 0.3), Color("b0bec5"))
+	box(node, Vector3(0.05, 0.04, 0.22), Vector3(w * 0.5 - 0.35, 0.61, d * 0.5 - 0.3), Color("8d6e63"))
+	cylinder(node, 0.18, 0.18, 0.5, Vector3(-w * 0.5 + 0.3, 0.25, d * 0.5 - 0.3), Color("795548"))
+
+
+## L'Entraînement : une arène sablée entourée d'une palissade, des mannequins
+## et un râtelier d'armes.
+static func _arena(node: Node3D, w: float, d: float, anim: Dictionary) -> void:
+	var wood := Color("6d4c41")
+	box(node, Vector3(w - 0.2, 0.02, d - 0.2), Vector3(0, 0.011, 0), Color("b8955a"))
+	# La palissade : des poteaux et deux barres sur les grands côtés.
+	for side: int in [-1, 1]:
+		var x := side * (w * 0.5 - 0.12)
+		for i in int(d / 0.5) + 1:
+			box(node, Vector3(0.07, 0.42, 0.07), Vector3(x, 0.21, -d * 0.5 + 0.12 + i * (d - 0.24) / int(d / 0.5)), wood)
+		box(node, Vector3(0.05, 0.05, d - 0.2), Vector3(x, 0.36, 0), wood)
+		box(node, Vector3(0.05, 0.05, d - 0.2), Vector3(x, 0.2, 0), wood)
+	# Deux mannequins qui se balancent.
+	for z in [-d * 0.25, d * 0.25]:
+		var sway := pivot(node, Vector3(0, 0, z), "sway")
+		box(sway, Vector3(0.06, 0.45, 0.06), Vector3(0, 0.22, 0), wood)
+		box(sway, Vector3(0.5, 0.06, 0.06), Vector3(0, 0.6, 0), wood)
+		box(sway, Vector3(0.28, 0.32, 0.22), Vector3(0, 0.6, 0), Color("d4a85a"))
+		box(sway, Vector3(0.18, 0.18, 0.18), Vector3(0, 0.86, 0), Color("d4a85a"))
+		box(sway, Vector3(0.1, 0.1, 0.02), Vector3(0, 0.62, 0.12), Color("c62828"))
+		anim["sways"].append(sway)
+	# Le râtelier d'armes, au bout.
+	box(node, Vector3(0.7, 0.06, 0.1), Vector3(0, 0.7, d * 0.5 - 0.18), wood)
+	for i in 4:
+		box(node, Vector3(0.03, 0.6, 0.02), Vector3(-0.24 + i * 0.16, 0.45, d * 0.5 - 0.22), Color("cfd8dc"))
+
+
+## Le Temple : une estrade à marches, un autel drapé, un tapis rouge, deux
+## braseros aux flammes vertes et une statue cornue.
+static func _temple(node: Node3D, w: float, d: float, anim: Dictionary) -> void:
+	var stone := Color("5f5a5f")
+	box(node, Vector3(w * 0.34, 0.02, d - 0.6), Vector3(0, 0.011, 0.3), Color("7f1d2d"))     # tapis
+	box(node, Vector3(w - 0.3, 0.12, 1.0), Vector3(0, 0.06, -d * 0.5 + 0.6), stone)          # estrade
+	box(node, Vector3(w - 0.6, 0.12, 0.7), Vector3(0, 0.18, -d * 0.5 + 0.5), stone.lightened(0.1))
+	box(node, Vector3(0.7, 0.42, 0.4), Vector3(0, 0.45, -d * 0.5 + 0.45), Color("78909c"))   # autel
+	box(node, Vector3(0.3, 0.38, 0.02), Vector3(0, 0.45, -d * 0.5 + 0.66), Color("6a1b9a"))
+	for x in [-0.28, 0.28]:
+		box(node, Vector3(0.05, 0.14, 0.05), Vector3(x, 0.73, -d * 0.5 + 0.45), Color("f5f5f5"))
+		anim["flames"].append(box(node, Vector3(0.04, 0.06, 0.04), Vector3(x, 0.83, -d * 0.5 + 0.45),
+				Color("ffb300"), true))
+	# La statue cornue derrière l'autel.
+	box(node, Vector3(0.3, 0.6, 0.25), Vector3(0, 0.6, -d * 0.5 + 0.15), Color("4a4248"))
+	box(node, Vector3(0.24, 0.24, 0.22), Vector3(0, 1.02, -d * 0.5 + 0.15), Color("4a4248"))
+	for side: int in [-1, 1]:
+		var horn := box(node, Vector3(0.05, 0.2, 0.05), Vector3(side * 0.12, 1.2, -d * 0.5 + 0.15), Color("cfc6b8"))
+		horn.rotation.z = -0.5 * side
+		box(node, Vector3(0.04, 0.03, 0.02), Vector3(side * 0.06, 1.04, -d * 0.5 + 0.27), Color("76ff03"), true)
+	# Les braseros aux flammes vertes, de chaque côté du tapis.
+	for x in [-w * 0.5 + 0.3, w * 0.5 - 0.3]:
+		cylinder(node, 0.06, 0.06, 0.5, Vector3(x, 0.25, d * 0.15), Color("37474f"))
+		cylinder(node, 0.18, 0.1, 0.12, Vector3(x, 0.55, d * 0.15), Color("455a64"))
+		var flame := sphere(node, 0.13, Vector3(x, 0.68, d * 0.15), Color("76ff03"), true)
+		anim["flames"].append(flame)

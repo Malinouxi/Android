@@ -299,6 +299,17 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   tourner deux doigts pour pivoter. Les touchers visent la case sous le doigt (rayon vers le sol).
 - Les effets (`fx.gd`) se placent à l'écran via la caméra 3D. La vue 2D reste disponible (Réglages).
 
+**Étape 31 — Salles à objets, pierre taillée, interface HD**
+- Chaque salle se couvre automatiquement d'**objets de plusieurs cases** (`footprint` dans `rooms.gd`,
+  `_refurnish` dans `dungeon_map.gd`) : coffre 1 x 2, rayonnages 2 x 3, forge 2 x 2, arène 2 x 4, autel
+  2 x 3 ; lits, champignons, cellules et tombes 1 x 1. Une case sans objet ne sert à rien.
+- Modèles 3D détaillés de ces objets (`VoxelModels.furniture`) : tas d'or, rayonnages pleins de livres et
+  pupitre, forge rougeoyante, arène et mannequins, temple avec estrade, statue et braseros verts.
+- Murs en **pierre taillée** autour du territoire, sol pavé, torches murales, éclairage chaud avec halo
+  (textures HD : `tools/textures_hd.py`).
+- Interface agrandie, thème infernal, polices Cinzel et Alegreya (OFL), **icônes HD** 128 px
+  (`tools/icons_hd.py`), catégories d'outils à gauche, objectif en haut à droite, plus de mini-carte.
+
 **Étape 30 — Menu du maître et journal coloré**
 - Menu principal : le maître sur son trône à gauche (illustration fournie, `assets/menu/throne.png`),
   le donjon vivant qui tourne au milieu, le menu dans un cadre de pierre à droite, une phrase d'accroche.

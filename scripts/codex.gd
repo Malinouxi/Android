@@ -262,11 +262,13 @@ func _heroes_table() -> String:
 
 
 func _rooms_table() -> String:
-	var text := "[table=4]" + _header(["", "Salle", "Prix par case", "Construction"])
+	var text := "[table=5]" + _header(["", "Salle", "Prix par case", "Construction", "Objet"])
 	for type: int in Rooms.INFO:
+		var size := Rooms.footprint(type)
 		text += _cell(_room_img(type)) + _cell(Rooms.display_name(type)) + _cell("%d or" % Rooms.cost(type)) \
-				+ _cell("%d s" % roundi(Rooms.build_time(type)))
-	return text + "[/table]\n\nUn Trésor range %d or par case. Une case de Repaire est un lit." % Rooms.TREASURY_CAPACITY
+				+ _cell("%d s" % roundi(Rooms.build_time(type))) \
+				+ _cell("%s (%d x %d)" % [Rooms.INFO[type].get("object", ""), size.x, size.y])
+	return text + "[/table]\n\nChaque salle se couvre d'objets de la taille indiquée (droits ou tournés) : une case qu'aucun objet ne couvre ne sert à rien. Un Trésor range %d or par case couverte par un coffre. Une case de Repaire est un lit." % Rooms.TREASURY_CAPACITY
 
 
 func _defenses_table() -> String:

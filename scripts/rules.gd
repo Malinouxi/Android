@@ -14,10 +14,15 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "1.10"
+const VERSION := "2.0"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.0", "changes": [
+		"Les salles se couvrent d'objets de plusieurs cases (coffre 1 x 2, rayonnages 2 x 3, forge 2 x 2, arène 2 x 4, autel 2 x 3...). Une case sans objet ne sert à rien.",
+		"Nouvelle interface plus grande (polices gothiques, icônes HD), sans mini-carte.",
+		"3D : murs en pierre taillée autour de ton territoire, sol pavé, torches murales, éclairage chaud.",
+	]},
 	{"version": "1.10", "changes": [
 		"Les Revenants n'ont plus besoin de lit (ni de manger, ni de dormir) : ils ne bloquent plus l'arrivée des autres créatures.",
 		"Revenants limités à 6. Au-delà, le héros enterré repose en paix et sa tombe se libère.",

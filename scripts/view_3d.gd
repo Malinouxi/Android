@@ -688,7 +688,15 @@ func _cell_signature(cell: Vector2i) -> String:
 	if map.loose_gold.has(cell):
 		parts.append("gold_%d" % clampi(int(map.loose_gold[cell]) / 40, 0, 4))
 	if map.construction.has(cell):
-		parts.append("site")
+		var site: Dictionary = map.construction[cell]
+		if site.has("block"):
+			# Une salle en chantier : un seul modèle (échafaudages), sur sa case d'origine.
+			var block: Dictionary = map.blocks.get(site["block"], {})
+			if not block.is_empty() and block["origin"] == cell:
+				var step := clampi(int(map.block_progress(site["block"]) * 4.0), 0, 3)
+				parts.append("build_%d_%d_%d_%d" % [block["room"], block["size"].x, block["size"].y, step])
+		else:
+			parts.append("site")
 	return ",".join(parts)
 
 
@@ -738,7 +746,10 @@ func _rebuild_props() -> void:
 				var model := VoxelModels.prop(kind)
 				holder.add_child(model)
 				anims.append(model.get_meta("anim"))
-				if kind.begins_with("furn_"):
+				if kind.begins_with("build_"):
+					var build_parts := kind.split("_")
+					model.position = Vector3((int(build_parts[2]) - 1) * 0.5, 0.0, (int(build_parts[3]) - 1) * 0.5)
+				elif kind.begins_with("furn_"):
 					# L'objet est centré sur son emprise (plusieurs cases).
 					var parts := kind.split("_")
 					model.position = Vector3((int(parts[2]) - 1) * 0.5, 0.0, (int(parts[3]) - 1) * 0.5)

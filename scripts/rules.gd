@@ -14,10 +14,16 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.0"
+const VERSION := "2.1"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.1", "changes": [
+		"Les salles se construisent d'un seul bloc, à leur taille : Bibliothèque 2 x 3, Entraînement 2 x 4, Temple 2 x 3, Atelier 2 x 2, Prison 2 x 2 (4 cellules), Trésor 1 x 2. Le prix est celui de la salle entière.",
+		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
+		"La roche se creuse (plus lentement) et cache parfois un trésor.",
+		"La première vague laisse le temps de bâtir un Trésor, une Champignonnière et un Repaire (7 minutes au moins).",
+	]},
 	{"version": "2.0", "changes": [
 		"Les salles se couvrent d'objets de plusieurs cases (coffre 1 x 2, rayonnages 2 x 3, forge 2 x 2, arène 2 x 4, autel 2 x 3...). Une case sans objet ne sert à rien.",
 		"Nouvelle interface plus grande (polices gothiques, icônes HD), sans mini-carte.",
@@ -78,6 +84,20 @@ const PAYDAY_INTERVAL := 90.0     ## Secondes entre deux jours de paie.
 ## Multiplie toutes les durées de construction (rooms.gd et defenses.gd, "build_time").
 ## 0.5 = deux fois plus rapide, 2.0 = deux fois plus lent.
 const BUILD_TIME_FACTOR := 1.0
+
+# --- Roche -----------------------------------------------------------------------
+## Coups de pioche pour casser une case de roche (la terre en demande 4, l'or 8).
+const ROCK_DIG_HITS := 12
+## Chance qu'une case de roche cache un trésor...
+const ROCK_TREASURE_CHANCE := 0.15
+## ... de tant d'or (au hasard entre les deux), posé par terre : les ouvriers le ramassent.
+const ROCK_TREASURE_MIN := 100
+const ROCK_TREASURE_MAX := 300
+
+# --- Vagues ------------------------------------------------------------------------
+## La première vague n'arrive jamais avant ce délai (secondes), quel que soit le niveau :
+## le temps de bâtir un Trésor, une Champignonnière et un Repaire.
+const FIRST_WAVE_MIN := 420.0
 
 # --- Décorations -----------------------------------------------------------------
 ## Secondes de travail d'un ouvrier pour fabriquer chaque décoration.

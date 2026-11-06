@@ -18,29 +18,29 @@ enum Type {
 	GRAVEYARD, ## Cimetière : les héros morts y sont enterrés, puis se relèvent en Revenants.
 }
 
-## "footprint" : la taille (largeur x profondeur, en cases) de l'OBJET de la salle
-## (le coffre, l'étagère...). Le jeu couvre chaque salle d'autant d'objets que sa
-## forme le permet (voir dungeon_map.gd, _refurnish) ; une case qu'aucun objet ne
-## couvre ne sert à rien. Les objets peuvent être tournés d'un quart de tour.
-## "build_time" : secondes de travail d'un ouvrier pour construire UNE case
-## (le coffre, le lit, l'étagère... : plus l'objet est important, plus c'est long).
+## Chaque salle se construit D'UN SEUL BLOC, à sa taille (« footprint », largeur x
+## profondeur en cases, droite ou tournée d'un quart de tour) : on touche le sol
+## et le chantier de toute la salle s'ouvre (voir main.gd, _build).
+## "cost" : le prix de la salle entière. "build_time" : secondes de travail d'un
+## ouvrier pour CHAQUE case de la salle (plusieurs ouvriers travaillent ensemble).
+## "object" : ce qu'on trouve dans la salle (le modèle 3D, voir voxel_models.gd).
 const INFO := {
-	Type.TREASURY: {"name": "Trésor", "cost": 25, "color": Color("5a4a22"), "build_time": 4.0,
+	Type.TREASURY: {"name": "Trésor", "cost": 50, "color": Color("5a4a22"), "build_time": 4.0,
 			"footprint": Vector2i(1, 2), "object": "coffre"},
 	Type.LAIR: {"name": "Repaire", "cost": 40, "color": Color("3d2f4d"), "build_time": 5.0,
 			"footprint": Vector2i(1, 1), "object": "lit"},
-	Type.FARM: {"name": "Champignonnière", "cost": 60, "color": Color("2c4630"), "build_time": 5.0,
+	Type.FARM: {"name": "Champignonnière", "cost": 50, "color": Color("2c4630"), "build_time": 5.0,
 			"footprint": Vector2i(1, 1), "object": "carré de champignons"},
-	Type.LIBRARY: {"name": "Bibliothèque", "cost": 70, "color": Color("2d4363"), "build_time": 8.0,
+	Type.LIBRARY: {"name": "Bibliothèque", "cost": 300, "color": Color("2d4363"), "build_time": 8.0,
 			"footprint": Vector2i(2, 3), "object": "rayonnages et pupitre"},
-	Type.WORKSHOP: {"name": "Atelier", "cost": 80, "color": Color("47423c"), "build_time": 10.0,
+	Type.WORKSHOP: {"name": "Atelier", "cost": 260, "color": Color("47423c"), "build_time": 10.0,
 			"footprint": Vector2i(2, 2), "object": "forge et enclume"},
-	Type.TRAINING: {"name": "Entraînement", "cost": 90, "color": Color("5e352a"), "build_time": 8.0,
+	Type.TRAINING: {"name": "Entraînement", "cost": 320, "color": Color("5e352a"), "build_time": 8.0,
 			"footprint": Vector2i(2, 4), "object": "arène et mannequins"},
-	Type.PRISON: {"name": "Prison", "cost": 60, "color": Color("34343b"), "build_time": 9.0,
-			"footprint": Vector2i(1, 1), "object": "cellule"},
-	Type.TEMPLE: {"name": "Temple", "cost": 100, "color": Color("4a3a6a"), "build_time": 12.0,
-			"footprint": Vector2i(2, 3), "object": "autel et braseros"},
+	Type.PRISON: {"name": "Prison", "cost": 200, "color": Color("34343b"), "build_time": 9.0,
+			"footprint": Vector2i(2, 2), "object": "4 cellules"},
+	Type.TEMPLE: {"name": "Temple", "cost": 450, "color": Color("4a3a6a"), "build_time": 12.0,
+			"footprint": Vector2i(2, 3), "object": "autel, statue et braseros"},
 	Type.GRAVEYARD: {"name": "Cimetière", "cost": 70, "color": Color("2a3324"), "build_time": 7.0,
 			"footprint": Vector2i(1, 1), "object": "tombe"},
 }

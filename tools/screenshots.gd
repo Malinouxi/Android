@@ -85,24 +85,37 @@ func _run() -> void:
 	await _frames(25)
 	_shot("07_missions")
 
-	# Les salles meublées : on creuse trois salles à gauche du cœur et on les construit.
-	var plans := [[Vector2i(-11, -2), Vector2i(4, 3), 4], [Vector2i(-11, 2), Vector2i(2, 4), 6],
-			[Vector2i(-8, 2), Vector2i(2, 2), 1], [Vector2i(-11, -5), Vector2i(3, 2), 8]]
+	# Les salles en bloc : on creuse à gauche du cœur, trois salles finies et deux
+	# chantiers (échafaudages) : [décalage, taille, salle, avancement (1 = finie)].
+	# 4 = Bibliothèque, 8 = Temple, 6 = Entraînement, 1 = Trésor, 5 = Atelier.
+	var plans := [[Vector2i(-11, -2), Vector2i(2, 3), 4, 1.0], [Vector2i(-9, -2), Vector2i(2, 3), 8, 0.6],
+			[Vector2i(-11, 2), Vector2i(2, 4), 6, 1.0], [Vector2i(-8, 2), Vector2i(1, 2), 1, 1.0],
+			[Vector2i(-11, -5), Vector2i(2, 2), 5, 0.3]]
 	for plan in plans:
+		var origin: Vector2i = heart + plan[0]
 		for dy in plan[1].y:
 			for dx in plan[1].x:
-				var cell: Vector2i = heart + plan[0] + Vector2i(dx, dy)
-				if not map_node.is_inside(cell):
-					continue
+				var cell: Vector2i = origin + Vector2i(dx, dy)
 				var guard := 0
-				while map_node.is_diggable(cell) and guard < 20:
+				while map_node.is_diggable(cell) and guard < 30:
 					map_node.dig(cell)
 					guard += 1
 				if map_node.get_tile(cell) == 3: # DungeonMap.Tile.FLOOR
 					map_node.claimed[cell] = true
-					map_node.build_room(cell, plan[2]) # 4 = Bibliothèque, 6 = Entraînement, 1 = Trésor, 8 = Temple
+		if not map_node.can_build_block(origin, plan[1]):
+			print("ÉTAPE salles : pas la place pour ", plan)
+			continue
+		var id: int = map_node.start_room_block(origin, plan[1], plan[2])
+		if plan[3] >= 1.0:
+			map_node.finish_block_now(id)
+		else:
+			for cell: Vector2i in map_node.construction:
+				var site: Dictionary = map_node.construction[cell]
+				if site.get("block", -1) == id:
+					site["left"] = site["total"] * (1.0 - plan[3])
+			map_node._redraw_all()
 	map_node.add_gold_to_treasury(600)
-	print("ÉTAPE salles : objets posés = ", map_node.furniture.size())
+	print("ÉTAPE salles : objets posés = ", map_node.furniture.size(), ", blocs = ", map_node.blocks.size())
 	var view: Node = game.get("_view3d")
 	if view != null:
 		view.center_on(map_node.cell_to_world(heart + Vector2i(-9, 0)))

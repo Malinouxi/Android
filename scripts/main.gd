@@ -24,7 +24,7 @@ const PAYDAY_INTERVAL := Rules.PAYDAY_INTERVAL
 ## Délai minimum entre deux messages d'aide.
 const HINT_DELAY := 15.0
 ## Secondes avant la première vague de héros, puis entre deux vagues.
-const FIRST_WAVE_DELAY := 180.0
+const FIRST_WAVE_DELAY := 420.0
 const WAVE_INTERVAL := 120.0
 ## Secondes entre l'arrivée de deux héros d'une même vague.
 const HERO_SPAWN_GAP := 1.5
@@ -163,6 +163,10 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_on_restart_pressed)
 	map.heart_changed.connect(_on_heart_changed)
 	map.heart_destroyed.connect(_on_heart_destroyed)
+	map.treasure_found.connect(func(cell: Vector2i, amount: int) -> void:
+		hud.show_message("Trésor caché dans la roche : %d pièces d'or !" % amount, 4.0)
+		Sound.play("gold", map.cell_to_world(cell))
+		Fx.burst("sparks", map.cell_to_world(cell), Color("ffd54a")))
 	map.rival_heart_destroyed.connect(func() -> void:
 		hud.show_message("Le cœur du maître rival est détruit !", 5.0)
 		_check_goal())
@@ -225,7 +229,7 @@ func _start_new_game() -> void:
 		seed_value = randi()
 	map.generate(seed_value, level.get("rival", false), level.get("rival_hp", 1200.0))
 	map.set_starting_gold(level.get("start_gold", START_GOLD))
-	_wave_timer = level.get("first_wave", FIRST_WAVE_DELAY)
+	_wave_timer = maxf(level.get("first_wave", FIRST_WAVE_DELAY), Rules.FIRST_WAVE_MIN)
 	_wave_interval = level.get("wave_interval", WAVE_INTERVAL)
 	_rival_timer = level.get("rival_interval", 80.0)
 	for i in START_WORKERS:
@@ -1023,7 +1027,10 @@ func _refresh_hud() -> void:
 func _refresh_tools() -> void:
 	for tool: int in TOOL_ROOMS:
 		var room: int = TOOL_ROOMS[tool]
+		var size := Rooms.footprint(room)
 		var text := "%s (%d)" % [Rooms.display_name(room), Rooms.cost(room)]
+		if size != Vector2i.ONE:
+			text = "%s %dx%d (%d)" % [Rooms.display_name(room), size.x, size.y, Rooms.cost(room)]
 		_set_tool(tool, text, Rooms.display_name(room), research.is_unlocked("room", room))
 	for tool: int in TOOL_DEFENSES:
 		var defense: int = TOOL_DEFENSES[tool]
@@ -1050,7 +1057,9 @@ func _set_tool(tool: int, text: String, name_text: String, unlocked: bool) -> vo
 func _on_tool_selected(tool: int) -> void:
 	current_tool = tool
 	# Creuser, construire et démolir se font en glissant le doigt sur la carte.
-	camera.paint_mode = tool == Hud.Tool.DIG or tool == Hud.Tool.DEMOLISH or TOOL_ROOMS.has(tool)
+	# Les salles d'une case se « peignent » au doigt ; les grandes se posent d'un toucher.
+	camera.paint_mode = tool == Hud.Tool.DIG or tool == Hud.Tool.DEMOLISH \
+			or (TOOL_ROOMS.has(tool) and Rooms.footprint(TOOL_ROOMS[tool]) == Vector2i.ONE)
 	if tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
 	elif tool == Hud.Tool.SPELL_HEAL:
@@ -1309,13 +1318,20 @@ func _build(cell: Vector2i, room_type: int) -> void:
 		elif not map.is_claimed(cell):
 			_fail("Ce sol n'est pas encore à toi : tes ouvriers doivent d'abord le revendiquer.")
 		return
+	# La salle se pose d'un seul bloc, à la taille de son objet, autour de la case touchée.
+	var spot := map.find_block_spot(cell, room_type)
+	if spot.is_empty():
+		var size := Rooms.footprint(room_type)
+		_fail("Pas la place : la salle %s fait %d x %d cases de sol revendiqué et libre." %
+				[Rooms.display_name(room_type), size.x, size.y])
+		return
 	var cost := Rooms.cost(room_type)
 	if not map.spend_gold(cost):
-		_fail("Pas assez d'or : %s coûte %d par case." % [Rooms.display_name(room_type), cost])
+		_fail("Pas assez d'or : la salle %s coûte %d." % [Rooms.display_name(room_type), cost])
 		return
-	# Les ouvriers viendront construire la case (voir worker.gd) : en attendant,
-	# c'est un chantier, qui ne sert à rien.
-	map.start_construction(cell, "room", room_type)
+	# Les ouvriers viendront construire toutes les cases (voir worker.gd) : en
+	# attendant, c'est un chantier, qui ne sert à rien.
+	map.start_room_block(spot["origin"], spot["size"], room_type)
 	Sound.play("build", map.cell_to_world(cell), -8.0)
 	_hint("Tes ouvriers vont construire : un chantier ne sert qu'une fois terminé.")
 
@@ -1336,7 +1352,8 @@ func _place_defense(cell: Vector2i, type: int) -> void:
 
 func _demolish(cell: Vector2i) -> void:
 	if map.construction.has(cell):
-		# Chantier annulé : on rend l'or de la salle, ou le piège à son stock.
+		# Chantier annulé (toute la salle s'il s'agit d'un bloc) : on rend l'or de
+		# la salle, ou le piège à son stock.
 		var site := map.cancel_construction(cell)
 		if site["kind"] == "room":
 			var refund := Rooms.cost(site["type"])

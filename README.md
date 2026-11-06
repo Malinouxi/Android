@@ -14,7 +14,7 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Caméra : **glisser un doigt** pour se déplacer, **pincer** pour zoomer (molette sur PC).
 
 **Étape 2 — Salles**
-- Barre d'outils à droite : choisis une salle, puis touche des cases de **sol creusé** pour la construire (prix par case).
+- Barre d'outils : choisis une salle, puis touche le **sol revendiqué** : la salle entière (sa taille dépend de son objet) devient un chantier.
 - **Trésor** (25 or/case) : chaque case range 400 or. L'or des filons n'arrive plus tout seul : les ouvriers le
   mettent dans leurs poches (petit sac doré, 120 or max) et doivent **le porter au trésor**. Sans place au trésor,
   les ouvriers aux poches pleines ne creusent plus que la terre, et un message te prévient.
@@ -490,3 +490,12 @@ Avancer par petites étapes, chacune jouable :
 12. Équilibrage, tutoriel, export APK.
 
 Le jeu doit rester **original** : son propre nom, son univers, ses créatures et ses graphismes.
+
+### Étape 32 : salles en bloc, échafaudages, roche
+
+- Chaque salle se construit **d'un seul bloc** à la taille de son objet (`footprint` dans `rooms.gd`) :
+  `find_block_spot` cherche la place autour de la case touchée, `start_room_block` ouvre un chantier
+  par case, et la salle n'existe qu'une fois **toutes** les cases finies (`_finish_block`, `blocks`).
+- Les grands chantiers montrent des **échafaudages** qui montent (`VoxelModels.scaffold`).
+- La **roche** se creuse (`Rules.ROCK_DIG_HITS`) et cache parfois un trésor (`ROCK_TREASURE_CHANCE`).
+- La première vague n'arrive jamais avant `Rules.FIRST_WAVE_MIN` (7 minutes).

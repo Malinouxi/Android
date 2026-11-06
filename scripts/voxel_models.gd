@@ -395,6 +395,10 @@ static func prop(kind: String) -> Node3D:
 		# Un objet de salle : "furn_<salle>_<largeur>_<profondeur>_<remplissage>".
 		var parts := kind.split("_")
 		return furniture(int(parts[1]), Vector2i(int(parts[2]), int(parts[3])), int(parts[4]))
+	if kind.begins_with("build_"):
+		# Un chantier de salle : "build_<salle>_<largeur>_<profondeur>_<étape 0 à 3>".
+		var parts := kind.split("_")
+		return scaffold(int(parts[1]), Vector2i(int(parts[2]), int(parts[3])), int(parts[4]))
 	var root := Node3D.new()
 	var anim := {}
 	var wood := Color("6d4c41")
@@ -521,6 +525,97 @@ static func prop(kind: String) -> Node3D:
 		box(root, Vector3(0.76, 0.05, 0.06), Vector3(0, 0.58, 0.35), Color("a1887f"))
 		box(root, Vector3(0.3, 0.12, 0.2), Vector3(0.1, 0.06, 0.05), Color("8d6e63"))
 	root.set_meta("anim", anim)
+	return root
+
+
+## Le chantier d'une salle entière, centré sur son milieu : l'objet de la salle
+## sort de terre petit à petit (étape 0 à 3), et sur les grands chantiers (4 cases
+## et plus) les ouvriers montent des échafaudages, un étage de plus à chaque étape.
+static func scaffold(type: int, size: Vector2i, step: int) -> Node3D:
+	var root := Node3D.new()
+	var w := float(size.x)
+	var d := float(size.y)
+	var pole := Color("a1887f")
+	var plank := Color("c8a165")
+	var dark := Color("6d4c41")
+	# 1. L'objet de la salle, encore tout petit.
+	var object := Node3D.new()
+	root.add_child(object)
+	if type in [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP, Rooms.Type.TRAINING,
+			Rooms.Type.TEMPLE]:
+		object.add_child(furniture(type, size, 0))
+	else:
+		var piece_kind: String = {Rooms.Type.LAIR: "bed", Rooms.Type.FARM: "mushrooms_1",
+				Rooms.Type.PRISON: "prison", Rooms.Type.GRAVEYARD: "tomb_empty"}.get(type, "site")
+		for dz in size.y:
+			for dx in size.x:
+				var piece := prop(piece_kind)
+				piece.position = Vector3(dx - (w - 1.0) * 0.5, 0.0, dz - (d - 1.0) * 0.5)
+				object.add_child(piece)
+	object.scale.y = 0.12 + 0.24 * step
+	# 2. Les matériaux : une pile de planches et une caisse dans deux coins.
+	var corner := Vector3(w * 0.5 - 0.3, 0.0, d * 0.5 - 0.25)
+	for i in 3:
+		box(root, Vector3(0.5, 0.04, 0.12), Vector3(-corner.x + 0.05, 0.02 + i * 0.045, corner.z - i * 0.02), plank)
+	box(root, Vector3(0.22, 0.22, 0.22), Vector3(corner.x, 0.11, -corner.z), dark)
+	box(root, Vector3(0.23, 0.03, 0.23), Vector3(corner.x, 0.2, -corner.z), pole)
+	if type == Rooms.Type.TEMPLE or type == Rooms.Type.LIBRARY or type == Rooms.Type.PRISON:
+		for i in 3: # Des blocs de pierre taillée.
+			box(root, Vector3(0.18, 0.14, 0.18), Vector3(corner.x - 0.2 * i, 0.07, corner.z), Color("8d8d96"))
+	if size.x * size.y < 4:
+		# Petit chantier : quatre piquets et une corde.
+		var px := w * 0.5 - 0.08
+		var pz := d * 0.5 - 0.08
+		for x in [-px, px]:
+			for z in [-pz, pz]:
+				box(root, Vector3(0.05, 0.36, 0.05), Vector3(x, 0.18, z), pole)
+		box(root, Vector3(w - 0.16, 0.02, 0.02), Vector3(0, 0.32, -pz), Color("e0c080"))
+		box(root, Vector3(w - 0.16, 0.02, 0.02), Vector3(0, 0.32, pz), Color("e0c080"))
+		box(root, Vector3(0.02, 0.02, d - 0.16), Vector3(-px, 0.32, 0), Color("e0c080"))
+		box(root, Vector3(0.02, 0.02, d - 0.16), Vector3(px, 0.32, 0), Color("e0c080"))
+		root.set_meta("anim", {})
+		return root
+	# 3. Les échafaudages : des poteaux tout autour, des traverses et des
+	#    planchers à chaque étage, des croix de bois, et une échelle.
+	var level_h := 0.36
+	var levels := step + 1
+	var top := level_h * levels + 0.12
+	var ex := w * 0.5 - 0.06
+	var ez := d * 0.5 - 0.06
+	for i in size.x + 1:
+		var x := clampf(-w * 0.5 + i, -ex, ex)
+		for z in [-ez, ez]:
+			box(root, Vector3(0.06, top, 0.06), Vector3(x, top * 0.5, z), pole)
+	for i in range(1, size.y):
+		var z := -d * 0.5 + i
+		for x in [-ex, ex]:
+			box(root, Vector3(0.06, top, 0.06), Vector3(x, top * 0.5, z), pole)
+	for k in range(1, levels + 1):
+		var y := k * level_h
+		for z in [-ez, ez]:
+			box(root, Vector3(w - 0.08, 0.04, 0.05), Vector3(0, y, z), pole)
+			# Le plancher, côté intérieur.
+			box(root, Vector3(w - 0.12, 0.03, 0.2), Vector3(0, y + 0.03, z - signf(z) * 0.12), plank)
+		for x in [-ex, ex]:
+			box(root, Vector3(0.05, 0.04, d - 0.08), Vector3(x, y, 0), pole)
+		# Des croix de bois sur une travée sur deux.
+		for i in size.x:
+			if (i + k) % 2 != 0:
+				continue
+			var brace := box(root, Vector3(0.03, sqrt(1.0 + level_h * level_h), 0.03),
+					Vector3(-w * 0.5 + i + 0.5, y - level_h * 0.5, -ez - 0.03), dark)
+			brace.rotation.z = -atan2(1.0, level_h) if k % 2 == 0 else atan2(1.0, level_h)
+	# L'échelle, contre le premier poteau.
+	for x in [-ex + 0.14, -ex + 0.34]:
+		box(root, Vector3(0.03, top, 0.03), Vector3(x, top * 0.5, ez + 0.04), dark)
+	var rung := 0.12
+	while rung < top:
+		box(root, Vector3(0.22, 0.02, 0.02), Vector3(-ex + 0.24, rung, ez + 0.04), dark)
+		rung += 0.14
+	# Un petit fanion tout en haut.
+	box(root, Vector3(0.03, 0.3, 0.03), Vector3(ex, top + 0.15, -ez), dark)
+	box(root, Vector3(0.18, 0.1, 0.01), Vector3(ex - 0.1, top + 0.24, -ez), Color("b71c1c"))
+	root.set_meta("anim", {})
 	return root
 
 

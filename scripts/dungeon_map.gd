@@ -23,12 +23,14 @@ signal rival_heart_destroyed
 signal door_destroyed(cell: Vector2i)
 ## Émis à chaque changement de la carte (la vue 3D se reconstruit alors).
 signal redrawn
+## Un ouvrier a cassé une roche qui cachait un trésor (amount pièces posées par terre).
+signal treasure_found(cell: Vector2i, amount: int)
 
 ## Les différents types de tuiles.
 enum Tile {
 	EARTH, ## Terre : se creuse.
 	GOLD,  ## Filon d'or : se creuse et rapporte de l'or.
-	ROCK,  ## Roche : indestructible.
+	ROCK,  ## Roche : dure à creuser (le bord de la carte, lui, est indestructible).
 	FLOOR, ## Sol creusé : on peut marcher dessus et y construire des salles.
 	HEART, ## Le cœur du donjon : ce qu'il faudra protéger plus tard.
 	PORTAL, ## Le portail : les créatures arrivent (et repartent) par là.
@@ -41,7 +43,7 @@ const WIDTH := 48     ## Largeur de la carte, en cases.
 const HEIGHT := 32    ## Hauteur de la carte, en cases.
 
 ## Nombre de coups de pioche pour creuser chaque type de tuile.
-const DIG_HITS := {Tile.EARTH: 4, Tile.GOLD: 8}
+const DIG_HITS := {Tile.EARTH: 4, Tile.GOLD: 8, Tile.ROCK: Rules.ROCK_DIG_HITS}
 ## Or arraché à chaque coup de pioche dans un filon.
 const GOLD_PER_HIT := 15
 
@@ -87,6 +89,11 @@ var rooms: Dictionary = {}
 ## qu'aucun objet ne couvre ne sert à rien (ni lit, ni coffre, ni poste de travail).
 var furniture: Dictionary = {}
 var cell_furniture: Dictionary = {}
+## Les salles construites D'UN SEUL BLOC (voir start_room_block) : identifiant ->
+## {"room", "origin", "size", "done" (false tant que le chantier n'est pas fini)}.
+## Leur mobilier occupe exactement le bloc.
+var blocks: Dictionary = {}
+var _next_block := 0
 ## Or rangé dans chaque case de trésor (couverte par un coffre) : Vector2i -> int.
 var stored_gold: Dictionary = {}
 ## Or de départ, gardé dans le cœur. On peut le dépenser, mais pas le remplir.
@@ -262,6 +269,7 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	stored_gold.clear()
 	furniture.clear()
 	cell_furniture.clear()
+	blocks.clear()
 	food.clear()
 	beds.clear()
 	defenses.clear()
@@ -390,6 +398,7 @@ func to_save() -> Dictionary:
 		"graves": _cells_to_list(graves),
 		"loose_gold": _cells_to_list(loose_gold),
 		"construction": _construction_to_list(),
+		"blocks": _blocks_to_list(),
 		"decorations": _decorations_to_list(),
 	}
 
@@ -415,13 +424,24 @@ func load_save(data: Dictionary) -> bool:
 	for values in data.get("decorations", []):
 		decorations[SaveGame.array_to_cell(values)] = {
 			"kind": DECORATION_KINDS[int(values[2])], "side": DECORATION_SIDES[int(values[3])]}
+	blocks.clear()
+	_next_block = 0
+	var block_ids := {} # Numéro dans la sauvegarde -> identifiant.
+	for values in data.get("blocks", []):
+		block_ids[int(values[6])] = _next_block
+		blocks[_next_block] = {"room": int(values[4]), "origin": SaveGame.array_to_cell(values),
+				"size": Vector2i(int(values[2]), int(values[3])), "done": bool(values[5])}
+		_next_block += 1
 	construction.clear()
 	for values in data.get("construction", []):
 		var kind: String = "room" if int(values[2]) == 0 else "defense"
 		var type := int(values[3])
 		var total := Rooms.build_time(type) if kind == "room" else Defenses.build_time(type)
-		construction[SaveGame.array_to_cell(values)] = {
-			"kind": kind, "type": type, "left": float(values[4]), "total": total, "worker": null}
+		var site := {"kind": kind, "type": type, "left": float(values[4]), "total": total, "worker": null}
+		if values.size() > 5 and block_ids.has(int(values[5])):
+			site["block"] = block_ids[int(values[5])]
+			site["done"] = float(values[4]) <= 0.0
+		construction[SaveGame.array_to_cell(values)] = site
 	graves.clear()
 	for values in data.get("graves", []):
 		graves[SaveGame.array_to_cell(values)] = float(values[2])
@@ -476,7 +496,20 @@ func _construction_to_list() -> Array:
 	var result := []
 	for cell: Vector2i in construction:
 		var site: Dictionary = construction[cell]
-		result.append([cell.x, cell.y, 0 if site["kind"] == "room" else 1, site["type"], site["left"]])
+		var values := [cell.x, cell.y, 0 if site["kind"] == "room" else 1, site["type"], maxf(site["left"], 0.0)]
+		if site.has("block"):
+			values.append(site["block"])
+		result.append(values)
+	return result
+
+
+## Les salles en bloc -> [[x, y, largeur, hauteur, salle, finie, identifiant], ...]
+func _blocks_to_list() -> Array:
+	var result := []
+	for id: int in blocks:
+		var block: Dictionary = blocks[id]
+		result.append([block["origin"].x, block["origin"].y, block["size"].x, block["size"].y,
+				block["room"], block["done"], id])
 	return result
 
 
@@ -525,6 +558,8 @@ func is_walkable(cell: Vector2i) -> bool:
 
 func is_diggable(cell: Vector2i) -> bool:
 	var tile := get_tile(cell)
+	if tile == Tile.ROCK: # La roche se creuse, sauf le bord de la carte.
+		return cell.x > 0 and cell.y > 0 and cell.x < WIDTH - 1 and cell.y < HEIGHT - 1
 	return tile == Tile.EARTH or tile == Tile.GOLD
 
 
@@ -601,7 +636,13 @@ func dig(cell: Vector2i) -> Dictionary:
 	if finished:
 		_set_tile(cell, Tile.FLOOR)
 		astar.set_point_solid(cell, false)
+		hero_astar.set_point_solid(cell, false)
 		hero_astar.set_point_weight_scale(cell, 1.0)
+		# Une roche cache parfois un trésor : un tas d'or tombe par terre.
+		if tile == Tile.ROCK and randf() < Rules.ROCK_TREASURE_CHANCE:
+			var amount := randi_range(Rules.ROCK_TREASURE_MIN, Rules.ROCK_TREASURE_MAX)
+			drop_gold(cell, amount)
+			treasure_found.emit(cell, amount)
 		damage.erase(cell)
 		marked.erase(cell)
 		reserved.erase(cell)
@@ -772,6 +813,8 @@ func find_build_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 		return {}
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in construction:
+		if construction[cell].get("done", false):
+			continue # Case du bloc déjà finie : on attend les autres.
 		var builder = construction[cell]["worker"]
 		if builder == null or not is_instance_valid(builder) or builder == worker:
 			candidates.append(cell)
@@ -788,9 +831,23 @@ func work_on_construction(cell: Vector2i, delta: float) -> bool:
 	if not construction.has(cell):
 		return true
 	var site: Dictionary = construction[cell]
+	var before := int((1.0 - site["left"] / site["total"]) * 4.0)
 	site["left"] -= delta
 	if site["left"] > 0.0:
+		if site.has("block") and int((1.0 - site["left"] / site["total"]) * 4.0) != before:
+			_redraw_all() # Les échafaudages montent d'un étage.
 		return false
+	if site.has("block"):
+		# Une case d'une salle en bloc : la salle ne s'ouvre que quand TOUT est fini.
+		site["left"] = 0.0
+		site["done"] = true
+		site["worker"] = null
+		var id: int = site["block"]
+		if _block_cells(id).all(func(c: Vector2i) -> bool: return construction.get(c, {}).get("done", false)):
+			_finish_block(id)
+		else:
+			_redraw_all()
+		return true
 	construction.erase(cell)
 	if site["kind"] == "room":
 		build_room(cell, site["type"])
@@ -799,9 +856,111 @@ func work_on_construction(cell: Vector2i, delta: float) -> bool:
 	return true
 
 
+## Peut-on poser une salle de taille size dont le coin haut-gauche est origin ?
+func can_build_block(origin: Vector2i, size: Vector2i) -> bool:
+	for dy in size.y:
+		for dx in size.x:
+			if not can_build_room(origin + Vector2i(dx, dy)):
+				return false
+	return true
+
+
+## Cherche où poser une salle de la taille de son objet (droite ou tournée) pour
+## qu'elle contienne la case touchée. Renvoie {"origin", "size"} ou {} si rien ne rentre.
+func find_block_spot(cell: Vector2i, type: int) -> Dictionary:
+	var size := Rooms.footprint(type)
+	var options := [size]
+	if size.x != size.y:
+		options.append(Vector2i(size.y, size.x))
+	var best := {}
+	var best_score := 1 << 30
+	for option: Vector2i in options:
+		for oy in range(cell.y - option.y + 1, cell.y + 1):
+			for ox in range(cell.x - option.x + 1, cell.x + 1):
+				var origin := Vector2i(ox, oy)
+				if not can_build_block(origin, option):
+					continue
+				# On préfère la salle la mieux centrée sur la case touchée.
+				var center := Vector2(origin) + Vector2(option - Vector2i.ONE) * 0.5
+				var score := int(Vector2(cell).distance_squared_to(center) * 100.0)
+				if score < best_score:
+					best_score = score
+					best = {"origin": origin, "size": option}
+	return best
+
+
+## Ouvre le chantier d'une salle entière : chaque case est un petit chantier, et
+## les ouvriers y travaillent ensemble. Renvoie l'identifiant du bloc.
+func start_room_block(origin: Vector2i, size: Vector2i, type: int) -> int:
+	var id := _next_block
+	_next_block += 1
+	blocks[id] = {"room": type, "origin": origin, "size": size, "done": false}
+	var total := Rooms.build_time(type)
+	for cell in _block_cells(id):
+		construction[cell] = {"kind": "room", "type": type, "left": total, "total": total,
+				"worker": null, "block": id, "done": false}
+	_redraw_all()
+	return id
+
+
+## Termine tout de suite une salle en bloc (utile pour les captures d'écran).
+func finish_block_now(id: int) -> void:
+	_finish_block(id)
+
+
+func _block_cells(id: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var block: Dictionary = blocks.get(id, {})
+	if block.is_empty():
+		return result
+	for dy in block["size"].y:
+		for dx in block["size"].x:
+			result.append(block["origin"] + Vector2i(dx, dy))
+	return result
+
+
+func _finish_block(id: int) -> void:
+	var block: Dictionary = blocks[id]
+	block["done"] = true
+	for cell in _block_cells(id):
+		construction.erase(cell)
+		rooms[cell] = block["room"]
+		if block["room"] == Rooms.Type.FARM:
+			food[cell] = 0
+	_refurnish()
+	_redraw_all()
+
+
+## Le bloc (fini ou en chantier) qui contient une case, ou -1.
+func block_at(cell: Vector2i) -> int:
+	for id: int in blocks:
+		var block: Dictionary = blocks[id]
+		if Rect2i(block["origin"], block["size"]).has_point(cell):
+			return id
+	return -1
+
+
+## Avancement d'une salle en chantier, de 0 à 1.
+func block_progress(id: int) -> float:
+	var done := 0.0
+	var total := 0.0
+	for cell in _block_cells(id):
+		var site: Dictionary = construction.get(cell, {})
+		if site.is_empty():
+			continue
+		total += site["total"]
+		done += site["total"] - maxf(site["left"], 0.0)
+	return 1.0 if total <= 0.0 else done / total
+
+
 ## Annule un chantier (outil Démolir). Renvoie ce qu'il était, pour rembourser.
 func cancel_construction(cell: Vector2i) -> Dictionary:
 	var site: Dictionary = construction.get(cell, {})
+	if site.has("block"):
+		# Toute la salle est annulée d'un coup.
+		for other in _block_cells(site["block"]):
+			construction.erase(other)
+		blocks.erase(site["block"])
 	construction.erase(cell)
 	_redraw_all()
 	return site
@@ -872,9 +1031,23 @@ func build_room(cell: Vector2i, type: int) -> void:
 func _refurnish() -> void:
 	furniture.clear()
 	cell_furniture.clear()
+	var next_id := 0
+	# 1. Les salles en bloc : leur objet occupe tout le bloc.
+	for id: int in blocks.keys():
+		var block: Dictionary = blocks[id]
+		if not block["done"]:
+			continue
+		var cells_ok := _block_cells(id).all(func(c: Vector2i) -> bool: return get_room(c) == block["room"])
+		if not cells_ok:
+			blocks.erase(id) # Une partie a été démolie : le bloc n'existe plus.
+			continue
+		furniture[next_id] = {"room": block["room"], "origin": block["origin"], "size": block["size"]}
+		for cell in _block_cells(id):
+			cell_furniture[cell] = next_id
+		next_id += 1
+	# 2. Les anciennes salles (sauvegardes d'avant les blocs) : on les remplit au mieux.
 	var cells: Array = rooms.keys()
 	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.y < b.y or (a.y == b.y and a.x < b.x))
-	var next_id := 0
 	for cell: Vector2i in cells:
 		if cell_furniture.has(cell):
 			continue
@@ -914,6 +1087,22 @@ func _furniture_fits(origin: Vector2i, size: Vector2i, type: int) -> bool:
 ## Démolit la salle d'une case. L'or qu'elle contenait est déplacé dans les
 ## autres cases de trésor s'il y a de la place. Renvoie l'or perdu.
 func remove_room(cell: Vector2i) -> int:
+	if not rooms.has(cell):
+		return 0
+	var id := block_at(cell)
+	if id >= 0 and blocks[id]["done"]:
+		# Une salle en bloc se démolit d'un coup.
+		var block_cells := _block_cells(id)
+		blocks.erase(id)
+		var lost_total := 0
+		for other in block_cells:
+			if other != cell and rooms.has(other):
+				lost_total += _remove_room_cell(other)
+		return lost_total + _remove_room_cell(cell)
+	return _remove_room_cell(cell)
+
+
+func _remove_room_cell(cell: Vector2i) -> int:
 	if not rooms.has(cell):
 		return 0
 	rooms.erase(cell)

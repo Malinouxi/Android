@@ -23,6 +23,7 @@ const CHANGELOG := [
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
 		"La roche se creuse (plus lentement) et cache parfois un trésor.",
 		"Créatures : les conditions d'arrivée comptent des salles entières (Salamandre : 1 Entraînement, Sorcier : 1 Bibliothèque, Vampire : 2 Prisons...). Sorciers, Démons, Vampires et Cerbères sont limités selon le nombre de leurs salles.",
+		"HUD : le portrait du Seigneur, en 3D dans un médaillon, réagit aux événements (colère, rire, inquiétude) et parle. Touche-le pour un conseil.",
 		"Nouveau : le Brasero (Défenses, 80 or). Son feu rouge éclaire et apaise les créatures proches. Le maître rival a ses braseros violets.",
 		"Les ouvriers désœuvrés accrochent des chandeliers aux murs des salles : ils les éclairent.",
 		"Économie : ton territoire rapporte 1 or par case à chaque paie ; les filons sont plus riches loin du cœur ; 2 gemmes inépuisables par carte. Le HUD montre la paie prévue.",

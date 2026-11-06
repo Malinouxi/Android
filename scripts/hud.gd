@@ -28,6 +28,8 @@ enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		ALTAR, SACRIFICE, GRAVEYARD, BRAZIER }
 
 var _top_panel: PanelContainer
+## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
+var portrait: LordPortrait
 var _tool_panel: PanelContainer
 var _category_panel: PanelContainer
 var _goal_panel: PanelContainer
@@ -120,6 +122,7 @@ func _ready() -> void:
 	_build_category_panel()
 	_build_log_panel()
 	_build_unit_panel()
+	_build_portrait() # En dernier : le médaillon et sa bulle passent par-dessus.
 
 
 func _process(delta: float) -> void:
@@ -178,13 +181,10 @@ func _build_top_panel() -> void:
 	row.add_theme_constant_override("separation", 8)
 	_top_panel.add_child(row)
 
-	# L'emblème du maître.
-	var emblem := TextureRect.new()
-	emblem.texture = hd("demon")
-	emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	emblem.custom_minimum_size = Vector2(60, 60)
-	row.add_child(emblem)
+	# La place du portrait du Seigneur (posé par-dessus, voir _build_portrait).
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(LordPortrait.SIZE - 8.0, 60)
+	row.add_child(spacer)
 
 	_gold_label = _make_label(28)
 	_gold_label.add_theme_color_override("font_color", Ui.GOLD)
@@ -308,9 +308,16 @@ func _build_goal_panel() -> void:
 
 
 ## La colonne de gauche : les catégories d'outils, en grandes icônes.
+## Le portrait animé du Seigneur, dans son médaillon, à cheval sur la barre du haut.
+func _build_portrait() -> void:
+	portrait = LordPortrait.new()
+	portrait.position = Vector2(6, 2)
+	_root.add_child(portrait)
+
+
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
-	_category_panel.position = Vector2(8, TOP_HEIGHT + 8)
+	_category_panel.position = Vector2(8, LordPortrait.SIZE + 8) # Sous le médaillon.
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	_category_panel.add_child(column)
@@ -324,9 +331,9 @@ func _build_category_panel() -> void:
 		button.expand_icon = true
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		button.custom_minimum_size = Vector2(96, 86)
+		button.custom_minimum_size = Vector2(96, 76)
 		button.add_theme_font_size_override("font_size", 16)
-		button.add_theme_constant_override("icon_max_width", 54)
+		button.add_theme_constant_override("icon_max_width", 48)
 		button.pressed.connect(func() -> void:
 			Sound.play("click")
 			_show_tab(tab_name))
@@ -712,6 +719,8 @@ func show_message(text: String, _duration := 3.0) -> void:
 			color = kind["color"]
 			mark = kind["mark"]
 			break
+	if portrait != null:
+		portrait.react(mark) # Le Seigneur réagit à ce qui se passe.
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 6)
 	var badge := _make_label(22)
@@ -758,7 +767,7 @@ func hide_message() -> void:
 ## Vrai si cette position de l'écran est sur un panneau de l'interface
 ## (pour ne pas agir sur la case cachée sous un bouton).
 func is_over_ui(screen_position: Vector2) -> bool:
-	for panel: Control in [_top_panel, _tool_panel, _category_panel, _goal_panel, _unit_panel, _log_panel]:
+	for panel: Control in [_top_panel, _tool_panel, _category_panel, _goal_panel, _unit_panel, _log_panel, portrait]:
 		if panel != null and panel.visible and panel.get_global_rect().has_point(screen_position):
 			return true
 	return false

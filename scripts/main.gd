@@ -160,6 +160,7 @@ func _ready() -> void:
 			_paint_cell(map.world_to_cell(_to_map(screen_world_position))))
 	camera.paint_ended.connect(func() -> void: _paint_active = false)
 	hud.summon_pressed.connect(_on_summon_pressed)
+	hud.portrait.advice_requested.connect(_on_advice_requested)
 	hud.tool_selected.connect(_on_tool_selected)
 	hud.restart_pressed.connect(_on_restart_pressed)
 	map.heart_changed.connect(_on_heart_changed)
@@ -1418,6 +1419,38 @@ func _demolish(cell: Vector2i) -> void:
 	Sound.play("build", map.cell_to_world(cell), -6.0)
 	if lost > 0:
 		hud.show_message("Plus de place dans le trésor : %d or perdu !" % lost)
+
+
+## On touche le portrait du Seigneur : il donne un conseil selon la situation.
+func _on_advice_requested() -> void:
+	Sound.play("click")
+	hud.portrait.react("?", false)
+	hud.portrait.say(_advice(), 5.0)
+
+
+## Le conseil le plus utile en ce moment (du plus urgent au plus général).
+func _advice() -> String:
+	var gold := map.get_total_gold()
+	if not map.is_portal_connected():
+		return "Creuse un couloir jusqu'au portail violet : mes serviteurs viendront par là."
+	if map.count_rooms(Rooms.Type.TREASURY) == 0:
+		return "Bâtis un Trésor : mon or doit être rangé quelque part !"
+	if map.count_rooms(Rooms.Type.LAIR) == 0:
+		return "Sans Repaire, aucune créature ne viendra. Il leur faut des lits."
+	if map.count_rooms(Rooms.Type.FARM) == 0 and creatures_root.get_child_count() > 0:
+		return "Mes créatures auront faim : une Champignonnière, vite !"
+	if gold + _territory_income() < _salaries_due():
+		return "La paie approche et l'or manque. Creuse des filons, loin du cœur !"
+	if _wave_timer < 60.0:
+		return "Des héros arrivent dans %d secondes. Prépare pièges et portes !" % ceili(_wave_timer)
+	if _creatures_needing_beds() >= map.count_rooms(Rooms.Type.LAIR):
+		return "Tous les lits sont pris : ajoute des lits au Repaire pour accueillir d'autres créatures."
+	if map.count_rooms(Rooms.Type.LIBRARY) == 0 and gold >= Rooms.cost(Rooms.Type.LIBRARY):
+		return "Une Bibliothèque ferait venir des Sorciers et découvrir de nouveaux secrets."
+	return ["Les filons loin du cœur sont plus riches.",
+			"Un brasero apaise mes créatures. Mets-en près de leurs salles.",
+			"Plus mon territoire est grand, plus il rapporte à chaque paie.",
+			"Les gemmes bleues ne s'épuisent jamais..."].pick_random()
 
 
 ## Rend de l'or (au Trésor, ou au cœur s'il n'y a plus de place).

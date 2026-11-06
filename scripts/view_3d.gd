@@ -503,8 +503,10 @@ func _rebuild() -> void:
 			var mesh := ArrayMesh.new()
 			for key: String in tools:
 				var st: SurfaceTool = tools[key][0]
+				var before := mesh.get_surface_count()
 				st.commit(mesh)
-				mesh.surface_set_material(mesh.get_surface_count() - 1, tools[key][1])
+				if mesh.get_surface_count() > before: # Rien de dessiné : pas de surface.
+					mesh.surface_set_material(mesh.get_surface_count() - 1, tools[key][1])
 			var chunk := MeshInstance3D.new()
 			chunk.mesh = mesh
 			add_child(chunk)

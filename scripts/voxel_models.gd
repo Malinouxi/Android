@@ -186,18 +186,25 @@ static func character(sprite: String, tint := Color.WHITE, alpha := 1.0) -> Node
 const BLENDER_MODELS := "res://assets/models/%s.glb"
 ## Le genre de squelette des bêtes (pour les animer comme leur modèle en blocs).
 const RIG_KINDS := {"spider": "spider", "bat": "bat", "cerberus": "quadruped"}
-## Les modèles déjà chargés : sprite -> PackedScene (ou null s'il n'y en a pas).
+## Le mobilier des salles (assets/models/rooms/<nom>.glb) : ses parties animées
+## sont des pivots nommés flame_*, sway_* et wisp (voir _blender_room).
+const BLENDER_ROOMS := "res://assets/models/rooms/%s.glb"
+## Les modèles déjà chargés : chemin -> PackedScene (ou null s'il n'y en a pas).
 static var _blender_scenes := {}
 
 
+## Une copie du modèle Blender rangé à « path », ou null s'il n'existe pas.
+static func _blender_model(path: String) -> Node3D:
+	if not _blender_scenes.has(path):
+		_blender_scenes[path] = load(path) if ResourceLoader.exists(path) else null
+	var scene: PackedScene = _blender_scenes[path]
+	return null if scene == null else scene.instantiate() as Node3D
+
+
 static func _blender_character(sprite: String) -> Node3D:
-	if not _blender_scenes.has(sprite):
-		var path := BLENDER_MODELS % sprite
-		_blender_scenes[sprite] = load(path) if ResourceLoader.exists(path) else null
-	var scene: PackedScene = _blender_scenes[sprite]
-	if scene == null:
+	var root := _blender_model(BLENDER_MODELS % sprite)
+	if root == null:
 		return null
-	var root := scene.instantiate() as Node3D
 	var body := root.get_node("body") as Node3D
 	var rig := {"body": body, "legs": [], "arms": [], "wings": [], "tail": body.get_node_or_null("tail"),
 			"kind": RIG_KINDS.get(sprite, "humanoid")}
@@ -212,6 +219,22 @@ static func _blender_character(sprite: String) -> Node3D:
 		if body.has_node(pivot_name):
 			rig["wings"].append(body.get_node(pivot_name))
 	root.set_meta("rig", rig)
+	return root
+
+
+## Un objet de salle fait dans Blender, avec ses parties animées rangées comme
+## celles des modèles en blocs : {"flames": [...], "sways": [...], "wisp": ...}.
+static func _blender_room(model_name: String) -> Node3D:
+	var root := _blender_model(BLENDER_ROOMS % model_name)
+	if root == null:
+		return null
+	# Les pivots seulement (pas leurs maillages « flame_0_mesh »...).
+	var is_pivot := func(node: Node) -> bool: return not node is MeshInstance3D
+	var anim := {"flames": root.find_children("flame_*", "", true, false).filter(is_pivot),
+			"sways": root.find_children("sway_*", "", true, false).filter(is_pivot)}
+	if root.has_node("wisp"):
+		anim["wisp"] = root.get_node("wisp")
+	root.set_meta("anim", anim)
 	return root
 
 
@@ -447,6 +470,10 @@ static func prop(kind: String) -> Node3D:
 		# Un chantier de salle : "build_<salle>_<largeur>_<profondeur>_<étape 0 à 3>".
 		var parts := kind.split("_")
 		return scaffold(int(parts[1]), Vector2i(int(parts[2]), int(parts[3])), int(parts[4]))
+	# Lit, champignons, cellule, tombes : le modèle Blender s'il existe.
+	var model := _blender_room(kind)
+	if model != null:
+		return model
 	var root := Node3D.new()
 	var anim := {}
 	var wood := Color("6d4c41")
@@ -693,6 +720,15 @@ static func furniture(type: int, size: Vector2i, extra := 0) -> Node3D:
 	if size.x > size.y:
 		inner.rotation.y = PI / 2
 	var anim := {"flames": [], "sways": []}
+	var model_name: String = {Rooms.Type.TREASURY: "treasury_%d" % clampi(extra, 0, 3),
+			Rooms.Type.LIBRARY: "library", Rooms.Type.WORKSHOP: "workshop", Rooms.Type.TRAINING: "training",
+			Rooms.Type.TEMPLE: "temple"}.get(type, "")
+	var model := _blender_room(model_name) if Vector2i(short, long) == Rooms.footprint(type) else null
+	if model != null:
+		# Le modèle Blender est fait à la taille de la salle (« footprint »).
+		inner.add_child(model)
+		root.set_meta("anim", model.get_meta("anim"))
+		return root
 	match type:
 		Rooms.Type.TREASURY:
 			_treasure_hoard(inner, short, long, extra, anim)

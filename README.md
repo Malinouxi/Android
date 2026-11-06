@@ -313,6 +313,15 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout reconstruire : `blender --background --python tools/blender/build_all.py`. Construire un
   personnage remplace dans Blender la scène du précédent (les noms des pivots doivent rester uniques).
 
+**Étape 33 — Salles modélisées dans Blender**
+- Le mobilier des salles passe aussi en low-poly (`assets/models/rooms/<nom>.glb`) : lit (Repaire),
+  champignons 1 à 3 (Champignonnière), cellule (Prison), tombe vide ou occupée (Cimetière), Trésor 1 x 2
+  rempli de 0 à 3 (coffre, tas d'or, gemmes, couronne), Bibliothèque, Atelier, Entraînement et Temple.
+  `VoxelModels.prop` et `VoxelModels.furniture` les chargent s'ils existent (sinon, les blocs) ; les
+  chantiers (échafaudages) les utilisent aussi.
+- Les parties animées sont des pivots nommés `flame_*` (flammes, braises), `sway_*` (mannequins) et `wisp`
+  (feu follet), que `view_3d.gd` anime comme avant. Script : `tools/blender/rooms.py`.
+
 **Étape 31 — Salles à objets, pierre taillée, interface HD**
 - Chaque salle se couvre automatiquement d'**objets de plusieurs cases** (`footprint` dans `rooms.gd`,
   `_refurnish` dans `dungeon_map.gd`) : coffre 1 x 2, rayonnages 2 x 3, forge 2 x 2, arène 2 x 4, autel

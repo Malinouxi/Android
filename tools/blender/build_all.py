@@ -1,4 +1,5 @@
-"""Reconstruit et exporte TOUS les personnages low-poly dans assets/models/.
+"""Reconstruit et exporte TOUS les modèles low-poly : les personnages dans
+assets/models/, le mobilier des salles dans assets/models/rooms/.
 
 Dans Blender (onglet Scripting, ou par MCP) :
     import sys; sys.path.insert(0, r"<projet>/tools/blender")
@@ -21,12 +22,13 @@ import demon  # noqa: E402
 import humanoid  # noqa: E402
 import knight  # noqa: E402
 import lowpoly  # noqa: E402
+import rooms  # noqa: E402
 
 MODELS = os.path.join(os.path.dirname(os.path.dirname(HERE)), "assets", "models")
 
 
 def run():
-    for module in (lowpoly, humanoid, cast, beasts, demon, knight):
+    for module in (lowpoly, humanoid, cast, beasts, demon, knight, rooms):
         importlib.reload(module)
     os.makedirs(MODELS, exist_ok=True)
     path = lambda name: os.path.join(MODELS, name + ".glb")  # noqa: E731
@@ -36,7 +38,10 @@ def run():
         cast.build(name, path(name))
     for name in beasts.BUILDERS:
         beasts.build(name, path(name))
-    print("Personnages exportés dans", MODELS)
+    os.makedirs(os.path.join(MODELS, "rooms"), exist_ok=True)
+    for name in rooms.BUILDERS:
+        rooms.build(name, path(os.path.join("rooms", name)))
+    print("Modèles exportés dans", MODELS)
 
 
 if __name__ == "__main__":

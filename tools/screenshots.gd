@@ -120,6 +120,12 @@ func _run() -> void:
 		if side != Vector2i.ZERO:
 			map_node.add_decoration(cell, "candelabra", side)
 	print("ÉTAPE salles : chandeliers = ", map_node.candelabras.size())
+	# Un brasero (Defenses.Type.BRAZIER = 4) près des salles.
+	for offset: Vector2i in [Vector2i(-7, 1), Vector2i(-2, 1), Vector2i(-2, -1)]:
+		if map_node.can_place_defense(heart + offset):
+			map_node.place_defense(heart + offset, 4)
+			print("ÉTAPE salles : brasero posé en ", offset)
+			break
 	map_node.add_gold_to_treasury(600)
 	print("ÉTAPE salles : objets posés = ", map_node.furniture.size(), ", blocs = ", map_node.blocks.size())
 	var view: Node = game.get("_view3d")

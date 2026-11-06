@@ -193,6 +193,8 @@ func _process_digging(delta: float) -> void:
 		Sound.play("gold", target_position, -3.0)
 		Fx.burst("coins", target_position)
 	carried_gold += result["gold"]
+	if map.get_tile(job["target"]) == DungeonMap.Tile.GEM:
+		_dig_timer = DIG_INTERVAL * Rules.GEM_DIG_SLOWNESS # La gemme est dure : on taille lentement.
 	# Case finie, ou poches pleines : on arrête (et on ira vider ses poches).
 	if result["finished"] or is_full():
 		_stop_job()

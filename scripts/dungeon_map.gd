@@ -36,6 +36,7 @@ enum Tile {
 	PORTAL, ## Le portail : les créatures arrivent (et repartent) par là.
 	ENTRANCE, ## L'entrée des héros.
 	RIVAL_HEART, ## Le cœur du maître rival (certains niveaux de la campagne).
+	GEM,   ## Gemme : inépuisable, chaque coup de pioche rapporte de l'or (voir Rules).
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -261,6 +262,8 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	portal_cell = _place_gate(rng, Tile.PORTAL, avoid)
 	avoid.append(portal_cell)
 	entrance_cell = _place_gate(rng, Tile.ENTRANCE, avoid)
+	avoid.append(entrance_cell)
+	_place_gems(rng, avoid)
 
 	damage.clear()
 	marked.clear()
@@ -282,6 +285,29 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 
 ## Place une « porte » (portail ou entrée des héros) assez loin du cœur,
 ## et loin des cases de la liste avoid, dans une petite clairière. Renvoie sa case.
+## Les gemmes : quelques cases loin du cœur, dans la roche ou la terre.
+func _place_gems(rng: RandomNumberGenerator, avoid: Array[Vector2i]) -> void:
+	var placed := 0
+	var tries := 0
+	while placed < Rules.GEMS_PER_MAP and tries < 400:
+		tries += 1
+		var cell := Vector2i(rng.randi_range(2, WIDTH - 3), rng.randi_range(2, HEIGHT - 3))
+		if _manhattan(cell, heart_cell) < Rules.GEM_MIN_DISTANCE:
+			continue
+		var tile := get_tile(cell)
+		if tile != Tile.EARTH and tile != Tile.ROCK and tile != Tile.GOLD:
+			continue
+		var too_close := false
+		for other in avoid:
+			if _manhattan(cell, other) < 4:
+				too_close = true
+		if too_close:
+			continue
+		_set_tile(cell, Tile.GEM)
+		avoid.append(cell)
+		placed += 1
+
+
 func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) -> Vector2i:
 	var gate := Vector2i(3, 3)
 	for _attempt in 200:
@@ -350,7 +376,8 @@ func _setup_pathfinding() -> void:
 			var cell := Vector2i(x, y)
 			astar.set_point_solid(cell, not is_walkable(cell))
 			var tile := get_tile(cell)
-			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART)
+			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
+					or tile == Tile.GEM)
 			if is_diggable(cell):
 				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
 	for cell: Vector2i in defenses:
@@ -560,7 +587,7 @@ func is_diggable(cell: Vector2i) -> bool:
 	var tile := get_tile(cell)
 	if tile == Tile.ROCK: # La roche se creuse, sauf le bord de la carte.
 		return cell.x > 0 and cell.y > 0 and cell.x < WIDTH - 1 and cell.y < HEIGHT - 1
-	return tile == Tile.EARTH or tile == Tile.GOLD
+	return tile == Tile.EARTH or tile == Tile.GOLD or tile == Tile.GEM
 
 
 ## Centre d'une case, en pixels.
@@ -629,7 +656,10 @@ func dig(cell: Vector2i) -> Dictionary:
 	if not is_diggable(cell):
 		return {"finished": true, "gold": 0}
 	var tile := get_tile(cell)
-	var gold := GOLD_PER_HIT if tile == Tile.GOLD else 0
+	if tile == Tile.GEM:
+		# Une gemme ne s'épuise jamais : chaque coup rapporte un peu d'or.
+		return {"finished": false, "gold": Rules.GEM_GOLD_PER_HIT}
+	var gold := gold_per_hit(cell) if tile == Tile.GOLD else 0
 
 	damage[cell] = damage.get(cell, 0) + 1
 	var finished: bool = damage[cell] >= DIG_HITS[tile]
@@ -655,6 +685,13 @@ func dig(cell: Vector2i) -> Dictionary:
 	return {"finished": finished, "gold": gold}
 
 
+## L'or d'un coup de pioche dans un filon : plus il est loin du cœur, plus il est riche.
+func gold_per_hit(cell: Vector2i) -> int:
+	var depth := float(_manhattan(cell, heart_cell) - Rules.DEEP_GOLD_START) \
+			/ float(Rules.DEEP_GOLD_FULL - Rules.DEEP_GOLD_START)
+	return roundi(GOLD_PER_HIT * (1.0 + Rules.DEEP_GOLD_BONUS * clampf(depth, 0.0, 1.0)))
+
+
 ## Cherche la case marquée la plus proche pour un ouvrier.
 ## Si allow_gold est faux, on ignore les filons (l'ouvrier a les poches pleines).
 ## Renvoie { "type": "dig", "target": case, "path": chemin }, ou {} si rien à faire.
@@ -662,7 +699,7 @@ func find_dig_job(worker: Node, from_cell: Vector2i, allow_gold := true) -> Dict
 	# 1. On liste les cases marquées que personne d'autre ne creuse déjà.
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in marked:
-		if not allow_gold and get_tile(cell) == Tile.GOLD:
+		if not allow_gold and (get_tile(cell) == Tile.GOLD or get_tile(cell) == Tile.GEM):
 			continue
 		if reserved.get(cell, worker) == worker:
 			candidates.append(cell)
@@ -1647,7 +1684,7 @@ func _is_wall(cell: Vector2i) -> bool:
 	if not is_inside(cell):
 		return true
 	var tile := get_tile(cell)
-	return tile == Tile.EARTH or tile == Tile.GOLD or tile == Tile.ROCK
+	return tile == Tile.EARTH or tile == Tile.GOLD or tile == Tile.ROCK or tile == Tile.GEM
 
 
 ## Change les torches, et redessine seulement si quelque chose a changé.
@@ -1749,7 +1786,7 @@ func _draw_wall(layer: Node2D, cell: Vector2i) -> void:
 	var images: Array = Art.ROCK
 	if tile == Tile.EARTH:
 		images = Art.EARTH
-	elif tile == Tile.GOLD:
+	elif tile == Tile.GOLD or tile == Tile.GEM:
 		images = Art.GOLD
 	var texture: Texture2D = Art.pick(images, cell)
 	var p := Vector2(cell * TILE_SIZE)

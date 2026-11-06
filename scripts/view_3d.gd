@@ -51,6 +51,7 @@ const WALL_STONE := preload("res://assets/tiles_hd/wall_stone.png")
 const WALL_TOP := preload("res://assets/tiles_hd/wall_top.png")
 const FLOOR_STONE := preload("res://assets/tiles_hd/floor_stone.png")
 const TORCH_COLOR := Color(1.0, 0.58, 0.26)
+const GEM_TINT := Color(0.55, 0.75, 1.0)
 ## Les salles dont l'objet occupe plusieurs cases (un seul modèle par objet).
 const MULTI_CELL_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
 		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]        ## case marquée « à creuser » -> Sprite3D (une pioche)
@@ -486,7 +487,8 @@ func _is_wall(cell: Vector2i) -> bool:
 	if not map.is_inside(cell):
 		return true
 	var tile := map.get_tile(cell)
-	return tile == DungeonMap.Tile.EARTH or tile == DungeonMap.Tile.GOLD or tile == DungeonMap.Tile.ROCK
+	return tile == DungeonMap.Tile.EARTH or tile == DungeonMap.Tile.GOLD or tile == DungeonMap.Tile.ROCK \
+			or tile == DungeonMap.Tile.GEM
 
 
 ## Reconstruit le sol, les murs et les objets. La carte est découpée en morceaux
@@ -589,19 +591,21 @@ func _add_cell(tools: Dictionary, cell: Vector2i) -> void:
 	var images: Array = Art.ROCK
 	if tile == DungeonMap.Tile.EARTH:
 		images = Art.EARTH
-	elif tile == DungeonMap.Tile.GOLD:
+	elif tile == DungeonMap.Tile.GOLD or tile == DungeonMap.Tile.GEM:
 		images = Art.GOLD
 	var texture: Texture2D = Art.pick(images, cell)
 	# Teinte : plus sombre si la case est entamée par les pioches.
 	# (Les cases à creuser sont signalées par une pioche, voir _update_dig_icons.)
 	var tint := Color.WHITE
+	if tile == DungeonMap.Tile.GEM:
+		tint = GEM_TINT # Une gemme : le filon devient bleu-violet, bien visible.
 	if map.damage.has(cell) and DungeonMap.DIG_HITS.has(tile):
 		tint = tint.darkened(0.5 * float(map.damage[cell]) / DungeonMap.DIG_HITS[tile])
 	var st := _tool(tools, texture, tint)
 	# Les murs de ton territoire sont en PIERRE TAILLÉE (ceux qui bordent un sol
 	# revendiqué ou une salle) ; le reste est de la roche brute. Les filons d'or
 	# gardent leur image, pour qu'on les repère.
-	var reinforced := tile != DungeonMap.Tile.GOLD and _borders_territory(cell)
+	var reinforced := tile != DungeonMap.Tile.GOLD and tile != DungeonMap.Tile.GEM and _borders_territory(cell)
 	var top_texture: Texture2D = WALL_TOP if reinforced else texture
 	# Le dessus des murs est un peu plus sombre que le sol : on voit mieux le relief.
 	_flat(_tool(tools, top_texture, tint.darkened(TOP_DARKEN)), cell, WALL_HEIGHT)

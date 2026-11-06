@@ -933,6 +933,12 @@ func _update_payday(delta: float) -> void:
 		return
 	_payday_timer = PAYDAY_INTERVAL
 
+	# D'abord les revenus : ton territoire rapporte un peu d'or (voir Rules.TERRITORY_INCOME).
+	var income := _territory_income()
+	if income > 0:
+		var stored := map.add_gold_to_treasury(income)
+		map.heart_gold += income - stored # Pas de place au Trésor : l'or va au cœur.
+		map.gold_changed.emit()
 	var total_paid := 0
 	var unpaid := 0
 	for creature: Creature in creatures_root.get_children():
@@ -948,9 +954,24 @@ func _update_payday(delta: float) -> void:
 	if unpaid > 0:
 		Sound.play("error")
 		hud.show_message("Jour de paie : pas assez d'or ! %d créature(s) non payée(s), elles sont furieuses." % unpaid, 6.0)
-	elif total_paid > 0:
+	elif total_paid > 0 or income > 0:
 		Sound.play("coins")
-		hud.show_message("Jour de paie : %d or versés à tes créatures." % total_paid)
+		hud.show_message("Jour de paie : +%d or d'impôts du territoire, %d or versés à tes créatures." %
+				[income, total_paid])
+
+
+## L'or que rapporte le territoire à chaque paie.
+func _territory_income() -> int:
+	return map.claimed.size() * Rules.TERRITORY_INCOME
+
+
+## Le total des salaires de la prochaine paie.
+func _salaries_due() -> int:
+	var total := 0
+	for creature: Creature in creatures_root.get_children():
+		if not creature.is_leaving():
+			total += creature.salary()
+	return total
 
 
 # ---------------------------------------------------------------------------
@@ -1008,7 +1029,9 @@ func _refresh_hud() -> void:
 	hud.set_gold(map.get_total_gold(), map.get_treasury_stored(), map.get_treasury_capacity())
 	hud.set_workers(workers_root.get_child_count())
 	hud.set_creatures(_creatures_needing_beds(), map.count_room_tiles(Rooms.Type.LAIR))
-	hud.set_payday(ceili(_payday_timer))
+	var due := _salaries_due()
+	var income := _territory_income()
+	hud.set_payday(ceili(_payday_timer), due, income, map.get_total_gold() + income >= due)
 	hud.set_heart(map.heart_hp, DungeonMap.HEART_MAX_HP)
 	hud.set_next_wave(_next_wave, ceili(_wave_timer))
 	hud.set_mana(mana, Spells.MAX_MANA)

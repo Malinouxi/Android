@@ -580,8 +580,11 @@ func set_creatures(count: int, beds: int) -> void:
 	_creatures_label.text = "%d / %d lits" % [count, beds]
 
 
-func set_payday(seconds_left: int) -> void:
-	_payday_label.text = "Paie dans %d s" % seconds_left
+## La prochaine paie : dans combien de temps, les salaires à verser (due), les
+## impôts du territoire (income), et en rouge si l'or ne suffira pas.
+func set_payday(seconds_left: int, due := 0, income := 0, affordable := true) -> void:
+	_payday_label.text = "Paie %d s : -%d / +%d or" % [seconds_left, due, income]
+	_payday_label.add_theme_color_override("font_color", Color("d7ccc8") if affordable else Color("ff5a5a"))
 
 
 func set_heart(hp: float, max_hp: float) -> void:

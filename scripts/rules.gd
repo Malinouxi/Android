@@ -23,6 +23,7 @@ const CHANGELOG := [
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
 		"La roche se creuse (plus lentement) et cache parfois un trésor.",
 		"Créatures : les conditions d'arrivée comptent des salles entières (Salamandre : 1 Entraînement, Sorcier : 1 Bibliothèque, Vampire : 2 Prisons...). Sorciers, Démons, Vampires et Cerbères sont limités selon le nombre de leurs salles.",
+		"Économie : ton territoire rapporte 1 or par case à chaque paie ; les filons sont plus riches loin du cœur ; 2 gemmes inépuisables par carte. Le HUD montre la paie prévue.",
 		"La première vague laisse le temps de bâtir un Trésor, une Champignonnière et un Repaire (7 minutes au moins).",
 	]},
 	{"version": "2.0", "changes": [
@@ -94,6 +95,21 @@ const ROCK_TREASURE_CHANCE := 0.15
 ## ... de tant d'or (au hasard entre les deux), posé par terre : les ouvriers le ramassent.
 const ROCK_TREASURE_MIN := 100
 const ROCK_TREASURE_MAX := 300
+
+# --- Revenus ---------------------------------------------------------------------
+## À chaque jour de paie, ton territoire rapporte tant d'or par case revendiquée.
+const TERRITORY_INCOME := 1
+## Les filons loin du cœur sont plus riches : jusqu'à +100 % d'or par coup de pioche
+## (à partir de DEEP_GOLD_START cases du cœur, au maximum à DEEP_GOLD_FULL cases).
+const DEEP_GOLD_BONUS := 1.0
+const DEEP_GOLD_START := 8
+const DEEP_GOLD_FULL := 24
+## Les GEMMES : rares, loin du cœur, inépuisables. Chaque coup de pioche rapporte
+## GEM_GOLD_PER_HIT or (lentement : GEM_DIG_SLOWNESS fois plus lent que l'or).
+const GEMS_PER_MAP := 2
+const GEM_MIN_DISTANCE := 14
+const GEM_GOLD_PER_HIT := 12
+const GEM_DIG_SLOWNESS := 2.0
 
 # --- Vagues ------------------------------------------------------------------------
 ## La première vague n'arrive jamais avant ce délai (secondes), quel que soit le niveau :

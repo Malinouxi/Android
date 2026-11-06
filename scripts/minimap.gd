@@ -11,6 +11,7 @@ const CELL := 3 ## Taille d'une case sur la mini-carte, en pixels.
 const COLORS := {
 	DungeonMap.Tile.EARTH: Color("6b4a2f"),
 	DungeonMap.Tile.GOLD: Color("d4a82a"),
+	DungeonMap.Tile.GEM: Color("7fb8ff"),
 	DungeonMap.Tile.ROCK: Color("2e2e34"),
 	DungeonMap.Tile.FLOOR: Color("4a423b"),
 	DungeonMap.Tile.HEART: Color("ff3030"),

@@ -22,6 +22,7 @@ const CHANGELOG := [
 		"Les salles se construisent d'un seul bloc, à leur taille : Bibliothèque 2 x 3, Entraînement 2 x 4, Temple 2 x 3, Atelier 2 x 2, Prison 2 x 2 (4 cellules), Trésor 1 x 2. Le prix est celui de la salle entière.",
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
 		"La roche se creuse (plus lentement) et cache parfois un trésor.",
+		"Créatures : les conditions d'arrivée comptent des salles entières (Salamandre : 1 Entraînement, Sorcier : 1 Bibliothèque, Vampire : 2 Prisons...). Sorciers, Démons, Vampires et Cerbères sont limités selon le nombre de leurs salles.",
 		"La première vague laisse le temps de bâtir un Trésor, une Champignonnière et un Repaire (7 minutes au moins).",
 	]},
 	{"version": "2.0", "changes": [
@@ -116,9 +117,18 @@ const CREATURE_ARRIVAL_DELAY := 20.0 ## Secondes entre deux arrivées par le por
 const PORTAL_BALANCE := 2.0
 ## Avec une Prison et aucun Attrapeur de cauchemar, ses chances sont multipliées par ceci.
 const CATCHER_PRIORITY := 4.0
-## Un Cerbère par CERBERUS_TREASURY_TILES cases de Trésor, MAX_CERBERUS au plus.
-const CERBERUS_TREASURY_TILES := 6
+## Créatures rares, limitées selon le nombre de SALLES (un bloc = une salle) :
+## un Cerbère par CERBERUS_TREASURY_ROOMS salles de Trésor (il en faut autant pour
+## qu'il vienne), MAX_CERBERUS au plus...
+const CERBERUS_TREASURY_ROOMS := 3
 const MAX_CERBERUS := 3
+## ... 2 Sorciers par Bibliothèque, 1 Démon par Temple, 2 Vampires par Prison.
+const WARLOCKS_PER_LIBRARY := 2.0
+const MAX_WARLOCKS := 6
+const DEMONS_PER_TEMPLE := 1.0
+const MAX_DEMONS := 3
+const VAMPIRES_PER_PRISON := 2.0
+const MAX_VAMPIRES := 4
 
 # --- Prison et sacrifices ------------------------------------------------------
 ## Secondes pendant lesquelles un héros assommé attend un Attrapeur avant de mourir.

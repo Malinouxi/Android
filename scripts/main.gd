@@ -315,10 +315,9 @@ func _choose_arrival(types: Array[int]) -> int:
 	for type in types:
 		var info := Creatures.info(type)
 		var count: int = counts.get(type, 0)
-		if info.has("limit_room"):
-			var allowed := mini(map.count_room_tiles(info["limit_room"]) / int(info["limit_per"]), info["limit_max"])
-			if count >= allowed:
-				continue
+		var allowed := Creatures.allowed_count(type, map)
+		if allowed >= 0 and count >= allowed:
+			continue # Espèce rare : sa limite est atteinte (voir creatures.gd).
 		var weight := 1.0 / pow(count + 1.0, Rules.PORTAL_BALANCE)
 		if info.get("catcher", false) and count == 0 and map.count_room_tiles(Rooms.Type.PRISON) > 0:
 			weight *= Rules.CATCHER_PRIORITY

@@ -280,7 +280,7 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Le portail préfère la **variété** : une espèce déjà présente N fois a (N + 1)² fois moins de chances
   de venir. Avec une Prison et aucun Attrapeur, l'Attrapeur a 4 fois plus de chances.
 - **Cerbères limités** : un pour 6 cases de Trésor, 3 au maximum. Règles en version 1.5
-  (réglages `PORTAL_BALANCE`, `CATCHER_PRIORITY`, `CERBERUS_TREASURY_TILES`, `MAX_CERBERUS`).
+  (réglages `PORTAL_BALANCE`, `CATCHER_PRIORITY`, `CERBERUS_TREASURY_ROOMS`, `MAX_CERBERUS`, `WARLOCKS_PER_LIBRARY`, `DEMONS_PER_TEMPLE`, `VAMPIRES_PER_PRISON`).
 
 **Étape 24 — Les ouvriers construisent**
 - Poser une salle, un piège, une porte ou un autel crée un **chantier** (objet en transparence, barre orange).

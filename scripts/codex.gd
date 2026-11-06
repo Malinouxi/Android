@@ -243,7 +243,18 @@ func _creatures_table() -> String:
 		var info: Dictionary = Creatures.INFO[type]
 		var requires: Array[String] = []
 		for room: int in info["requires"]:
-			requires.append("%d %s" % [info["requires"][room], Rooms.display_name(room)])
+			var amount: int = info["requires"][room]
+			if room == Rooms.Type.LAIR:
+				requires.append("%d lit%s" % [amount, "s" if amount > 1 else ""])
+			elif room == Rooms.Type.FARM:
+				requires.append("%d champignon%s" % [amount, "s" if amount > 1 else ""])
+			else:
+				requires.append("%d %s" % [amount, Rooms.display_name(room)])
+		if info.has("limit_room"):
+			var each: float = info["limit_each"]
+			var per := ("%d par %s" % [roundi(each), Rooms.display_name(info["limit_room"])]) if each >= 1.0 \
+					else ("1 pour %d %s" % [roundi(1.0 / each), Rooms.display_name(info["limit_room"])])
+			requires.append("max %s (%d en tout)" % [per, info["limit_max"]])
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
 				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"

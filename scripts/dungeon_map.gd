@@ -1011,6 +1011,16 @@ func count_room_tiles(type: int) -> int:
 	return count
 
 
+## Le nombre de SALLES finies d'un type (un bloc = une salle ; un lit, un carré
+## de champignons ou une tombe = une salle d'une case). Voir creatures.gd, "requires".
+func count_rooms(type: int) -> int:
+	var count := 0
+	for id: int in furniture:
+		if furniture[id]["room"] == type:
+			count += 1
+	return count
+
+
 func is_furnished(cell: Vector2i) -> bool:
 	return cell_furniture.has(cell)
 

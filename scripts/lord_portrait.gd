@@ -318,7 +318,7 @@ func say(text: String, duration := BUBBLE_TIME) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	var pressed := (event is InputEventMouseButton and event.pressed) \
+	var pressed: bool = (event is InputEventMouseButton and event.pressed) \
 			or (event is InputEventScreenTouch and event.pressed)
 	if pressed:
 		accept_event()

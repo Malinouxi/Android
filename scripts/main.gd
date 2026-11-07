@@ -197,6 +197,9 @@ func _ready() -> void:
 	hud.menu_pressed.connect(_on_menu_pressed)
 	research.discovered.connect(_on_research_discovered)
 	map.combo_triggered.connect(_on_combo_triggered)
+	map.secret_hinted.connect(_on_secret_hinted)
+	map.secret_revealed.connect(_on_secret_revealed)
+	map.lava_flowed.connect(_on_lava_flowed)
 
 	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
@@ -506,7 +509,7 @@ func _update_waves(delta: float) -> void:
 				_spawn_veteran(_pending_veterans.pop_front())
 			else:
 				_spawn_hero(_pending_heroes.pop_front())
-	elif _wave_in_progress and get_tree().get_nodes_in_group("heroes").is_empty():
+	elif _wave_in_progress and _invader_count() == 0:
 		# Plus aucun héros vivant : la vague est repoussée.
 		_wave_in_progress = false
 		_waves_survived += 1
@@ -531,7 +534,7 @@ func _update_music(delta: float) -> void:
 	if _music_timer > 0.0:
 		return
 	_music_timer = 0.5
-	if not get_tree().get_nodes_in_group("heroes").is_empty():
+	if _invader_count() > 0:
 		_calm_countdown = CALM_MUSIC_DELAY
 	Sound.play_music("combat" if _calm_countdown > 0.0 else "calm")
 
@@ -576,6 +579,100 @@ func _champion_leads_wave(wave: int) -> bool:
 		if node is Hero and (node as Hero).type == Heroes.Type.CHAMPION:
 			return false # Il est encore dans le donjon.
 	return true
+
+
+## Les ennemis qui attaquent le donjon (le Colosse endormi, qui garde sa caverne
+## sans en sortir, ne compte pas : il n'empêche pas une vague d'être repoussée).
+func _invader_count() -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("heroes"):
+		if node is Hero and not (node as Hero).is_guardian():
+			count += 1
+	return count
+
+
+# ---------------------------------------------------------------------------
+# Les profondeurs (voir dungeon_map.gd) : Colosse endormi, lac de lave, ruine oubliée
+# ---------------------------------------------------------------------------
+
+const SECRET_HINTS := {
+	"colossus": "Un souffle énorme résonne derrière la roche... Quelque chose dort là. Continuer à creuser le réveillera.",
+	"lava": "La roche est brûlante ici, et un grondement sourd monte des profondeurs... Prudence en creusant.",
+	"ruin": "Des murmures anciens filtrent à travers la terre... Une ruine oubliée est toute proche.",
+}
+
+
+func _on_secret_hinted(kind: String, cell: Vector2i) -> void:
+	Sound.play("horn", map.cell_to_world(cell), -16.0)
+	hud.show_message(SECRET_HINTS[kind], 6.0)
+
+
+func _on_secret_revealed(kind: String, center: Vector2i) -> void:
+	var at := map.cell_to_world(center)
+	Fx.shake(6.0, 0.5)
+	Fx.burst("dust", at)
+	match kind:
+		"colossus":
+			var colossus := _add_hero(Heroes.Type.COLOSSUS, center)
+			Sound.play("door_break", at)
+			Fx.flash_light(at, Color(1.0, 0.5, 0.2), 200.0, 0.8)
+			hud.show_message("Tes ouvriers ont réveillé le COLOSSE ENDORMI ! Il garde un trésor (%d or) et frappe tout ce qui approche. Vaincu, il te servira." %
+					Rules.COLOSSUS_HOARD, 7.0)
+			colossus.queue_redraw()
+		"lava":
+			Sound.play("explosion", at)
+			Fx.flash_light(at, Color(1.0, 0.4, 0.1), 260.0, 1.0)
+			hud.show_message("Un LAC DE LAVE se déverse dans tes couloirs ! Éloigne tes ouvriers. Refroidie, la lave deviendra de l'or volcanique (%d fois plus riche)." %
+					int(Rules.VOLCANIC_GOLD), 7.0)
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					_on_lava_flowed(center + Vector2i(dx, dy))
+		"ruin":
+			Sound.play("discovery", at)
+			Fx.burst("magic", at, Color("b388ff"))
+			Fx.flash_light(at, Color(0.6, 0.4, 1.0), 220.0, 1.0)
+			var learned: Array[String] = []
+			for i in Rules.RUIN_DISCOVERIES:
+				if research.is_done():
+					break
+				learned.append(Research.ITEMS[research.next_index]["name"])
+				research.add_points(Research.ITEMS[research.next_index]["points"] - research.points)
+			if learned.is_empty():
+				var stored := map.add_gold_to_treasury(Rules.RUIN_FALLBACK_GOLD)
+				map.heart_gold += Rules.RUIN_FALLBACK_GOLD - stored
+				map.gold_changed.emit()
+				hud.show_message("Une RUINE OUBLIÉE ! Tout est déjà découvert : ses reliques valent %d or." %
+						Rules.RUIN_FALLBACK_GOLD, 6.0)
+			else:
+				hud.show_message("Une RUINE OUBLIÉE ! Son savoir perdu te révèle : %s." % ", ".join(learned), 6.0)
+			for i in Rules.RUIN_SPECTRES:
+				var spectre := _add_hero(Heroes.Type.SPECTRE, center + Vector2i(randi_range(-1, 1), randi_range(-1, 1)))
+				Fx.burst("magic", spectre.position, Color("80d8ff"))
+			Sound.play("horn", at, -6.0)
+			hud.show_message("%d spectres gardiens se réveillent et marchent sur ton cœur !" % Rules.RUIN_SPECTRES, 5.0)
+
+
+## La lave coule sur une case : les unités qui s'y trouvent sont brûlées et
+## repoussées sur une case voisine ; les chemins qui la traversaient sont oubliés.
+func _on_lava_flowed(cell: Vector2i) -> void:
+	for root in [workers_root, creatures_root, heroes_root]:
+		for node in root.get_children():
+			var unit := node as Unit
+			if unit == null or unit.is_dead() or unit.in_hand:
+				continue
+			if unit.path.has(cell):
+				unit.path.clear()
+			if unit.current_cell() != cell:
+				continue
+			var hero := unit as Hero
+			if hero != null and (hero.is_captured() or hero.knocked_out or hero.carrier != null):
+				continue
+			for direction in DungeonMap.DIRECTIONS:
+				if map.is_walkable(cell + direction):
+					unit.position = map.cell_to_world(cell + direction)
+					break
+			unit.apply_burn(Rules.LAVA_BURN_TIME, Rules.LAVA_BURN_DPS)
+			unit.take_damage(Rules.LAVA_DAMAGE)
 
 
 func _spawn_hero(type: int) -> void:
@@ -633,6 +730,8 @@ func _on_combo_triggered(id: String, world_position: Vector2) -> void:
 func _add_hero(type: int, cell: Vector2i) -> Hero:
 	var hero := Hero.new()
 	hero.setup_hero(map, cell, type)
+	if hero.is_guardian():
+		map.guarded[cell] = true # Ses abords sont interdits aux ouvriers tant qu'il vit.
 	hero.died.connect(_on_hero_died)
 	hero.captured.connect(_on_hero_captured)
 	hero.fell.connect(func(_hero: Hero) -> void:
@@ -705,6 +804,15 @@ func _on_hero_died(unit: Unit) -> void:
 		_champions_defeated += 1
 		Fx.shake(8.0, 0.5)
 		hud.show_message("Le Champion du royaume est tombé ! Sa rançon est immense.", 5.0)
+	if hero.is_guardian():
+		map.guarded.erase(hero.home_cell)
+		# Le Colosse vaincu se soumet : il rejoint ton donjon.
+		var ancient := _add_creature(Creatures.Type.COLOSSUS, hero.current_cell())
+		ancient.happiness = 100.0
+		Fx.burst("magic", ancient.position, Color("ff8a50"))
+		Fx.flash_light(ancient.position, Color(1.0, 0.5, 0.2), 200.0, 0.8)
+		Sound.play("level_up", ancient.position)
+		hud.show_message("Le Colosse est vaincu ! Il s'incline devant toi : le Colosse ancien rejoint ton donjon.", 6.0)
 	if hero.is_veteran() and not hero.no_ransom:
 		Fx.shake(4.0, 0.3)
 		var she := Nemeses.is_feminine(hero.type)
@@ -723,8 +831,8 @@ func _on_hero_died(unit: Unit) -> void:
 
 ## Un héros mort est enterré au Cimetière, s'il y a une tombe libre.
 func _bury(hero: Hero) -> void:
-	if Heroes.info(hero.type).get("rival", false):
-		return # Les troupes du rival ne sont pas des héros.
+	if Heroes.info(hero.type).get("rival", false) or Heroes.info(hero.type).get("no_capture", false):
+		return # Les troupes du rival ne sont pas des héros (ni les habitants des profondeurs).
 	var grave := map.bury()
 	if grave == Vector2i(-1, -1):
 		return
@@ -1000,6 +1108,10 @@ func _load_game(data: Dictionary) -> bool:
 			hero.remember_trap(SaveGame.array_to_cell(cell_values))
 		if values.get("fleeing", false):
 			hero.start_fleeing(false)
+		if values.has("home"):
+			map.guarded.erase(hero.home_cell)
+			hero.home_cell = SaveGame.array_to_cell(values["home"])
+			map.guarded[hero.home_cell] = true
 		hero.hp = float(values["hp"])
 		hero.loot = int(values.get("loot", 0))
 

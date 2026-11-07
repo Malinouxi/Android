@@ -384,6 +384,25 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Le nom du combo s'envole au-dessus du piège ; la première fois, le journal l'annonce.
 - Les héros peuvent maintenant **brûler** (`apply_burn` dans `unit.gd`).
 
+**Étape 38 — Les profondeurs** (règles 2.3)
+
+- Chaque carte cache **3 secrets** loin du cœur (au moins 15 cases), dans un bloc de 3 x 3 cases de terre
+  ou de roche : un de chaque sorte. Les cartes de la campagne ont toujours les mêmes (leur graine).
+- Creuser à 4 cases ou moins donne un **indice** dans le journal (on peut s'arrêter là) ; creuser une case
+  qui touche le bloc **réveille** le secret. Les héros qui creusent peuvent aussi le réveiller !
+
+  | Secret | Indice | Ce qui arrive |
+  |--------|--------|---------------|
+  | Colosse endormi | « Un souffle énorme résonne derrière la roche... » | Une caverne s'ouvre. Le Colosse (1100 PV, armure, coups de zone) garde 800 or. Neutre : il ne quitte pas sa caverne, frappe tout ce qui approche (4 cases) et se soigne quand on le laisse. Les ouvriers n'y vont pas tant qu'il vit. Vaincu, il se soumet : le **Colosse ancien** rejoint ton donjon (ni lit ni repas, salaire 60). |
+  | Lac de lave | « La roche est brûlante ici... » | La poche devient de la **lave**, qui coule dans les couloirs voisins (6 cases au plus, jamais dans les salles) : les unités touchées sont brûlées et repoussées, un passage peut être coupé. La lave est infranchissable et éclaire. Au bout de 2 minutes, elle se fige en **or volcanique** (3 fois plus riche). |
+  | Ruine oubliée | « Des murmures anciens filtrent à travers la terre... » | Colonnes brisées et grimoire lumineux. Son savoir donne **2 découvertes** d'un coup (800 or si tout est découvert)... et 3 **Spectres** se réveillent et marchent sur ton cœur. |
+
+- Code : la partie « Les profondeurs » de `dungeon_map.gd` (placement, indices, lave), et
+  `_on_secret_revealed` dans `main.gd`. Réglages : `DEEP_*`, `COLOSSUS_*`, `GUARDIAN_*`, `LAVA_*`,
+  `VOLCANIC_GOLD`, `RUIN_*` dans `rules.gd`. Le Colosse (`guardian`) et le Spectre sont dans `heroes.gd`,
+  le Colosse ancien dans `creatures.gd`. Le Colosse ne compte pas comme envahisseur : une vague peut être
+  repoussée pendant qu'il dort dans sa caverne.
+
 **Étape 36 — La voix du Seigneur**
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu

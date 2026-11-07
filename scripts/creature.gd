@@ -117,6 +117,8 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
 	load_abilities(info)
+	if info.has("tint"):
+		self_modulate = info["tint"] # (Le Colosse ancien garde la couleur de la lave.)
 	traits = Traits.roll(is_undead())
 	_apply_level()
 	hp = max_hp

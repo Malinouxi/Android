@@ -236,6 +236,8 @@ func _abilities(info: Dictionary) -> String:
 		parts.append("garde le %s" % Rooms.display_name(info["guard"]))
 	if info.has("war_cry"):
 		parts.append("cri de guerre")
+	if info.get("guardian", false):
+		parts.append("garde sa caverne")
 	if info["range"] > 50.0:
 		parts.append("à distance")
 	return ", ".join(parts) if not parts.is_empty() else "-"
@@ -259,6 +261,8 @@ func _creatures_table() -> String:
 			var per := ("%d par %s" % [roundi(each), Rooms.display_name(info["limit_room"])]) if each >= 1.0 \
 					else ("1 pour %d %s" % [roundi(1.0 / each), Rooms.display_name(info["limit_room"])])
 			requires.append("max %s (%d en tout)" % [per, info["limit_max"]])
+		if info.get("ancient", false):
+			requires.append("vaincre le Colosse endormi")
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
 				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"
@@ -271,6 +275,8 @@ func _heroes_table() -> String:
 		var wave: String = "rival" if info.get("rival", false) else str(info["first_wave"])
 		if info.get("boss", false):
 			wave = "1 vague sur %d" % Heroes.CHAMPION_EVERY
+		elif info.get("no_capture", false):
+			wave = "profondeurs"
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
 				+ _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"

@@ -14,10 +14,16 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.2"
+const VERSION := "2.3"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.3", "changes": [
+		"Les profondeurs : chaque carte cache 3 secrets loin du cœur. Creuser à côté donne un indice ; creuser une case qui les touche les réveille.",
+		"Le Colosse endormi : un gardien neutre qui veille sur un trésor. Il ne quitte pas sa caverne, mais frappe fort. Vaincu, il se soumet et te sert.",
+		"Le lac de lave : la lave se déverse dans tes couloirs (elle brûle tout ce qui s'y trouve et peut couper un passage), puis se fige en filons d'or volcanique 3 fois plus riches.",
+		"La ruine oubliée : son savoir perdu te donne 2 découvertes d'un coup... mais elle libère des spectres qui marchent sur ton cœur.",
+	]},
 	{"version": "2.2", "changes": [
 		"Traits de caractère : chaque créature arrive avec 1 ou 2 traits (Avare, Peureuse, Bagarreuse, Rancunière, Pieuse, Gourmande, Insomniaque, Studieuse, Paresseuse, Coquette, Solitaire, Robuste). Ils sont sur sa fiche et dans le codex.",
 		"Les héros battent en retraite : sous 25 % de vie, ils fuient vers l'entrée grise. Rattrape-les !",
@@ -197,6 +203,33 @@ const STEALTH_RADIUS := 40.0
 const MISSION_AGGRO_RADIUS := 40.0
 ## Secondes qu'il faut au Moine pour ouvrir une cellule de Prison.
 const UNLOCK_TIME := 3.0
+
+# --- Les profondeurs (voir dungeon_map.gd, « Les profondeurs ») ------------------
+## Nombre de secrets par carte (un de chaque sorte : Colosse, lave, ruine) ...
+const DEEP_SECRETS := 3
+## ... à au moins tant de cases (en marchant) du cœur.
+const DEEP_SECRET_MIN_DISTANCE := 15
+## Le Colosse endormi garde un tas d'or de cette taille.
+const COLOSSUS_HOARD := 800
+## Il ne s'éloigne pas de sa caverne de plus de tant de pixels (une case = 32) ...
+const GUARDIAN_RADIUS := 128.0
+## ... et, sans ennemi, il regagne tant de vie par seconde.
+const GUARDIAN_REGEN := 8.0
+## La lave coule sur au plus tant de cases de couloir, une toutes les LAVA_FLOW_INTERVAL s ...
+const LAVA_FLOW_CELLS := 6
+const LAVA_FLOW_INTERVAL := 0.7
+## ... blesse et brûle les unités qu'elle touche ...
+const LAVA_DAMAGE := 60.0
+const LAVA_BURN_TIME := 4.0
+const LAVA_BURN_DPS := 10.0
+## ... puis se fige au bout de tant de secondes en or volcanique, tant de fois plus riche.
+const LAVA_COOL_TIME := 120.0
+const VOLCANIC_GOLD := 3.0
+## La ruine oubliée : tant de découvertes d'un coup (ou tant d'or si tout est découvert) ...
+const RUIN_DISCOVERIES := 2
+const RUIN_FALLBACK_GOLD := 800
+## ... et tant de spectres qui se réveillent.
+const RUIN_SPECTRES := 3
 
 # --- Retraite des héros et vétérans (voir hero.gd et nemeses.gd) -------------------
 ## Un héros sous cette part de sa vie bat en retraite vers l'entrée (sauf le

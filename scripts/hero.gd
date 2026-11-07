@@ -81,6 +81,8 @@ var nemesis: Dictionary = {}
 var known_traps: Dictionary = {}
 ## Les pièges qu'il connaissait EN ARRIVANT (vétéran) : case -> true.
 var _veteran_traps: Dictionary = {}
+## Le GARDIEN des profondeurs (le Colosse) ne quitte pas sa caverne : sa case.
+var home_cell := Vector2i(-1, -1)
 ## Dégâts reçus de chaque espèce de créature : Creatures.Type -> dégâts.
 var _damage_by_species: Dictionary = {}
 
@@ -101,7 +103,12 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 		self_modulate = DungeonMap.RIVAL_TINT # Les troupes du rival sont teintées de bleu.
 	if info.get("stealth", false):
 		self_modulate.a = 0.55 # La Voleuse, discrète, est à moitié transparente.
+	if info.has("tint"):
+		self_modulate = info["tint"] # Les habitants des profondeurs ont leur propre teinte.
+	if info.has("alpha"):
+		self_modulate.a = info["alpha"]
 	setup(dungeon_map, cell)
+	home_cell = cell
 
 
 func to_save() -> Dictionary:
@@ -110,6 +117,8 @@ func to_save() -> Dictionary:
 		data["nemesis"] = nemesis
 	if fleeing:
 		data["fleeing"] = true
+	if is_guardian():
+		data["home"] = SaveGame.cell_to_array(home_cell)
 	if not known_traps.is_empty():
 		var traps := []
 		for cell: Vector2i in known_traps:
@@ -135,7 +144,8 @@ func die() -> void:
 		map.drop_gold(current_cell(), loot)
 		Fx.burst("coins", position)
 		loot = 0
-	if not _dying and not is_captured() and not knocked_out and carrier == null:
+	if not _dying and not is_captured() and not knocked_out and carrier == null \
+			and not Heroes.info(type).get("no_capture", false):
 		var catchers := get_tree().get_nodes_in_group("catchers")
 		if not catchers.is_empty() and map.find_free_prison_cell() != Vector2i(-1, -1):
 			fall_down(Rules.CAPTURE_WINDOW)
@@ -306,7 +316,47 @@ func _avoided_traps() -> Array[Vector2i]:
 ## Le Champion et les troupes du rival ne fuient jamais ; les autres oui.
 func _can_flee() -> bool:
 	var info := Heroes.info(type)
-	return not info.get("boss", false) and not info.get("rival", false)
+	return not info.get("boss", false) and not info.get("rival", false) and not info.get("fearless", false)
+
+
+## Un gardien des profondeurs (le Colosse endormi) : neutre, il défend sa caverne.
+func is_guardian() -> bool:
+	return Heroes.info(type).get("guardian", false)
+
+
+## Le gardien : il frappe ce qui s'approche de sa caverne, ne poursuit pas plus
+## loin que Rules.GUARDIAN_RADIUS, puis rentre et se remet de ses blessures.
+func _guard(delta: float) -> void:
+	var home := map.cell_to_world(home_cell)
+	if _target != null and (not is_instance_valid(_target) or not _target.is_targetable() \
+			or _target.position.distance_to(home) > Rules.GUARDIAN_RADIUS + 16.0):
+		_target = null
+		path.clear()
+	_think_timer -= delta
+	if _target == null and _think_timer <= 0.0:
+		_think_timer = 0.3
+		var best_distance := Rules.GUARDIAN_RADIUS
+		for node in get_tree().get_nodes_in_group("dungeon"):
+			var unit := node as Unit
+			if unit != null and unit.is_targetable() and unit.position.distance_to(home) <= best_distance:
+				best_distance = unit.position.distance_to(home)
+				_target = unit
+		if _target != null:
+			path.clear()
+			Sound.play("horn", position, -10.0) # Il s'éveille, furieux.
+	if _target != null:
+		if not fight(_target, delta):
+			_target = null
+			path.clear()
+		return
+	# Personne : il rentre dans sa caverne et s'y repose.
+	if current_cell() != home_cell:
+		if path.is_empty() and not go_to(home_cell):
+			return
+		move_along_path(delta)
+	else:
+		path.clear()
+		heal(Rules.GUARDIAN_REGEN * delta)
 
 
 ## Gravement blessé : il bat en retraite vers l'entrée grise.
@@ -379,6 +429,11 @@ func _process(delta: float) -> void:
 		_cleric_heal(delta)
 	elif type == Heroes.Type.CHAMPION:
 		_war_cry(delta)
+
+	if is_guardian():
+		_guard(delta)
+		queue_redraw()
+		return
 
 	# Si notre cible a disparu (morte entre-temps), on l'oublie.
 	if _target != null and not is_instance_valid(_target):

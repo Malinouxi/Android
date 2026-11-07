@@ -25,6 +25,12 @@ signal door_destroyed(cell: Vector2i)
 signal redrawn
 ## Un ouvrier a cassé une roche qui cachait un trésor (amount pièces posées par terre).
 signal treasure_found(cell: Vector2i, amount: int)
+## Les SECRETS DES PROFONDEURS (voir la partie « Les profondeurs » plus bas) :
+## on creuse près d'un secret (un indice), puis on le réveille.
+signal secret_hinted(kind: String, cell: Vector2i)
+signal secret_revealed(kind: String, center: Vector2i)
+## La lave vient de couler sur cette case (main.gd brûle et repousse les unités).
+signal lava_flowed(cell: Vector2i)
 ## Un combo de pièges vient de se déclencher (voir combos.gd ; main.gd l'annonce).
 signal combo_triggered(id: String, world_position: Vector2)
 
@@ -39,6 +45,7 @@ enum Tile {
 	ENTRANCE, ## L'entrée des héros.
 	RIVAL_HEART, ## Le cœur du maître rival (certains niveaux de la campagne).
 	GEM,   ## Gemme : inépuisable, chaque coup de pioche rapporte de l'or (voir Rules).
+	LAVA,  ## Lave (un secret des profondeurs) : infranchissable, elle se fige en or volcanique.
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -175,6 +182,18 @@ var _farm_timer := 0.0
 var _trap_timer := 0.0
 ## Explosions en cours d'affichage : [{ "position": Vector2, "radius", "time" }].
 var _effects: Array = []
+## Les secrets des profondeurs : [{"kind": "colossus" / "lava" / "ruin", "center": Vector2i,
+## "hinted": bool, "revealed": bool}].
+var secrets: Array = []
+## La lave : case -> secondes avant qu'elle se fige en or volcanique.
+var lava: Dictionary = {}
+## Les cases où la lave doit encore couler (dans l'ordre), et le temps avant la prochaine.
+var _lava_queue: Array[Vector2i] = []
+var _lava_flow_timer := 0.0
+## Les filons d'OR VOLCANIQUE (de la lave figée), plus riches : case -> true.
+var volcanic: Dictionary = {}
+## Les vestiges d'une ruine oubliée : case -> "column" ou "lectern".
+var ruins: Dictionary = {}
 ## Le sol qui brûle (combo Rune de feu) : [{ "position": Vector2, "radius", "time", "flicker" }].
 var fires: Array = []
 
@@ -186,6 +205,7 @@ func _ready() -> void:
 
 ## Les champignons poussent avec le temps.
 func _process(delta: float) -> void:
+	_update_lava(delta)
 	_update_traps(delta)
 	_update_effects(delta)
 	_update_farms(delta)
@@ -274,6 +294,7 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	entrance_cell = _place_gate(rng, Tile.ENTRANCE, avoid)
 	avoid.append(entrance_cell)
 	_place_gems(rng, avoid)
+	_place_secrets(rng, avoid)
 
 	damage.clear()
 	marked.clear()
@@ -290,6 +311,11 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	work_spots.clear()
 	prisoners.clear()
 	_effects.clear()
+	lava.clear()
+	_lava_queue.clear()
+	volcanic.clear()
+	ruins.clear()
+	guarded.clear()
 	_setup_pathfinding()
 	_redraw_all()
 
@@ -392,7 +418,7 @@ func _setup_pathfinding() -> void:
 			astar.set_point_solid(cell, not is_walkable(cell))
 			var tile := get_tile(cell)
 			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
-					or tile == Tile.GEM)
+					or tile == Tile.GEM or tile == Tile.LAVA)
 			if is_diggable(cell):
 				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
 	for cell: Vector2i in defenses:
@@ -444,6 +470,11 @@ func to_save() -> Dictionary:
 		"decorations": _decorations_to_list(),
 		"candelabras": _candelabras_to_list(),
 		"rival_braziers": _cells_to_array_list(rival_braziers),
+		"secrets": _secrets_to_list(),
+		"lava": _cells_to_list(lava),
+		"lava_queue": _cells_to_array_list_ordered(_lava_queue),
+		"volcanic": _cells_to_array_list(volcanic),
+		"ruins": _ruins_to_list(),
 	}
 
 
@@ -520,6 +551,23 @@ func load_save(data: Dictionary) -> bool:
 				if get_tile(Vector2i(x, y)) == Tile.FLOOR:
 					claimed[Vector2i(x, y)] = true
 		claimed[heart_cell] = true
+	guarded.clear() # (Les Colosses rechargés le remplissent à nouveau, voir main.gd.)
+	secrets.clear()
+	for values in data.get("secrets", []):
+		secrets.append({"kind": String(values[2]), "center": SaveGame.array_to_cell(values),
+				"hinted": bool(values[3]), "revealed": bool(values[4])})
+	lava.clear()
+	for values in data.get("lava", []):
+		lava[SaveGame.array_to_cell(values)] = float(values[2])
+	_lava_queue.clear()
+	for values in data.get("lava_queue", []):
+		_lava_queue.append(SaveGame.array_to_cell(values))
+	volcanic.clear()
+	for values in data.get("volcanic", []):
+		volcanic[SaveGame.array_to_cell(values)] = true
+	ruins.clear()
+	for values in data.get("ruins", []):
+		ruins[SaveGame.array_to_cell(values)] = String(values[2])
 	reserved.clear()
 	beds.clear() # Les créatures rechargées reprendront un lit.
 	work_spots.clear()
@@ -715,6 +763,8 @@ func dig(cell: Vector2i) -> Dictionary:
 		for direction in DIRECTIONS: # ... et les chandeliers aussi.
 			if candelabras.get(cell - direction) == direction:
 				candelabras.erase(cell - direction)
+		volcanic.erase(cell)
+		_check_secrets(cell)
 	_redraw_all()
 	return {"finished": finished, "gold": gold}
 
@@ -723,7 +773,10 @@ func dig(cell: Vector2i) -> Dictionary:
 func gold_per_hit(cell: Vector2i) -> int:
 	var depth := float(_manhattan(cell, heart_cell) - Rules.DEEP_GOLD_START) \
 			/ float(Rules.DEEP_GOLD_FULL - Rules.DEEP_GOLD_START)
-	return roundi(GOLD_PER_HIT * (1.0 + Rules.DEEP_GOLD_BONUS * clampf(depth, 0.0, 1.0)))
+	var gold := GOLD_PER_HIT * (1.0 + Rules.DEEP_GOLD_BONUS * clampf(depth, 0.0, 1.0))
+	if volcanic.has(cell):
+		gold *= Rules.VOLCANIC_GOLD # L'or volcanique (de la lave figée) est bien plus riche.
+	return roundi(gold)
 
 
 ## Cherche la case marquée la plus proche pour un ouvrier.
@@ -735,6 +788,8 @@ func find_dig_job(worker: Node, from_cell: Vector2i, allow_gold := true) -> Dict
 	for cell: Vector2i in marked:
 		if not allow_gold and (get_tile(cell) == Tile.GOLD or get_tile(cell) == Tile.GEM):
 			continue
+		if is_guarded(cell):
+			continue # Trop près du Colosse : les ouvriers n'osent pas.
 		if reserved.get(cell, worker) == worker:
 			candidates.append(cell)
 	# 2. On les trie de la plus proche à la plus lointaine (à vol d'oiseau).
@@ -785,7 +840,7 @@ func find_claim_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 	for y in HEIGHT:
 		for x in WIDTH:
 			var cell := Vector2i(x, y)
-			if get_tile(cell) != Tile.FLOOR or claimed.has(cell):
+			if get_tile(cell) != Tile.FLOOR or claimed.has(cell) or is_guarded(cell):
 				continue
 			if reserved.get(cell, worker) != worker:
 				continue
@@ -1603,6 +1658,215 @@ func _update_effects(delta: float) -> void:
 
 
 # ---------------------------------------------------------------------------
+# Les profondeurs : secrets cachés loin du cœur
+# ---------------------------------------------------------------------------
+## Chaque carte cache Rules.DEEP_SECRETS secrets, loin du cœur (là où l'or est
+## déjà plus riche), dans un bloc de 3 x 3 cases de terre ou de roche :
+##   - "colossus" : le Colosse endormi, un gardien neutre qui veille sur un trésor ;
+##   - "lava" : une poche de lave qui se déverse dans tes couloirs, puis se fige
+##     en filons d'or volcanique ;
+##   - "ruin" : une ruine oubliée, pleine de savoir... et de spectres.
+## Creuser à moins de SECRET_HINT_RADIUS cases donne un indice (main.gd l'écrit) ;
+## creuser une case qui touche le bloc le réveille.
+
+const SECRET_KINDS := ["colossus", "lava", "ruin"]
+## Les cavernes gardées par un Colosse vivant (main.gd les tient à jour) : case -> true.
+## Les ouvriers n'y vont ni creuser, ni revendiquer, ni ramasser l'or.
+var guarded: Dictionary = {}
+
+
+func is_guarded(cell: Vector2i) -> bool:
+	for center: Vector2i in guarded:
+		if maxi(absi(cell.x - center.x), absi(cell.y - center.y)) * TILE_SIZE <= Rules.GUARDIAN_RADIUS:
+			return true
+	return false
+const SECRET_HINT_RADIUS := 4
+const SECRET_REVEAL_RADIUS := 2
+
+
+func _place_secrets(rng: RandomNumberGenerator, avoid: Array[Vector2i]) -> void:
+	secrets.clear()
+	var kinds: Array = SECRET_KINDS.duplicate()
+	# Un ordre mélangé, mais toujours le même pour une même carte (la graine).
+	for i in range(kinds.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap = kinds[i]
+		kinds[i] = kinds[j]
+		kinds[j] = swap
+	var tries := 0
+	while secrets.size() < mini(Rules.DEEP_SECRETS, kinds.size()) and tries < 600:
+		tries += 1
+		var center := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
+		if _manhattan(center, heart_cell) < Rules.DEEP_SECRET_MIN_DISTANCE:
+			continue
+		var ok := true
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var tile := get_tile(center + Vector2i(dx, dy))
+				if tile != Tile.EARTH and tile != Tile.ROCK and tile != Tile.GOLD:
+					ok = false
+		for other in avoid:
+			if _manhattan(center, other) < 6:
+				ok = false
+		for secret: Dictionary in secrets:
+			if _manhattan(center, secret["center"]) < 10:
+				ok = false
+		if has_rival and rival_heart_cell != Vector2i(-1, -1) and _manhattan(center, rival_heart_cell) < 8:
+			ok = false
+		if not ok:
+			continue
+		secrets.append({"kind": kinds[secrets.size()], "center": center, "hinted": false, "revealed": false})
+		avoid.append(center)
+
+
+## Une case vient d'être creusée : est-on près d'un secret ?
+func _check_secrets(cell: Vector2i) -> void:
+	for secret: Dictionary in secrets:
+		if secret["revealed"]:
+			continue
+		var center: Vector2i = secret["center"]
+		var distance := maxi(absi(cell.x - center.x), absi(cell.y - center.y))
+		if distance <= SECRET_REVEAL_RADIUS:
+			_reveal_secret(secret)
+		elif distance <= SECRET_HINT_RADIUS and not secret["hinted"]:
+			secret["hinted"] = true
+			secret_hinted.emit(secret["kind"], center)
+
+
+## Le secret se réveille : on ouvre sa caverne (ou on libère sa lave).
+func _reveal_secret(secret: Dictionary) -> void:
+	secret["revealed"] = true
+	secret["hinted"] = true
+	var center: Vector2i = secret["center"]
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var cell := center + Vector2i(dx, dy)
+			marked.erase(cell)
+			reserved.erase(cell)
+			damage.erase(cell)
+			if secret["kind"] == "lava":
+				_set_lava(cell)
+			else:
+				_set_tile(cell, Tile.FLOOR)
+				_refresh_pathing(cell)
+	match secret["kind"]:
+		"lava":
+			_queue_lava_flow(center)
+		"ruin":
+			ruins[center] = "lectern"
+			for corner in [Vector2i(-1, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1)]:
+				if randf() < 0.75:
+					ruins[center + corner] = "column"
+		"colossus":
+			drop_gold(center + Vector2i(1, 1), Rules.COLOSSUS_HOARD)
+	_redraw_all()
+	secret_revealed.emit(secret["kind"], center)
+
+
+## Met à jour les deux A* après un changement de tuile.
+func _refresh_pathing(cell: Vector2i) -> void:
+	astar.set_point_solid(cell, not is_walkable(cell))
+	var tile := get_tile(cell)
+	hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
+			or tile == Tile.GEM or tile == Tile.LAVA)
+	hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT if is_diggable(cell) else 1.0)
+
+
+func _set_lava(cell: Vector2i) -> void:
+	_set_tile(cell, Tile.LAVA)
+	lava[cell] = Rules.LAVA_COOL_TIME * randf_range(0.85, 1.15)
+	claimed.erase(cell)
+	loose_gold.erase(cell)
+	decorations.erase(cell)
+	_refresh_pathing(cell)
+
+
+## La lave cherche à couler dans le sol creusé voisin (les couloirs, pas les salles),
+## au plus Rules.LAVA_FLOW_CELLS cases, la plus proche d'abord.
+func _queue_lava_flow(center: Vector2i) -> void:
+	var seen := {center: true}
+	var frontier: Array[Vector2i] = [center]
+	var count := 0
+	while not frontier.is_empty() and count < Rules.LAVA_FLOW_CELLS:
+		var cell: Vector2i = frontier.pop_front()
+		for direction in DIRECTIONS:
+			var next: Vector2i = cell + direction
+			if seen.has(next):
+				continue
+			seen[next] = true
+			if get_tile(next) == Tile.LAVA:
+				frontier.append(next)
+			elif _lava_can_flow(next) and count < Rules.LAVA_FLOW_CELLS:
+				_lava_queue.append(next)
+				frontier.append(next)
+				count += 1
+	_lava_flow_timer = Rules.LAVA_FLOW_INTERVAL
+
+
+## La lave ne coule que sur du sol nu : ni salle, ni piège, ni chantier, ni portes.
+func _lava_can_flow(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell) \
+			and not construction.has(cell) and not is_next_to_heart(cell) \
+			and _manhattan(cell, portal_cell) > 1 and _manhattan(cell, entrance_cell) > 1
+
+
+## La lave coule (une case à la fois), puis refroidit et se fige en or volcanique.
+func _update_lava(delta: float) -> void:
+	if not _lava_queue.is_empty():
+		_lava_flow_timer -= delta
+		if _lava_flow_timer <= 0.0:
+			_lava_flow_timer = Rules.LAVA_FLOW_INTERVAL
+			var cell: Vector2i = _lava_queue.pop_front()
+			if _lava_can_flow(cell):
+				_set_lava(cell)
+				Fx.burst("smoke", cell_to_world(cell), Color(0.3, 0.2, 0.2, 0.8))
+				Fx.flash_light(cell_to_world(cell), Color(1.0, 0.4, 0.1), 120.0, 0.4)
+				lava_flowed.emit(cell)
+				_redraw_all()
+	if lava.is_empty():
+		return
+	var cooled := false
+	for cell: Vector2i in lava.keys():
+		lava[cell] -= delta
+		if lava[cell] <= 0.0:
+			lava.erase(cell)
+			_set_tile(cell, Tile.GOLD)
+			volcanic[cell] = true
+			_refresh_pathing(cell)
+			Fx.burst("smoke", cell_to_world(cell), Color(0.4, 0.4, 0.45, 0.7))
+			cooled = true
+	if cooled:
+		_redraw_all()
+
+
+## Vrai si cette case est de la lave.
+func is_lava(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.LAVA
+
+
+func _secrets_to_list() -> Array:
+	var result := []
+	for secret: Dictionary in secrets:
+		var center: Vector2i = secret["center"]
+		result.append([center.x, center.y, secret["kind"], secret["hinted"], secret["revealed"]])
+	return result
+
+
+func _ruins_to_list() -> Array:
+	var result := []
+	for cell: Vector2i in ruins:
+		result.append([cell.x, cell.y, ruins[cell]])
+	return result
+
+
+func _cells_to_array_list_ordered(cells: Array[Vector2i]) -> Array:
+	var result := []
+	for cell in cells:
+		result.append(SaveGame.cell_to_array(cell))
+	return result
+
+
+# ---------------------------------------------------------------------------
 # Cœur et héros
 # ---------------------------------------------------------------------------
 
@@ -1794,7 +2058,8 @@ func find_pickup_job(from_cell: Vector2i) -> Dictionary:
 		return {}
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in loose_gold:
-		candidates.append(cell)
+		if not is_guarded(cell): # Le trésor du Colosse : il faut d'abord le vaincre.
+			candidates.append(cell)
 	var best := _find_nearest_reachable(candidates, from_cell)
 	if not best.is_empty():
 		best["type"] = "pickup"
@@ -1930,9 +2195,16 @@ func _draw() -> void:
 			elif rival_claimed.has(cell):
 				# Le territoire du rival : les mêmes dalles, teintées de bleu.
 				draw_texture_rect(Art.pick(Art.CLAIMED, cell), rect, false, RIVAL_TINT)
+			elif get_tile(cell) == Tile.LAVA:
+				# La lave : le sol, rougeoyant (un simple voile orange qui pulse).
+				draw_texture_rect(Art.pick(Art.FLOOR, cell), rect, false, Color(1.6, 0.5, 0.15))
+				draw_rect(rect, Color(1.0, 0.35, 0.05, 0.55))
 			else:
 				var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
 				draw_texture_rect(Art.pick(floor_images, cell), rect, false)
+			if ruins.has(cell):
+				# Les vestiges d'une ruine : une dalle gravée violette.
+				draw_texture_rect(Art.RUNE, rect.grow(-4.0), false, Color(0.7, 0.5, 1.0, 0.8))
 			if decorations.has(cell) and decorations[cell]["kind"] == "rug":
 				draw_texture_rect(Art.DECORATIONS["rug"], rect.grow(-3.0), false)
 			if construction.has(cell) and construction[cell]["kind"] == "room":

@@ -162,9 +162,11 @@ func _ready() -> void:
 	_voice.volume_db = VOICE_VOLUME_DB
 	add_child(_voice)
 
-	AMBIENCE.loop = true
+	# (Une constante ne peut pas être modifiée directement : on passe par une variable.)
+	var ambience_stream: AudioStreamOggVorbis = AMBIENCE
+	ambience_stream.loop = true
 	_ambience = AudioStreamPlayer.new()
-	_ambience.stream = AMBIENCE
+	_ambience.stream = ambience_stream
 	add_child(_ambience)
 
 	_load_settings()

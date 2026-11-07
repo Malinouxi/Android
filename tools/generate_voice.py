@@ -3,13 +3,15 @@
 pour chaque réplique du médaillon (assets/voice/*.ogg).
 
 Usage (depuis la racine du projet) :
-    pip install piper-tts numpy
-    python3 tools/generate_voice.py chemin/vers/fr-gilles-low.onnx
+    pip install piper-tts numpy pyworld "setuptools<81"
+    python3 tools/generate_voice.py chemin/vers/fr-siwis-medium.onnx
 
 Il faut aussi ffmpeg (avec le filtre « rubberband »). La voix de départ est une
-voix de synthèse française libre, Piper « fr-gilles-low » (moteur Piper : licence
-MIT ; voix entraînée sur un corpus CC0). On la télécharge à part (elle n'est pas
-dans le dépôt) : archive voice-fr-gilles-low.tar.gz des « releases » v0.0.2 de
+voix de synthèse française libre, Piper « fr-siwis-medium » (moteur Piper : licence
+MIT ; voix entraînée sur le corpus SIWIS, licence CC BY 4.0 : à créditer, voir le
+README). Les voix d'homme « gilles » et « mls » ont été essayées : leur son est
+creux entre 500 et 1600 Hz, donc nasillard une fois grave. On la télécharge à part
+(elle n'est pas dans le dépôt) : archive voice-fr-siwis-medium.tar.gz des « releases » v0.0.2 de
 github.com/rhasspy/piper.
 
 Les répliques sont lues DIRECTEMENT dans le code du jeu : la liste LINES de
@@ -20,10 +22,12 @@ recalcule pour retrouver la bonne voix (voir LordPortrait.say).
 
 Comment on fabrique une voix de démon :
   1. la voix de synthèse lit la phrase, lentement ;
-  2. on la baisse de 6 demi-tons, timbre compris (un gosier énorme) ;
-  3. on ajoute une deuxième voix une octave plus bas, plus discrète ;
+  2. le vocodeur WORLD la baisse d'une octave et plus, et agrandit un peu son
+     timbre (voyelles encore nettes, pas de nasillement) ;
+  3. dessous, la même voix au gosier énorme, puis une troisième une octave
+     plus bas, plus discrète (toutes un peu rauques) ;
   4. un grondement (la voix saturée, qui « roule » 38 fois par seconde) ;
-  5. l'écho d'une caverne.
+  5. un égaliseur (moins de nasillement, plus de netteté) et l'écho d'une caverne.
 """
 
 import hashlib
@@ -123,9 +127,10 @@ def speak(voice, text):
     config = SynthesisConfig(length_scale=1.2, noise_scale=0.5, noise_w_scale=0.5)
     pieces = []
     for sentence in voice.phonemize(SPOKEN.get(text, text)):
-        # Ce modèle ne connaît pas la marque de nasale « ̃ » : on la remplace par
-        # un « ng » (« mon » se dit alors « mong », comme avec l'accent du Midi).
-        phonemes = ["ŋ" if p == "\u0303" else p for p in sentence]
+        # Ce modèle ne connaît pas la marque de nasale « ̃ » : on l'enlève, la voyelle
+        # devient orale (« mon » se dit « mo »). Sous la voix de démon, ça reste
+        # compréhensible, et c'est bien moins nasillard qu'un « ng » ajouté.
+        phonemes = [p for p in sentence if p != "\u0303"]
         audio = speak_sentence(voice, phonemes, config)
         pieces += [audio / (np.max(np.abs(audio)) or 1.0), np.zeros(int(0.12 * voice.config.sample_rate))]
     return np.concatenate(pieces)
@@ -151,21 +156,59 @@ def ffmpeg_filter(signal, rate, filters):
     return np.frombuffer(raw, np.float32).astype(float)
 
 
+def equalize(signal, bands):
+    """Égaliseur : bands = [(fréquence en Hz, gain en dB, largeur en octaves), ...]."""
+    spectrum = np.fft.rfft(signal)
+    freqs = np.fft.rfftfreq(len(signal), 1 / RATE) + 1.0
+    gain_db = np.zeros_like(freqs)
+    for center, gain, width in bands:
+        gain_db += gain * np.exp(-(np.log2(freqs / center) / width) ** 2)
+    return np.fft.irfft(spectrum * 10 ** (gain_db / 20), len(signal))
+
+
+def world_shift(speech, rate, pitch, formant, roughness=0.0, rng=None):
+    """Change la hauteur ET le timbre séparément, avec le vocodeur WORLD (pyworld) :
+    on décompose la voix en hauteur (f0), enveloppe du spectre (le timbre : les
+    voyelles) et souffle, puis on recompose. formant < 1 = gosier plus grand.
+    roughness : la hauteur tremble au hasard (voix rauque, grondante)."""
+    import pyworld
+    x = np.ascontiguousarray(speech, dtype=np.float64)
+    f0, times = pyworld.harvest(x, rate, f0_floor=60.0, f0_ceil=500.0, frame_period=5.0)
+    envelope = pyworld.cheaptrick(x, f0, times, rate)
+    aperiodicity = pyworld.d4c(x, f0, times, rate)
+    bins = np.arange(envelope.shape[1])
+    source = np.clip(bins / formant, 0, bins[-1])
+    warped = np.ascontiguousarray([np.interp(source, bins, frame) for frame in envelope])
+    new_f0 = f0 * pitch
+    if roughness > 0 and rng is not None:
+        new_f0 *= 1 + roughness * rng.standard_normal(len(f0))
+    out = pyworld.synthesize(new_f0, warped, aperiodicity, rate, frame_period=5.0)
+    if rate != RATE:
+        out = ffmpeg_filter(out / (np.max(np.abs(out)) or 1.0), rate, "anull")
+    return out
+
+
 def demonize(speech, rate, rng):
-    """Transforme la voix de synthèse en voix de démon grave et caverneuse."""
-    main = ffmpeg_filter(speech, rate, "rubberband=pitch=0.71:formant=shifted")
-    sub = ffmpeg_filter(speech, rate, "rubberband=pitch=0.5:formant=shifted")
-    n = min(len(main), len(sub))
-    main, sub = main[:n], sub[:n]
+    """Transforme la voix de synthèse en voix de démon grave et caverneuse.
+    La voix principale est grave mais garde des voyelles nettes (sinon elle
+    devient nasillarde) ; la taille du démon vient des couches ajoutées dessous."""
+    main = world_shift(speech, rate, pitch=0.45, formant=0.78, roughness=0.02, rng=rng)
+    body = world_shift(speech, rate, pitch=0.45, formant=0.62, roughness=0.06, rng=rng)
+    sub = world_shift(speech, rate, pitch=0.225, formant=0.7, roughness=0.03, rng=rng)
+    n = min(len(main), len(body), len(sub))
+    main, body, sub = (x[:n] / (np.max(np.abs(x)) or 1.0) for x in (main, body, sub))
     t = np.arange(n) / RATE
     # Le grondement : la voix saturée, filtrée, qui roule (modulation à 38 Hz).
-    growl = np.tanh(main * 5.0)
-    growl = gs.fft_filter(growl, RATE, low=70, high=1400) * (0.55 + 0.45 * np.sin(2 * np.pi * 38 * t))
-    voice = main + sub * 0.5 + growl * 0.3
-    # Un peu plus de graves (la poitrine) et moins d'aigus (pas de sifflement).
-    voice = voice + gs.fft_filter(voice, RATE, high=220) * 0.6
-    voice = gs.fft_filter(voice, RATE, high=5500)
-    cave = gs.reverb(voice, RATE, rng, wet=0.32, seconds=1.7, predelay=0.025, damping=0.5)
+    growl = np.tanh(body * 4.0)
+    growl = gs.fft_filter(growl, RATE, low=90, high=1600) * (0.55 + 0.45 * np.sin(2 * np.pi * 38 * t))
+    voice = main + body * 0.35 + sub * 0.3 + growl * 0.12
+    voice = gs.fft_filter(voice, RATE, low=55, high=7000)
+    voice = equalize(voice, [
+        (140, 2.0, 0.7),    # La poitrine.
+        (450, -2.0, 0.6),   # Moins « dans une boîte ».
+        (2400, 3.0, 0.9),   # La netteté des consonnes.
+    ])
+    cave = gs.reverb(voice, RATE, rng, wet=0.3, seconds=1.8, predelay=0.025, damping=0.35, tunnel=0.35)
     alive = np.nonzero(np.abs(cave) > np.max(np.abs(cave)) * 0.004)[0]
     cave = cave[:alive[-1] + 1] if len(alive) else cave
     fade = min(len(cave), int(0.05 * RATE))

@@ -13,6 +13,8 @@ Les morceaux (tous en ré mineur, la tonalité « sombre » par excellence) :
   - combat  « L'Assaut » : timbales, tambours de guerre, cordes piquées, orgue, chœur (boucle).
   - victoire : roulement, orgue et chœur qui finissent en ré MAJEUR, carillon.
   - defaite  : glas funèbre et chœur qui descend.
+  - cave     : l'ambiance des galeries (pas de musique : roche, air, gouttes, échos),
+               jouée en boucle sous la musique pendant la partie.
 
 Comment c'est écrit : chaque morceau est une partition en Python. On pose des
 notes (un instrument, une hauteur, un temps de départ en « temps » musicaux et
@@ -102,9 +104,10 @@ class Track:
     def drum(self, at, gain=0.6, pitch=1.0, force=1.0, pan=-0.1, send=0.3):
         self.add(gs.war_drum(SR, self.rng, pitch, force), at, pan, gain, send)
 
-    def render(self, loop, loudness, reverb_seconds=3.6, wet=0.9):
+    def render(self, loop, loudness, reverb_seconds=3.6, wet=0.9, damping=0.45, tunnel=0.0, darkness=None):
         """Mélange, réverbération, boucle sans couture, puis mise à niveau du volume."""
-        verb = gs.reverb(self.send, SR, self.rng, wet=1.0, seconds=reverb_seconds, dry=False)
+        verb = gs.reverb(self.send, SR, self.rng, wet=1.0, seconds=reverb_seconds, dry=False,
+                         damping=damping, tunnel=tunnel)
         out = np.zeros((2, max(self.dry.shape[1], verb.shape[1])))
         out[:, :self.dry.shape[1]] += self.dry
         out[:, :verb.shape[1]] += verb * wet
@@ -126,6 +129,9 @@ class Track:
         # Volume : on vise une puissance moyenne (RMS), puis on adoucit les pics.
         rms = np.sqrt(np.mean(out ** 2)) or 1.0
         out = out * (loudness / rms)
+        if darkness:  # Coupe les aigus (darkness = fréquence de coupure en Hz).
+            out = np.stack([gs.fft_filter(ch, SR, high=darkness) for ch in out])
+            out = out * (loudness / (np.sqrt(np.mean(out ** 2)) or 1.0))
         return gs.soft_clip(out, 1.2) * 0.95
 
 
@@ -147,28 +153,82 @@ def save(name, stereo):
     print("  %-9s %5.1f s  %4d Ko" % (name, stereo.shape[1] / SR, os.path.getsize(target) // 1024))
 
 
-def drips(track, count, seed):
-    """Gouttes d'eau qui tombent dans la caverne (pour l'ambiance calme)."""
-    rng = np.random.default_rng(seed)
-    beats = track.length / track.beat
-    for _ in range(count):
-        f = rng.uniform(900, 1600)
-        d = 0.14
-        t = gs.tvec(d, SR)
-        drop = np.sin(gs.phase_of(f * np.exp(-t * 4), len(t), SR)) * np.exp(-t / 0.03)
-        track.add(drop, rng.uniform(0, beats - 1), rng.uniform(-0.8, 0.8), rng.uniform(0.04, 0.09), 0.7)
-
-
-def wind(track, gain):
-    """Souffle d'air grave dans les galeries, qui ondule lentement."""
-    n = gs.samples(track.length, SR)
+def cave_ambience():
+    """L'ambiance des galeries (jouée en boucle SOUS la musique, pendant la partie) :
+    la roche qui gronde, l'air qui circule dans les tunnels, des gouttes qui
+    tombent dans des flaques et dont l'écho revient des parois, des cailloux qui
+    roulent au loin, et parfois la montagne qui craque. 72 s, sans mélodie."""
+    length = 72.0
+    rng = np.random.default_rng(77)
+    n = gs.samples(length, SR)
     t = np.arange(n) / SR
-    air = gs.fft_filter(track.rng.uniform(-1, 1, n), SR, low=60, high=380)
-    period = track.length
-    air *= 0.6 + 0.4 * np.sin(2 * np.pi * 2 * t / period + 1.0)  # Ondule 2 fois par boucle.
-    air /= np.max(np.abs(air))
-    track.add(air, 0, -0.3, gain, 0.2)
-    track.add(np.roll(air, n // 3), 0, 0.3, gain, 0.2)
+    dry = np.zeros((2, n + SR * 10))
+    send = np.zeros_like(dry)
+
+    def put(mono, at, pan, gain, wet):
+        i = gs.samples(at, SR)
+        st = gs.pan(mono * gain, pan)
+        end = min(i + st.shape[1], dry.shape[1])
+        dry[:, i:end] += st[:, :end - i] * (1 - wet)
+        send[:, i:end] += st[:, :end - i] * wet
+
+    def slow_wave(cycles, phase):
+        """Une ondulation lente qui fait un nombre entier de tours par boucle."""
+        return np.sin(2 * np.pi * cycles * t / length + phase)
+
+    # 1. Le grondement de la roche : un souffle très grave qui respire.
+    for side in (-0.5, 0.5):
+        rumble = gs.fft_filter(rng.uniform(-1, 1, n), SR, low=25, high=90)
+        rumble *= (0.7 + 0.3 * slow_wave(3, rng.uniform(0, 6)))
+        put(rumble / np.max(np.abs(rumble)), 0, side, 0.55, 0.2)
+    # 2. L'air dans les tunnels : un souffle creux dont la « couleur » glisse lentement.
+    for side, phase in ((-0.7, 0.0), (0.7, 2.5)):
+        air = rng.uniform(-1, 1, n)
+        low = gs.fft_filter(air, SR, low=90, high=260)
+        mid = gs.fft_filter(air, SR, low=260, high=700)
+        sweep = 0.5 + 0.5 * slow_wave(2, phase)
+        air = low * (0.6 + 0.4 * sweep) + mid * 0.5 * sweep
+        air *= 0.55 + 0.45 * slow_wave(5, phase + 1)
+        put(air / np.max(np.abs(air)), 0, side, 0.22, 0.45)
+    # 3. Gouttes d'eau dans des flaques, avec un écho de galerie.
+    for _ in range(40):
+        f = rng.uniform(450, 1100)
+        d = 0.18
+        tt = gs.tvec(d, SR)
+        drop = np.sin(gs.phase_of(f * (1 + 0.6 * np.exp(-tt / 0.02)), len(tt), SR)) * np.exp(-tt / 0.035)
+        put(gs.soften_attack(drop, SR), rng.uniform(0, length), rng.uniform(-0.9, 0.9),
+            rng.uniform(0.05, 0.14), 0.75)
+    # 4. Cailloux qui roulent au loin (petites cascades de chocs étouffés).
+    for _ in range(6):
+        start = rng.uniform(0, length - 3)
+        p = rng.uniform(-0.9, 0.9)
+        for k in range(rng.integers(5, 12)):
+            d = 0.06
+            tt = gs.tvec(d, SR)
+            tick = gs.fft_filter(rng.uniform(-1, 1, len(tt)), SR, low=300, high=1800) * np.exp(-tt / 0.01)
+            put(gs.soften_attack(tick, SR), start + k * rng.uniform(0.05, 0.18), p, 0.08 * 0.85 ** k, 0.8)
+    # 5. La montagne qui craque : un choc grave et lointain, deux fois par boucle.
+    for at in (17.0, 51.0):
+        d = 2.5
+        tt = gs.tvec(d, SR)
+        crack = np.sin(gs.phase_of(48 * (1 + 0.5 * np.exp(-tt / 0.1)), len(tt), SR)) * np.exp(-tt / 0.5)
+        crack += gs.fft_filter(rng.uniform(-1, 1, len(tt)), SR, high=300) * np.exp(-tt / 0.25) * 0.8
+        put(gs.soften_attack(crack, SR), at, rng.uniform(-0.6, 0.6), 0.35, 0.7)
+
+    # Tout résonne dans une grande caverne, sombre, avec les échos des tunnels.
+    verb = gs.reverb(send, SR, rng, wet=1.0, seconds=5.5, predelay=0.04, damping=0.28, dry=False, tunnel=0.8)
+    out = np.zeros((2, max(dry.shape[1], verb.shape[1])))
+    out[:, :dry.shape[1]] += dry
+    out[:, :verb.shape[1]] += verb
+    tail = out[:, n:]
+    while tail.shape[1] > 0:  # Boucle sans couture : la queue retombe sur le début.
+        chunk = tail[:, :n]
+        out[:, :chunk.shape[1]] += chunk
+        tail = tail[:, n:]
+    out = gs.fft_filter(out[0, :n], SR, high=3500), gs.fft_filter(out[1, :n], SR, high=3500)
+    out = np.stack(out)
+    out *= 0.12 / (np.sqrt(np.mean(out ** 2)) or 1.0)
+    return gs.soft_clip(out, 1.2) * 0.95
 
 
 # ---------------------------------------------------------------------------
@@ -269,8 +329,7 @@ def calm_theme():
         if not 16 <= bar < 24 or bar % 2 == 0:
             pattern = [notes[0], notes[2], notes[3], notes[4], notes[3], notes[2]]
             for i, name in enumerate(pattern):
-                up = name[:-1] + str(int(name[-1]) + 1)
-                tr.harpsichord(up, at + i * 0.5, 0.5, gain=0.2 if i else 0.26, pan=0.35)
+                tr.harpsichord(name, at + i * 0.5, 0.5, gain=0.22 if i else 0.28, pan=0.35, send=0.5)
         # Contrebasse : la fondamentale tenue, très douce.
         tr.strings(ROOTS[chord] + "2", at, 3, gain=0.18, pan=-0.35, attack=0.6)
     # Bourdon d'orgue lointain (ré + la) qui tient tout le morceau.
@@ -289,9 +348,7 @@ def calm_theme():
     # Cloche lointaine.
     tr.bell("A3", 24 * 3, 4.5, gain=0.15, pan=0.6, send=0.85, brightness=0.6)
     tr.bell("D3", 72, 4.5, gain=0.12, pan=-0.6, send=0.85, brightness=0.6)
-    drips(tr, 34, seed=5)
-    wind(tr, 0.05)
-    return tr.render(loop=True, loudness=0.09, reverb_seconds=4.2)
+    return tr.render(loop=True, loudness=0.09, reverb_seconds=5.0, damping=0.3, tunnel=0.5, darkness=3200)
 
 
 def combat_theme():
@@ -384,6 +441,7 @@ PIECES = {
     "combat": combat_theme,
     "victory": victory_theme,
     "defeat": defeat_theme,
+    "cave": cave_ambience,
 }
 
 

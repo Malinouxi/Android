@@ -26,6 +26,7 @@ var _view3d: View3D
 func _ready() -> void:
 	Engine.time_scale = 1.0
 	Sound.play_music("menu")
+	Sound.play_ambience(false)
 	_build_background()
 	_build_ui()
 
@@ -205,6 +206,8 @@ func _build_ui() -> void:
 		column.add_child(_make_label("Dernière sauvegarde : %s" % save.get("summary", {}).get("date", "?"),
 				14, Color("a1887f"), 4))
 	column.add_child(_make_label("Fait avec Godot  -  Polices Cinzel et Alegreya (OFL)", 13, Color("8d7f74"), 4))
+	# La voix du Seigneur vient d'un corpus sous licence CC BY 4.0 : il faut le citer.
+	column.add_child(_make_label("Voix : Piper, corpus SIWIS (CC BY 4.0)", 13, Color("8d7f74"), 4))
 
 	_settings_overlay = _make_settings_overlay()
 	root.add_child(_settings_overlay)

@@ -77,6 +77,10 @@ const MUSIC_AFTER := {"victory": "menu", "defeat": "menu"}
 ## Durée du fondu (en secondes) pour arriver sur un morceau.
 const MUSIC_FADE := {"combat": 1.5, "victory": 0.3, "defeat": 0.3}
 const DEFAULT_MUSIC_FADE := 3.0
+## L'ambiance des galeries (roche qui gronde, air, gouttes, échos), en boucle
+## sous la musique pendant la partie. Elle suit le réglage « Effets sonores ».
+const AMBIENCE := preload("res://assets/music/cave.ogg")
+const AMBIENCE_VOLUME_DB := -9.0
 ## La voix du Seigneur (voir LordPortrait.say) : volume, et musique baissée pendant qu'il parle.
 const VOICE_VOLUME_DB := 2.0
 const MUSIC_DUCK := 0.5
@@ -115,6 +119,9 @@ var _last_tick := 0
 ## La voix du Seigneur passe par son propre bus, avec un analyseur de spectre :
 ## le portrait s'en sert pour ouvrir la mâchoire en rythme.
 var _voice: AudioStreamPlayer
+var _ambience: AudioStreamPlayer
+var _ambience_wanted := false
+var _ambience_level := 0.0
 var _voice_spectrum: AudioEffectSpectrumAnalyzerInstance
 var _next_world := 0
 var _next_ui := 0
@@ -155,6 +162,11 @@ func _ready() -> void:
 	_voice.volume_db = VOICE_VOLUME_DB
 	add_child(_voice)
 
+	AMBIENCE.loop = true
+	_ambience = AudioStreamPlayer.new()
+	_ambience.stream = AMBIENCE
+	add_child(_ambience)
+
 	_load_settings()
 
 
@@ -163,6 +175,7 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	var real_delta := (now - _last_tick) / 1000.0 if _last_tick > 0 else 0.0
 	_last_tick = now
+	_update_ambience(real_delta)
 	# Pendant que le Seigneur parle, la musique se fait plus discrète.
 	var duck := MUSIC_DUCK if _voice.playing else 1.0
 	if not is_equal_approx(_music_duck, duck):
@@ -215,6 +228,23 @@ func _fade_music(player: AudioStreamPlayer, to: float, seconds: float) -> void:
 func _set_music_level(player: AudioStreamPlayer, level: float) -> void:
 	_music_levels[player] = level
 	player.volume_db = linear_to_db(maxf(level * _music_duck, 0.0001) * db_to_linear(MUSIC_VOLUME_DB))
+
+
+## Fait entendre (ou taire, en fondu) l'ambiance des galeries.
+func play_ambience(on: bool) -> void:
+	_ambience_wanted = on
+
+
+func _update_ambience(real_delta: float) -> void:
+	var target := 1.0 if _ambience_wanted and sfx_enabled else 0.0
+	if is_equal_approx(_ambience_level, target) and _ambience.playing == (target > 0.0):
+		return
+	_ambience_level = move_toward(_ambience_level, target, real_delta / 2.0) # Fondu de 2 s.
+	if _ambience_level > 0.0 and not _ambience.playing:
+		_ambience.play()
+	elif _ambience_level <= 0.0 and _ambience.playing:
+		_ambience.stop()
+	_ambience.volume_db = linear_to_db(maxf(_ambience_level, 0.0001) * db_to_linear(AMBIENCE_VOLUME_DB))
 
 
 ## Le Seigneur dit une réplique (coupe la précédente). Rend sa durée en secondes

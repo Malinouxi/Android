@@ -338,13 +338,27 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu
   pendant qu'il parle. La voix suit le réglage « Effets sonores ».
-- Fabriquée par `tools/generate_voice.py` : une voix de synthèse française libre (Piper « fr-gilles-low »,
-  corpus CC0) lit chaque phrase, puis elle est baissée de 6 demi-tons, doublée une octave plus bas,
-  saturée en grondement et plongée dans l'écho d'une caverne.
+- Fabriquée par `tools/generate_voice.py` : une voix de synthèse française libre (Piper « fr-siwis-medium »,
+  corpus **SIWIS, licence CC BY 4.0**, crédité dans le menu) lit chaque phrase ; le vocodeur WORLD
+  (`pyworld`) la baisse d'une octave et plus en agrandissant un peu le timbre (voyelles nettes, pas de
+  nasillement), puis on ajoute dessous une voix au gosier énorme et une autre une octave plus bas, un
+  grondement et l'écho d'une caverne. (Les voix d'homme « gilles » et « mls » sonnent creuses : nasillardes.)
 - Les phrases sont lues directement dans `LINES` (`scripts/lord_portrait.gd`) et `_advice()`
   (`scripts/main.gd`) : ajoute une réplique, relance le script, il la dira. Le conseil qui donne un nombre
   de secondes est dit sans le nombre (« Des héros arrivent bientôt... »).
 - Les cloches de la musique sont **accordées** (comme un carillon) pour ne plus sonner faux.
+
+**Étape 37 — Sous la terre**
+- **Ambiance des galeries** (`assets/music/cave.ogg`, faite par `generate_music.py cave`), en boucle sous
+  la musique pendant toute la partie : la roche qui gronde, l'air qui circule dans les tunnels, des gouttes
+  dont l'écho revient des parois, des cailloux qui roulent au loin, la montagne qui craque. Elle suit le
+  réglage « Effets sonores ».
+- Tous les effets sonnent **dans une galerie** : écho sombre (les aigus meurent contre la roche) et échos
+  sourds renvoyés par les parois ; plus aucun aigu strident (tout est adouci au-dessus de 5 kHz).
+- **Pioche sur l'or** : un choc sourd, un fer qui sonne grave et mat, une pépite lourde (au lieu des
+  clochettes aiguës). Les pièces du trésor tintent une octave plus bas.
+- Le morceau calme est plus sombre (clavecin plus grave, écho de caverne plus long).
+- La voix du Seigneur n'est plus nasillarde (voir étape 36).
 
 **Étape 34 — Salles et ambiance d'après l'image de référence**
 - Le mobilier des salles est refait en low-poly **texturé** (textures peintes calculées par

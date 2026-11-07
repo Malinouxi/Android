@@ -157,6 +157,7 @@ func _ready() -> void:
 	Fx.world = world_root
 	Fx.camera = camera
 	Sound.play_music("calm")
+	Sound.play_ambience(true)
 	# On branche les signaux sur nos fonctions.
 	map.gold_changed.connect(_refresh_hud)
 	camera.tapped.connect(_on_camera_tapped)

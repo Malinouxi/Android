@@ -367,9 +367,11 @@ def _fft_convolve(a, b):
     return np.fft.irfft(np.fft.rfft(a, size) * np.fft.rfft(b, size), size)[:n]
 
 
-def impulse_response(sr, rng, seconds=3.5, predelay=0.03, damping=0.45, stereo=True):
+def impulse_response(sr, rng, seconds=3.5, predelay=0.03, damping=0.45, stereo=True, tunnel=0.0):
     """La « réponse » d'une grande salle de pierre : des échos précoces, puis un
-    souffle qui décroît. Les aigus s'éteignent plus vite que les graves (damping)."""
+    souffle qui décroît. Les aigus s'éteignent plus vite que les graves (damping).
+    tunnel > 0 : des échos nets et étouffés, renvoyés par les parois des galeries
+    (de 0,1 à 0,5 s), comme quand on crie dans un souterrain."""
     n = samples(seconds * 1.3, sr)
     t = np.arange(n) / sr
     channels = []
@@ -382,16 +384,23 @@ def impulse_response(sr, rng, seconds=3.5, predelay=0.03, damping=0.45, stereo=T
         for _ in range(10):
             delay = rng.uniform(0.008, 0.09)
             early[samples(delay, sr)] += rng.uniform(-1, 1) * (1 - delay * 8)
+        if tunnel > 0:
+            for k in range(6):
+                delay = rng.uniform(0.09, 0.5)
+                i = samples(delay, sr)
+                tap = np.zeros(n)
+                tap[i] = tunnel * (0.75 ** k) * rng.choice([-1, 1])
+                early += fft_filter(tap, sr, high=1800 / (1 + k * 0.5))  # Chaque écho est plus sourd.
         ir = np.concatenate([np.zeros(samples(predelay, sr)), tail * 0.06 + early * 0.5])
         channels.append(ir / np.sqrt(np.sum(ir ** 2)))
     return channels
 
 
-def reverb(signal, sr, rng, wet=0.35, seconds=3.5, predelay=0.03, damping=0.45, dry=True):
+def reverb(signal, sr, rng, wet=0.35, seconds=3.5, predelay=0.03, damping=0.45, dry=True, tunnel=0.0):
     """Ajoute l'écho d'une grande salle. signal : mono (n,) ou stéréo (2, n).
     Le résultat est plus long que le signal (la queue de réverbération).
     dry=False : rend seulement l'écho, sans le son d'origine."""
-    irs = impulse_response(sr, rng, seconds, predelay, damping)
+    irs = impulse_response(sr, rng, seconds, predelay, damping, tunnel=tunnel)
     stereo = signal.ndim == 2
     dry_l = signal[0] if stereo else signal
     dry_r = signal[1] if stereo else signal

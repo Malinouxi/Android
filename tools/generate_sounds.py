@@ -122,13 +122,16 @@ def thud(duration, start=150, end=50, decay=0.08, grit=0.6):
 
 
 def room(signal, wet=0.18, seconds=0.8):
-    """Petit écho d'une salle de pierre (plus de queue = plus « caverne »)."""
-    return gs.reverb(np.asarray(signal, dtype=float), RATE, rng, wet=wet, seconds=seconds, predelay=0.012)
+    """L'écho d'une galerie souterraine : une queue sombre (les aigus meurent vite
+    contre la roche) et des échos sourds renvoyés par les parois du tunnel."""
+    return gs.reverb(np.asarray(signal, dtype=float), RATE, rng, wet=wet * 1.6, seconds=seconds + 0.6,
+                     predelay=0.015, damping=0.3, tunnel=0.6)
 
 
 def save(name, signal, volume=0.8):
     """Normalise le volume, coupe le silence final, et écrit le WAV 16 bits mono."""
-    signal = np.asarray(signal, dtype=float)
+    # Sous terre, rien ne siffle : on adoucit les aigus de tous les sons.
+    signal = gs.fft_filter(np.asarray(signal, dtype=float), RATE, high=5000, slope=2.0)
     peak = np.max(np.abs(signal)) or 1.0
     signal = signal / peak * volume
     alive = np.nonzero(np.abs(signal) > volume * 0.003)[0]
@@ -168,22 +171,26 @@ def harpsichord(name, duration):
 # ---------------------------------------------------------------------------
 
 def make_effects():
-    # Pioche dans la roche : le choc du fer, la pierre qui s'effrite. 3 variantes.
+    # Pioche dans la roche : un choc sourd, le fer qui « tonk » (grave et mat),
+    # des cailloux qui tombent. 3 variantes.
     for i, pitch in enumerate([1.0, 0.86, 1.13]):
-        d = 0.3
-        hit = thud(d, 220 * pitch, 80, 0.035, grit=1.0)
-        iron = metal(1250 * pitch, d, 0.03) * 0.45
-        crumble = mix(*[at(bandpass(noise(0.03), 1500, 5000) * envelope(0.03, 0.001, 0.008)
-                           * rng.uniform(0.1, 0.3), rng.uniform(0.02, 0.12)) for _ in range(5)])
-        save("dig_%d" % i, room(mix(hit, iron, crumble), 0.12, 0.6), 0.55)
+        d = 0.35
+        hit = thud(d, 170 * pitch, 60, 0.05, grit=1.2)
+        iron = lowpass(metal(480 * pitch, d, 0.035), 2200) * 0.35
+        crumble = mix(*[at(bandpass(noise(0.04), 300, 2200) * envelope(0.04, 0.001, 0.012)
+                           * rng.uniform(0.15, 0.35), rng.uniform(0.04, 0.2)) for _ in range(6)])
+        save("dig_%d" % i, room(mix(hit, iron, crumble), 0.14, 0.7), 0.55)
 
-    # Or arraché à un filon : une petite cloche claire (accordée en ré mineur, comme la musique).
-    save("gold", room(mix(bell("A6", 0.7, 1.3) * 0.8, at(bell("D7", 0.5, 1.3) * 0.4, 0.05)), 0.15), 0.42)
+    # Or arraché à un filon : une pépite lourde qui sonne grave et mat (ré, accordé
+    # avec la musique), et quelques éclats qui roulent. Rien d'aigu ni de strident.
+    nugget = lowpass(bell("D5", 0.6, 0.35), 1800)
+    chips = mix(*[at(lowpass(bell(n, 0.25, 0.4), 2200) * 0.25, t) for n, t in [("A5", 0.07), ("F5", 0.13)]])
+    save("gold", room(mix(thud(0.2, 200, 90, 0.03, 0.5) * 0.5, nugget, chips), 0.16, 0.8), 0.38)
 
-    # Pièces déposées au trésor : une pluie de tintements.
-    coins = mix(*[at(bell(f, 0.45, 1.4), delay) for f, delay in
-                  [("D7", 0), ("F7", 0.05), ("A6", 0.1), ("E7", 0.15), ("A7", 0.2), ("D7", 0.26)]])
-    save("coins", room(coins, 0.15), 0.5)
+    # Pièces déposées au trésor : une poignée d'or qui tinte (une octave plus bas, sourdine).
+    coins = mix(*[at(lowpass(bell(f, 0.4, 0.6), 3000), delay) for f, delay in
+                  [("D6", 0), ("F6", 0.05), ("A5", 0.1), ("E6", 0.15), ("A6", 0.2), ("D6", 0.26)]])
+    save("coins", room(coins, 0.16, 0.8), 0.42)
 
     # Revendiquer une case : un murmure sombre du chœur (la magie du Seigneur).
     d = 0.35

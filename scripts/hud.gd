@@ -469,6 +469,8 @@ func _refresh_unit_panel() -> void:
 	var details := "Vie %d / %d   Humeur %d %%\n" % [_selected.hp, _selected.max_hp, _selected.happiness]
 	if not _selected.is_undead():
 		details += "Faim %d %%   Énergie %d %%\n" % [_selected.hunger, _selected.energy]
+	if not _selected.traits.is_empty():
+		details += "Traits : %s\n" % Traits.names(_selected.traits)
 	details += "Tâche : %s\nSalaire : %d or" % [_selected.activity_text(), _selected.salary()]
 	_unit_details.text = details
 
@@ -688,8 +690,11 @@ func set_summon_cost(cost: int) -> void:
 ## Les sortes de messages du journal : mots-clés -> couleur et petite pastille.
 ## Le premier groupe dont un mot apparaît dans le message gagne.
 const MESSAGE_KINDS := [
+	# Les combos de pièges d'abord (leur texte parle aussi de héros).
+	{"words": ["combo"], "color": Color("b388ff"), "mark": "*"},
 	{"words": ["attaqu", "héros", "vague", "champion", "voleuse", "moine", "pillé", "enfui", "enfoncé",
-			"détruit", "mort au combat", "tué"], "color": Color("ff5a5a"), "mark": "!"},
+			"détruit", "mort au combat", "tué", "retraite", "échapp", "reviennent", "vengeance"],
+			"color": Color("ff5a5a"), "mark": "!"},
 	{"words": ["pas assez", "impossible", "plein", "aucun", "aucune", "touche ", "construis", "dépose",
 			"attend", "sans lit", "mécontent", "quitte"], "color": Color("ffa94d"), "mark": "?"},
 	{"words": ["découvert", "découverte", "recherche", "fabriqu", "atelier", "bibliothèque"],

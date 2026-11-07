@@ -343,11 +343,25 @@ func _make_unit(unit: Unit) -> Dictionary:
 		mood_bar.mesh = _quad_mesh(Vector2(BAR_WIDTH, 0.04))
 		mood_bar.position.y = 0.08
 		bars.add_child(mood_bar)
+	# Au-dessus des héros : le nom d'un vétéran, « fuit ! » pendant une retraite.
+	var title: Label3D = null
+	if unit is Hero:
+		title = Label3D.new()
+		title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		title.no_depth_test = true
+		title.fixed_size = false
+		title.pixel_size = 0.004
+		title.font_size = 48
+		title.outline_size = 12
+		title.outline_modulate = Color(0, 0, 0, 0.9)
+		title.position.y = bars.position.y + 0.22
+		title.visible = false
+		holder.add_child(title)
 	var parts: Array[MeshInstance3D] = []
 	_collect_parts(model, parts)
 	return {"holder": holder, "model": model, "rig": model.get_meta("rig"), "ring": ring, "sack": sack,
 			"bars": bars, "hp": hp_bar, "mood": mood_bar, "parts": parts, "flash": false,
-			"last": unit.position, "phase": randf() * TAU}
+			"last": unit.position, "phase": randf() * TAU, "title": title}
 
 
 func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
@@ -379,6 +393,8 @@ func _fall_and_vanish(data: Dictionary) -> void:
 	var model: Node3D = data["model"]
 	data["bars"].visible = false
 	data["ring"].visible = false
+	if data["title"] != null:
+		data["title"].visible = false
 	var tween := holder.create_tween()
 	tween.tween_property(model, "rotation:x", -PI / 2, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_interval(0.4)
@@ -419,6 +435,13 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		for part: MeshInstance3D in data["parts"]:
 			part.material_overlay = _flash_material if flashing else null
 	data["ring"].visible = unit.is_hasted()
+	var title: Label3D = data["title"]
+	if title != null:
+		var text: String = hero.overhead_text()
+		title.visible = text != ""
+		if title.visible:
+			title.text = text
+			title.modulate = Color("ffd54a") if hero.is_veteran() else Color.WHITE
 	var gold := int(unit.get("carried_gold") if unit.get("carried_gold") != null else 0)
 	gold += int(unit.get("loot") if unit.get("loot") != null else 0)
 	data["sack"].visible = gold > 0

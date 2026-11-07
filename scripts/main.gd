@@ -106,6 +106,14 @@ var _hero_spawn_timer := 0.0
 ## Nombre de Champions du royaume vaincus (objectif du niveau 9).
 var _champions_defeated := 0
 var _grave_timer := 0.0
+## Les héros échappés qui reviendront en vétérans (voir nemeses.gd)...
+var nemeses := Nemeses.new()
+## ... et ceux de la vague en cours qui attendent d'entrer (ils entrent les premiers).
+var _pending_veterans: Array = []
+## Pour ne pas répéter le message de retraite à chaque héros d'une débandade.
+var _flee_message_timer := 0.0
+## Dernier affichage de chaque combo (on ne l'écrit pas plus d'une fois par seconde).
+var _combo_shown := {}
 
 ## La recherche de la Bibliothèque (voir research.gd).
 var research := Research.new()
@@ -188,6 +196,7 @@ func _ready() -> void:
 			hud.show_message("Partie sauvegardée."))
 	hud.menu_pressed.connect(_on_menu_pressed)
 	research.discovered.connect(_on_research_discovered)
+	map.combo_triggered.connect(_on_combo_triggered)
 
 	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
@@ -345,7 +354,8 @@ func _choose_arrival(types: Array[int]) -> int:
 func _spawn_creature(type: int) -> void:
 	var creature := _add_creature(type, map.portal_cell)
 	Sound.play("portal", map.cell_to_world(map.portal_cell))
-	hud.show_message("%s arrive par le portail ! (salaire : %d or)" % [creature.display_name(), creature.salary()])
+	hud.show_message("%s (%s) arrive par le portail ! (salaire : %d or)" %
+			[creature.display_name(), Traits.names(creature.traits), creature.salary()])
 
 
 ## Crée une créature sur une case (sert aussi au chargement d'une partie).
@@ -438,6 +448,10 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 				Fx.lightning(unit.position) # Un éclair tombe sur chaque héros touché.
 				unit.take_damage(info["damage"])
 				cast = true
+			# Combo Détonation : la foudre fait sauter les runes dans la zone.
+			if map.detonate_runes(world_position, info["radius"]) > 0:
+				Fx.lightning(world_position)
+				cast = true
 		Spells.Type.HASTE:
 			var targets := _units_near("dungeon", world_position, 20.0)
 			if not targets.is_empty():
@@ -446,7 +460,7 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 				cast = true
 	if not cast:
 		_fail("Aucune cible ici : touche %s." % (
-				"un héros" if type == Spells.Type.LIGHTNING else "une de tes unités"))
+				"un héros (ou une rune...)" if type == Spells.Type.LIGHTNING else "une de tes unités"))
 		return
 	mana -= info["mana"]
 	Sound.play(["heal", "lightning", "haste"][type], world_position)
@@ -482,12 +496,16 @@ func _on_creature_died(unit: Unit) -> void:
 # ---------------------------------------------------------------------------
 
 func _update_waves(delta: float) -> void:
-	# Les héros d'une vague entrent un par un.
-	if not _pending_heroes.is_empty():
+	_flee_message_timer -= delta
+	# Les héros d'une vague entrent un par un (les vétérans qui reviennent d'abord).
+	if not _pending_veterans.is_empty() or not _pending_heroes.is_empty():
 		_hero_spawn_timer -= delta
 		if _hero_spawn_timer <= 0.0:
 			_hero_spawn_timer = HERO_SPAWN_GAP
-			_spawn_hero(_pending_heroes.pop_front())
+			if not _pending_veterans.is_empty():
+				_spawn_veteran(_pending_veterans.pop_front())
+			else:
+				_spawn_hero(_pending_heroes.pop_front())
 	elif _wave_in_progress and get_tree().get_nodes_in_group("heroes").is_empty():
 		# Plus aucun héros vivant : la vague est repoussée.
 		_wave_in_progress = false
@@ -534,6 +552,14 @@ func _start_wave() -> void:
 		hud.show_message("Vague %d : le CHAMPION DU ROYAUME mène %d héros contre toi !" % [_next_wave, count], 6.0)
 	else:
 		hud.show_message("Vague %d : %d héros entrent dans ton donjon !" % [_next_wave, count], 5.0)
+	# Les héros qui t'ont échappé reviennent, plus forts (voir nemeses.gd).
+	var veterans := nemeses.take_due(_next_wave, Rules.NEMESIS_PER_WAVE)
+	if not veterans.is_empty():
+		_pending_veterans.append_array(veterans)
+		var names: Array[String] = []
+		for entry: Dictionary in veterans:
+			names.append("%s (%s)" % [Nemeses.title(entry), Nemeses.rank_text(int(entry["rank"]))])
+		hud.show_message("Ils reviennent se venger : %s !" % ", ".join(names), 6.0)
 	_next_wave += 1
 
 
@@ -556,6 +582,54 @@ func _spawn_hero(type: int) -> void:
 	_add_hero(type, map.entrance_cell)
 
 
+## Un vétéran revient par l'entrée : plus fort, et il se souvient de tes pièges.
+func _spawn_veteran(entry: Dictionary) -> void:
+	var hero := _add_hero(int(entry["type"]), map.entrance_cell)
+	hero.apply_nemesis(entry)
+	Sound.play("horn", hero.position, -6.0)
+	Fx.burst("sparks", hero.position, Color("ffd54a"))
+	Fx.flash_light(hero.position, Color(1.0, 0.85, 0.4), 140.0, 0.5)
+
+
+## Un héros gravement blessé bat en retraite.
+func _on_hero_started_fleeing(hero: Hero) -> void:
+	if _flee_message_timer > 0.0:
+		return
+	_flee_message_timer = 4.0
+	var she := Nemeses.is_feminine(hero.type)
+	hud.show_message("%s bat en retraite ! Rattrape-%s avant l'entrée grise, sinon %s reviendra plus fort%s." %
+			[hero.display_name(), "la" if she else "le", "elle" if she else "il", "e" if she else ""], 4.0)
+
+
+## Un héros est sorti vivant : il reviendra en vétéran, une ou deux vagues plus tard.
+func _on_hero_retreated(hero: Hero) -> void:
+	if _game_over:
+		return
+	var return_wave := _next_wave + randi_range(Rules.NEMESIS_RETURN_MIN, Rules.NEMESIS_RETURN_MAX) - 1
+	var entry := nemeses.record(hero, return_wave)
+	Sound.play("horn", hero.position, -12.0)
+	var she := Nemeses.is_feminine(hero.type)
+	var memory := ""
+	if not hero.known_traps.is_empty():
+		memory = " %s se souviendra de tes pièges." % ("Elle" if she else "Il")
+	hud.show_message("%s s'est échappé%s ! %s reviendra à la vague %d, en %s.%s" %
+			[Nemeses.title(entry), "e" if she else "", "Elle" if she else "Il", return_wave,
+			Nemeses.rank_text(int(entry["rank"])), memory], 5.0)
+
+
+## Un combo de pièges vient de se déclencher (voir combos.gd).
+func _on_combo_triggered(id: String, world_position: Vector2) -> void:
+	var now := Time.get_ticks_msec()
+	if now - int(_combo_shown.get(id, -100000)) > 1000:
+		_combo_shown[id] = now
+		Fx.text(world_position, Combos.INFO[id]["name"] + " !", Color("ffb74d"))
+	if Combos.discover(id):
+		Sound.play("discovery")
+		Fx.flash_light(world_position, Color(1.0, 0.7, 0.3), 180.0, 0.6)
+		hud.show_message("Combo découvert : %s ! %s (%d / %d dans le codex)" % [Combos.INFO[id]["name"],
+				Combos.INFO[id]["text"], Combos.discovered_count(), Combos.INFO.size()], 6.0)
+
+
 func _add_hero(type: int, cell: Vector2i) -> Hero:
 	var hero := Hero.new()
 	hero.setup_hero(map, cell, type)
@@ -569,6 +643,8 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	hero.escaped.connect(func(_thief: Hero, amount: int) -> void:
 		Sound.play("error")
 		hud.show_message("La Voleuse s'est enfuie avec %d or. Un Cerbère au Trésor l'aurait flairée..." % amount, 5.0))
+	hero.started_fleeing.connect(_on_hero_started_fleeing)
+	hero.retreated.connect(_on_hero_retreated)
 	hero.freed_prisoner.connect(func(prisoner: Hero) -> void:
 		hud.show_message("Un Moine a ouvert une cellule : %s s'évade !" % prisoner.display_name(), 4.0))
 	heroes_root.add_child(hero)
@@ -614,6 +690,9 @@ func _request_sacrifice(world_position: Vector2) -> void:
 func _on_hero_captured(hero: Hero) -> void:
 	if hero.type == Heroes.Type.CHAMPION:
 		_champions_defeated += 1
+	if hero.is_veteran():
+		hud.show_message("%s finit dans tes geôles : %s ne s'échappera plus !" %
+				[hero.display_name(), "elle" if Nemeses.is_feminine(hero.type) else "il"], 4.0)
 	var stored := map.add_gold_to_treasury(hero.reward())
 	hud.show_message("%s capturé ! +%d or de rançon. Interrogé, il fera avancer la recherche." %
 			[hero.display_name(), stored], 4.0)
@@ -626,6 +705,11 @@ func _on_hero_died(unit: Unit) -> void:
 		_champions_defeated += 1
 		Fx.shake(8.0, 0.5)
 		hud.show_message("Le Champion du royaume est tombé ! Sa rançon est immense.", 5.0)
+	if hero.is_veteran() and not hero.no_ransom:
+		Fx.shake(4.0, 0.3)
+		var she := Nemeses.is_feminine(hero.type)
+		hud.show_message("%s est tombé%s pour de bon : %s ne reviendra plus !" %
+				[hero.display_name(), "e" if she else "", "elle" if she else "il"], 4.0)
 	_bury(hero)
 	if hero.no_ransom:
 		return # Sacrifié : l'or a déjà été donné.
@@ -878,7 +962,9 @@ func save_game() -> bool:
 			"rival_timer": _rival_timer,
 			"rival_squads": _rival_squads,
 			"champions_defeated": _champions_defeated,
+			"pending_veterans": _pending_veterans,
 		},
+		"nemeses": nemeses.to_save(),
 		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
 		"research": research.to_save(),
 		"mana": mana,
@@ -908,6 +994,12 @@ func _load_game(data: Dictionary) -> bool:
 			hero.sacrifice_requested = bool(values.get("sacrifice", false))
 		elif values.has("knocked_out"):
 			hero.fall_down(float(values["knocked_out"]))
+		if values.has("nemesis"):
+			hero.apply_nemesis(values["nemesis"])
+		for cell_values in values.get("known_traps", []):
+			hero.remember_trap(SaveGame.array_to_cell(cell_values))
+		if values.get("fleeing", false):
+			hero.start_fleeing(false)
 		hero.hp = float(values["hp"])
 		hero.loot = int(values.get("loot", 0))
 
@@ -918,6 +1010,8 @@ func _load_game(data: Dictionary) -> bool:
 	_rival_timer = float(state.get("rival_timer", level.get("rival_interval", 80.0)))
 	_rival_squads = int(state.get("rival_squads", 0))
 	_champions_defeated = int(state.get("champions_defeated", 0))
+	_pending_veterans = state.get("pending_veterans", []).duplicate(true)
+	nemeses.load_save(data.get("nemeses", []))
 	_payday_timer = float(state["payday_timer"])
 	_wave_timer = float(state["wave_timer"])
 	_next_wave = int(state["next_wave"])

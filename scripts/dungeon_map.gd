@@ -25,6 +25,8 @@ signal door_destroyed(cell: Vector2i)
 signal redrawn
 ## Un ouvrier a cassé une roche qui cachait un trésor (amount pièces posées par terre).
 signal treasure_found(cell: Vector2i, amount: int)
+## Un combo de pièges vient de se déclencher (voir combos.gd ; main.gd l'annonce).
+signal combo_triggered(id: String, world_position: Vector2)
 
 ## Les différents types de tuiles.
 enum Tile {
@@ -173,6 +175,8 @@ var _farm_timer := 0.0
 var _trap_timer := 0.0
 ## Explosions en cours d'affichage : [{ "position": Vector2, "radius", "time" }].
 var _effects: Array = []
+## Le sol qui brûle (combo Rune de feu) : [{ "position": Vector2, "radius", "time", "flicker" }].
+var fires: Array = []
 
 
 func _ready() -> void:
@@ -1451,6 +1455,7 @@ func _update_traps(delta: float) -> void:
 			if defense["flash"] <= 0.0:
 				_redraw_all() # Les pointes rentrent.
 
+	_update_fires(delta)
 	_trap_timer -= delta
 	if _trap_timer > 0.0:
 		return
@@ -1465,28 +1470,121 @@ func _update_traps(delta: float) -> void:
 		match defense["type"]:
 			Defenses.Type.SPIKES:
 				if defense["cooldown"] <= 0.0:
-					defense["cooldown"] = info["rearm_time"]
-					defense["flash"] = 0.4
-					hero.take_damage(info["damage"])
-					Sound.play("spikes", cell_to_world(cell))
-					_redraw_all()
+					_spike(cell, defense, info, hero)
 			Defenses.Type.RUNE:
 				_explode(cell, info["damage"], info["radius"])
 
 
+## Les pointes sortent sous un héros, avec leurs combos (voir combos.gd).
+func _spike(cell: Vector2i, defense: Dictionary, info: Dictionary, hero: Unit) -> void:
+	var center := cell_to_world(cell)
+	var spike_damage: float = info["damage"]
+	var rearm: float = info["rearm_time"]
+	# Pointes ardentes : un brasero tout près chauffe le fer au rouge.
+	if near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS):
+		spike_damage *= Rules.HOT_SPIKES_DAMAGE
+		hero.apply_burn(Rules.HOT_SPIKES_BURN_TIME, Rules.HOT_SPIKES_BURN_DPS)
+		combo_triggered.emit("pointes_ardentes", center)
+	# Empalement : un héros ralenti (toile d'araignée) ne les évite pas.
+	if hero.is_slowed():
+		spike_damage *= Rules.IMPALE_DAMAGE
+		combo_triggered.emit("empalement", center)
+	# Porte hérissée : collées à une porte, elles se réarment plus vite.
+	if _next_to_door(cell):
+		rearm *= Rules.DOOR_SPIKES_REARM
+		combo_triggered.emit("porte_herissee", center)
+	defense["cooldown"] = rearm
+	defense["flash"] = 0.4
+	_trap_hits(hero, cell, spike_damage)
+	Sound.play("spikes", center)
+	_redraw_all()
+
+
+## Un piège touche un héros. Un vétéran qui le connaît prend moins de dégâts ;
+## les autres s'en souviendront s'ils s'échappent (voir hero.gd et nemeses.gd).
+func _trap_hits(unit: Unit, cell: Vector2i, trap_damage: float) -> void:
+	var hero := unit as Hero
+	if hero != null:
+		if hero.knows_trap(cell):
+			trap_damage *= Rules.NEMESIS_TRAP_DAMAGE
+		hero.remember_trap(cell)
+	unit.take_damage(trap_damage)
+
+
+func _next_to_door(cell: Vector2i) -> bool:
+	for direction in DIRECTIONS:
+		if has_door(cell + direction):
+			return true
+	return false
+
+
 ## La rune explose : tous les héros proches sont touchés, puis elle disparaît.
+## Combos : près d'un brasero, le sol s'embrase (Rune de feu) ; les autres runes
+## dans l'explosion sautent à leur tour (Réaction en chaîne).
 func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 	var center := cell_to_world(cell)
 	remove_defense(cell)
+	var on_fire := near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS)
+	if on_fire:
+		radius *= Rules.FIRE_RUNE_RADIUS
+		fires.append({"position": center, "radius": radius, "time": Rules.FIRE_TIME, "flicker": 0.0})
+		combo_triggered.emit("rune_feu", center)
 	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
 	Sound.play("explosion", center)
 	Fx.burst("smoke", center)
-	Fx.flash_light(center, Color(1.0, 0.6, 0.2), 200.0, 0.5)
+	Fx.flash_light(center, Color(1.0, 0.6, 0.2), 260.0 if on_fire else 200.0, 0.5)
 	Fx.shake(8.0, 0.35)
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Unit
 		if hero.position.distance_to(center) <= radius:
-			hero.take_damage(explosion_damage)
+			_trap_hits(hero, cell, explosion_damage)
+	# Réaction en chaîne : les runes voisines sautent un instant plus tard.
+	for other: Vector2i in defenses.keys():
+		if defenses[other]["type"] == Defenses.Type.RUNE and cell_to_world(other).distance_to(center) <= radius:
+			var info: Dictionary = Defenses.INFO[Defenses.Type.RUNE]
+			get_tree().create_timer(0.2).timeout.connect(
+					_chain_explode.bind(other, explosion_damage * Rules.CHAIN_DAMAGE, info["radius"]))
+
+
+func _chain_explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
+	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.RUNE:
+		combo_triggered.emit("reaction_chaine", cell_to_world(cell))
+		_explode(cell, explosion_damage, radius)
+
+
+## Détonation : l'Éclair du maître fait sauter les runes dans sa zone.
+## Renvoie le nombre de runes qui explosent.
+func detonate_runes(center: Vector2, radius: float) -> int:
+	var count := 0
+	for cell: Vector2i in defenses.keys():
+		if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.RUNE \
+				and cell_to_world(cell).distance_to(center) <= radius + TILE_SIZE * 0.5:
+			var info: Dictionary = Defenses.INFO[Defenses.Type.RUNE]
+			combo_triggered.emit("detonation", cell_to_world(cell))
+			_explode(cell, info["damage"] * Rules.DETONATION_DAMAGE, info["radius"])
+			count += 1
+	return count
+
+
+## Le sol qui brûle : les héros qui y passent prennent feu.
+func _update_fires(delta: float) -> void:
+	if fires.is_empty():
+		return
+	for fire: Dictionary in fires:
+		fire["time"] -= delta
+		fire["flicker"] -= delta
+		if fire["flicker"] <= 0.0:
+			fire["flicker"] = 0.3
+			var center: Vector2 = fire["position"]
+			var radius: float = fire["radius"]
+			add_effect(center, radius, Color(1.0, 0.35, 0.05, 0.45))
+			Fx.burst("sparks", center + Vector2(randf_range(-radius, radius), randf_range(-radius, radius)) * 0.6,
+					Color("ff7a1a"))
+			for node in get_tree().get_nodes_in_group("heroes"):
+				var hero := node as Unit
+				if hero.position.distance_to(center) <= radius:
+					hero.apply_burn(Rules.FIRE_BURN_TIME, Rules.FIRE_BURN_DPS)
+	fires = fires.filter(func(f: Dictionary) -> bool: return f["time"] > 0.0)
 
 
 ## Affiche un cercle de couleur qui grandit et s'efface (explosion, sort...).
@@ -1514,10 +1612,12 @@ func is_next_to_heart(cell: Vector2i) -> bool:
 
 ## Chemin d'un héros vers une case voisine du cœur. Il peut traverser de la
 ## terre (le héros devra la creuser), mais pas la roche.
-func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
+## avoid : des cases de pièges que ce héros (un vétéran) préfère éviter.
+func find_hero_path(from_cell: Vector2i, avoid: Array[Vector2i] = []) -> Array[Vector2i]:
 	var best: Array[Vector2i] = []
 	if hero_astar.is_point_solid(from_cell):
 		return best
+	var saved := _avoid_traps(avoid)
 	for direction in DIRECTIONS:
 		var goal := heart_cell + direction
 		if hero_astar.is_point_solid(goal):
@@ -1525,15 +1625,40 @@ func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
 		var candidate := hero_astar.get_id_path(from_cell, goal)
 		if not candidate.is_empty() and (best.is_empty() or candidate.size() < best.size()):
 			best = candidate
+	_restore_weights(saved)
 	return best
 
 
 ## Chemin d'un héros vers n'importe quelle case, en creusant la terre au besoin
-## (le Moine s'en sert pour rejoindre la Prison). Vide si c'est impossible (roche).
-func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+## (le Moine s'en sert pour rejoindre la Prison, les fuyards pour rejoindre
+## l'entrée). Vide si c'est impossible (roche).
+func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i, avoid: Array[Vector2i] = []) -> Array[Vector2i]:
 	if hero_astar.is_point_solid(from_cell) or hero_astar.is_point_solid(to_cell):
 		return []
-	return hero_astar.get_id_path(from_cell, to_cell)
+	var saved := _avoid_traps(avoid)
+	var result := hero_astar.get_id_path(from_cell, to_cell)
+	_restore_weights(saved)
+	return result
+
+
+## Un vétéran évite les pièges dont il se souvient : le temps de calculer son
+## chemin, ces cases « coûtent » plus cher. Renvoie les anciens poids.
+func _avoid_traps(avoid: Array[Vector2i]) -> Dictionary:
+	var saved := {}
+	for cell in avoid:
+		if not defenses.has(cell) or not is_inside(cell) or hero_astar.is_point_solid(cell):
+			continue
+		var type: int = defenses[cell]["type"]
+		if type != Defenses.Type.SPIKES and type != Defenses.Type.RUNE:
+			continue
+		saved[cell] = hero_astar.get_point_weight_scale(cell)
+		hero_astar.set_point_weight_scale(cell, saved[cell] * Rules.NEMESIS_TRAP_AVOID)
+	return saved
+
+
+func _restore_weights(saved: Dictionary) -> void:
+	for cell: Vector2i in saved:
+		hero_astar.set_point_weight_scale(cell, saved[cell])
 
 
 func is_next_to_rival_heart(cell: Vector2i) -> bool:

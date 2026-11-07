@@ -96,6 +96,15 @@ var _work_cell := NO_CELL
 var _work_timer := 0.0
 var _work_tick := 0.0
 
+## Ses TRAITS de caractère (voir traits.gd), tirés à son arrivée.
+var traits: Array[String] = []
+## Le dernier héros qui l'a blessée (trait Rancunière).
+var _grudge_target = null # (Pas de type : le héros a pu disparaître depuis.)
+## Vrai quand une créature Peureuse a fui le combat : elle ne se bat plus avant
+## d'avoir repris des forces (FLEE_RECOVER de sa vie).
+var fleeing := false
+const FLEE_RECOVER := 0.7
+
 
 ## À appeler juste après Creature.new().
 func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int) -> void:
@@ -108,6 +117,9 @@ func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int)
 	attack_range = info["range"]
 	attack_interval = info["attack_interval"]
 	load_abilities(info)
+	traits = Traits.roll(is_undead())
+	_apply_level()
+	hp = max_hp
 	if info.get("catcher", false):
 		add_to_group("catchers") # Les héros vaincus peuvent alors tomber assommés (hero.gd).
 	setup(dungeon_map, cell)
@@ -138,14 +150,57 @@ func _apply_level() -> void:
 	var info := Creatures.info(type)
 	var bonus := 1.0 + LEVEL_STAT_BONUS * (level - 1)
 	var health_ratio := hp / max_hp
-	max_hp = info["hp"] * bonus
+	max_hp = info["hp"] * bonus * Traits.mult(traits, "hp")
 	hp = max_hp * health_ratio
-	attack_damage = info["damage"] * bonus
+	attack_damage = info["damage"] * bonus * Traits.mult(traits, "damage")
+	speed = info["speed"] * Traits.mult(traits, "speed")
 
 
 ## Chaque coup porté rapporte autant d'expérience que de dégâts.
 func _on_hit_landed(_target: Unit, damage_dealt: float) -> void:
 	gain_xp(damage_dealt)
+	# Bagarreuse : se battre la rend heureuse.
+	happiness = minf(100.0, happiness + Traits.value(traits, "fight_mood"))
+
+
+## Les traits changent la force de ses coups selon la situation.
+func damage_against(target: Unit) -> float:
+	var damage := attack_damage
+	if is_instance_valid(_grudge_target) and target == _grudge_target:
+		damage *= Traits.mult(traits, "grudge") # Rancunière : elle se venge.
+	var treasure_bonus := Traits.mult(traits, "treasure_damage")
+	if treasure_bonus != 1.0 and _near_room(Rooms.Type.TREASURY, Traits.TREASURE_RADIUS):
+		damage *= treasure_bonus # Avare : on ne touche pas à SON or.
+	var alone_bonus := Traits.mult(traits, "alone_damage")
+	if alone_bonus != 1.0 and _neighbors() == 0:
+		damage *= alone_bonus # Solitaire : elle se bat mieux seule.
+	return damage
+
+
+## Rancunière : elle retient le dernier héros qui l'a blessée.
+func _on_damaged(source: Unit, _amount: float) -> void:
+	if source.team != team:
+		_grudge_target = source
+
+
+## Vrai si une salle de ce type est à moins de radius cases.
+func _near_room(room: int, radius: int) -> bool:
+	var here := current_cell()
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if map.get_room(here + Vector2i(dx, dy)) == room:
+				return true
+	return false
+
+
+## Le nombre d'autres créatures tout près (trait Solitaire).
+func _neighbors() -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		if node != self and node is Creature \
+				and (node as Creature).position.distance_to(position) <= Traits.NEIGHBOR_RADIUS:
+			count += 1
+	return count
 	# (Les capacités comme le ralentissement de l'araignée sont gérées par unit.gd.)
 
 
@@ -154,7 +209,7 @@ func to_save() -> Dictionary:
 	return {
 		"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp,
 		"energy": energy, "hunger": hunger, "happiness": happiness,
-		"level": level, "xp": xp,
+		"level": level, "xp": xp, "traits": traits,
 	}
 
 
@@ -162,6 +217,11 @@ func to_save() -> Dictionary:
 func load_save(data: Dictionary) -> void:
 	level = int(data.get("level", 1))
 	xp = float(data.get("xp", 0.0))
+	if data.has("traits"): # (Une ancienne sauvegarde garde les traits tirés à l'arrivée.)
+		traits.clear()
+		for id in data["traits"]:
+			if Traits.INFO.has(str(id)):
+				traits.append(str(id))
 	_apply_level()
 	hp = float(data["hp"])
 	energy = float(data["energy"])
@@ -175,7 +235,7 @@ func display_name() -> String:
 
 func salary() -> int:
 	var base: int = Creatures.info(type)["salary"]
-	return int(base * (1.0 + LEVEL_SALARY_BONUS * (level - 1)))
+	return int(base * (1.0 + LEVEL_SALARY_BONUS * (level - 1)) * Traits.mult(traits, "salary"))
 
 
 func is_leaving() -> bool:
@@ -189,6 +249,8 @@ func receive_pay(paid: bool) -> void:
 
 ## Ce que fait la créature en ce moment (pour sa fiche, voir hud.gd).
 func activity_text() -> String:
+	if fleeing and state != State.SLEEPING:
+		return "fuit, apeurée"
 	if state == State.WORKING:
 		return WORK_NAMES[_work_room]
 	if state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
@@ -203,9 +265,9 @@ func describe() -> String:
 		activity = WORK_NAMES[_work_room]
 	elif state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
 		activity = "garde le %s" % Rooms.display_name(_guarded_room())
-	return "%s niv. %d (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
-		display_name(), level, activity, hp, max_hp, happiness, hunger, energy, salary(),
-		"" if _has_bed() or is_undead() else ", SANS LIT !"]
+	return "%s niv. %d [%s] (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
+		display_name(), level, Traits.names(traits), activity, hp, max_hp, happiness, hunger, energy,
+		salary(), "" if _has_bed() or is_undead() else ", SANS LIT !"]
 
 
 ## Un mort-vivant (le Revenant) : pas de lit, pas de sommeil, pas de faim.
@@ -226,9 +288,9 @@ func _process(delta: float) -> void:
 		energy = 100.0
 		hunger = 0.0
 	if state != State.SLEEPING:
-		energy = maxf(0.0, energy - ENERGY_LOSS * delta)
+		energy = maxf(0.0, energy - ENERGY_LOSS * Traits.mult(traits, "energy_loss") * delta)
 	if state != State.EATING:
-		hunger = minf(100.0, hunger + HUNGER_GAIN * delta)
+		hunger = minf(100.0, hunger + HUNGER_GAIN * Traits.mult(traits, "hunger") * delta)
 	_update_mood(delta)
 	update_attack_cooldown(delta)
 	update_effects(delta)
@@ -243,7 +305,7 @@ func _process(delta: float) -> void:
 			elif move_along_path(delta):
 				state = State.SLEEPING
 		State.SLEEPING:
-			energy += ENERGY_GAIN * delta
+			energy += ENERGY_GAIN * Traits.mult(traits, "sleep") * delta
 			hp = minf(max_hp, hp + HEAL_WHILE_SLEEPING * delta)
 			if energy >= 100.0 or not _has_bed():
 				energy = minf(energy, 100.0)
@@ -260,6 +322,7 @@ func _process(delta: float) -> void:
 			_eat_timer -= delta
 			if _eat_timer <= 0.0:
 				hunger = maxf(0.0, hunger - MEAL_VALUE)
+				happiness = minf(100.0, happiness + Traits.value(traits, "meal_mood")) # Gourmande.
 				state = State.WANDER
 		State.LEAVING:
 			if move_along_path(delta):
@@ -463,16 +526,19 @@ func _process_working(delta: float) -> void:
 				gain_xp(TRAINING_XP)
 				energy = maxf(0.0, energy - ENERGY_LOSS) # L'entraînement fatigue deux fois plus.
 			Rooms.Type.LIBRARY:
-				# Les Sorciers étudient 3 fois plus vite.
-				worked.emit(_work_room, 3.0 if type == Creatures.Type.WARLOCK else 1.0)
+				# Les Sorciers étudient 3 fois plus vite (et les Studieuses 50 % plus vite).
+				var study := 3.0 if type == Creatures.Type.WARLOCK else 1.0
+				worked.emit(_work_room, study * Traits.mult(traits, "research"))
 			Rooms.Type.WORKSHOP:
 				# Les Orques sont les meilleurs artisans.
-				worked.emit(_work_room, 3.0 if type == Creatures.Type.ORC else 2.0)
+				var craft := 3.0 if type == Creatures.Type.ORC else 2.0
+				worked.emit(_work_room, craft * Traits.mult(traits, "craft"))
 			Rooms.Type.TEMPLE:
-				# Prier rend heureux, soigne, et donne un peu de mana au maître.
-				happiness = minf(100.0, happiness + TEMPLE_HAPPINESS)
-				heal(TEMPLE_HEAL)
-				worked.emit(_work_room, TEMPLE_MANA)
+				# Prier rend heureux, soigne, et donne un peu de mana au maître (deux fois plus si Pieuse).
+				var prayer := Traits.mult(traits, "prayer")
+				happiness = minf(100.0, happiness + TEMPLE_HAPPINESS * prayer)
+				heal(TEMPLE_HEAL * prayer)
+				worked.emit(_work_room, TEMPLE_MANA * prayer)
 	var stop_training := _work_room == Rooms.Type.TRAINING and level >= MAX_LEVEL
 	var stop_research := _work_room == Rooms.Type.LIBRARY and not research_needed
 	var stop_workshop := _work_room == Rooms.Type.WORKSHOP and not workshop_needed
@@ -498,6 +564,8 @@ func _start_work() -> bool:
 		options.append(Rooms.Type.TEMPLE)
 		if happiness < 60.0:
 			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Mécontente : elle va prier.
+		if Traits.mult(traits, "prayer") > 1.0:
+			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Pieuse : elle adore prier.
 	if options.is_empty():
 		return false
 	var room: int = options.pick_random()
@@ -528,8 +596,19 @@ func _update_combat(delta: float) -> void:
 	if _combat_timer > 0.0:
 		return
 	_combat_timer = 0.3
+	# Peureuse : sous un certain seuil de vie, elle fuit le combat et va se cacher.
+	var flee_below := Traits.value(traits, "flee_below")
+	if flee_below > 0.0:
+		if not fleeing and hp < max_hp * flee_below and state == State.FIGHTING:
+			_flee()
+			return
+		if fleeing:
+			if hp >= max_hp * FLEE_RECOVER:
+				fleeing = false
+			else:
+				return
 	# Une créature endormie ne remarque que les héros tout proches.
-	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS
+	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS * Traits.mult(traits, "aggro")
 	var enemy := find_nearest_enemy(radius)
 	if enemy == null:
 		# Personne à combattre, mais le cœur du rival est tout près : à l'attaque !
@@ -543,6 +622,19 @@ func _update_combat(delta: float) -> void:
 		path.clear()
 		state = State.FIGHTING
 	_enemy = enemy
+
+
+## Peureuse : elle quitte le combat et court se cacher dans son lit (où elle se soigne).
+func _flee() -> void:
+	fleeing = true
+	_enemy = null
+	path.clear()
+	state = State.WANDER
+	if _has_bed() and go_to(bed_cell):
+		state = State.GOING_TO_SLEEP
+	elif not go_to(map.heart_cell + Vector2i(randi_range(-2, 2), randi_range(-2, 2))):
+		go_to(current_cell() + Vector2i(randi_range(-4, 4), randi_range(-4, 4)))
+	Fx.burst("sparks", position, Color("80deea"))
 
 
 func _process_wander(delta: float) -> void:
@@ -632,11 +724,21 @@ func _update_mood(delta: float) -> void:
 		change -= 2.0
 	if change == 0.0 and hunger < HUNGRY_LEVEL and energy > TIRED_LEVEL:
 		change = 1.0
-	# Le prestige : un donjon bien décoré rend les créatures plus heureuses.
-	change += minf(map.decorations.size() * Rules.DECORATION_MOOD, Rules.MAX_DECORATION_MOOD)
+	# Le prestige : un donjon bien décoré rend les créatures plus heureuses
+	# (deux fois plus les Coquettes).
+	var decor := Traits.mult(traits, "decor_mood")
+	change += minf(map.decorations.size() * Rules.DECORATION_MOOD, Rules.MAX_DECORATION_MOOD) * decor
 	# Le feu rouge du cœur : près d'un brasero, on se sent chez soi.
 	if map.near_brazier(map.world_to_cell(position), Rules.BRAZIER_RADIUS):
-		change += Rules.BRAZIER_MOOD
+		change += Rules.BRAZIER_MOOD * decor
+	# Pieuse : sans Temple, elle s'inquiète pour son âme.
+	var needs_temple := Traits.value(traits, "needs_temple")
+	if needs_temple > 0.0 and map.count_room_tiles(Rooms.Type.TEMPLE) == 0:
+		change -= needs_temple
+	# Solitaire : la foule l'agace.
+	var crowd_mood := Traits.value(traits, "crowd_mood")
+	if crowd_mood > 0.0 and _neighbors() >= Traits.CROWD:
+		change -= crowd_mood
 	happiness = clampf(happiness + change, 0.0, 100.0)
 
 	if happiness <= 0.0:

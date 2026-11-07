@@ -334,6 +334,56 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - La musique est en OGG Vorbis (`assets/music/`, 2,3 Mo pour les 5 morceaux) ; les boucles se raccordent
   sans couture (l'écho de la fin retombe sur le début).
 
+**Étape 37 — Traits, vétérans et combos de pièges** (règles 2.2)
+
+*Traits de caractère* (`scripts/traits.gd`)
+- Chaque créature arrive avec **1 trait** (une fois sur deux, 2), affiché dans le message d'arrivée,
+  sur sa fiche et dans le codex. Les traits sont gardés dans la sauvegarde.
+
+  | Trait | Effet |
+  |-------|-------|
+  | Avare | salaire +30 %, se bat 30 % mieux près d'un Trésor |
+  | Peureuse | court 20 % plus vite, fuit le combat sous 35 % de vie et va se cacher dans son lit |
+  | Bagarreuse | +15 % de dégâts, repère les héros de plus loin, se battre la rend heureuse |
+  | Rancunière | +40 % de dégâts contre le dernier héros qui l'a blessée |
+  | Pieuse | prière deux fois plus efficace ; sans Temple, son humeur baisse |
+  | Gourmande | faim 40 % plus rapide, mais chaque repas la réjouit |
+  | Insomniaque | se fatigue 40 % moins vite, récupère deux fois moins vite |
+  | Studieuse / Paresseuse | travail +50 % / travail -50 % mais salaire -25 % |
+  | Coquette | décorations et braseros deux fois plus efficaces sur son humeur |
+  | Solitaire | +25 % de dégâts seule, la foule l'agace |
+  | Robuste | +20 % de vie |
+
+- Pour ajouter un trait : une entrée dans `Traits.INFO` avec ses effets (la liste est en tête du fichier).
+
+*Retraite des héros et vétérans* (`scripts/hero.gd`, `scripts/nemeses.gd`)
+- Sous **25 % de vie**, un héros **bat en retraite** vers l'entrée grise (« fuit ! » au-dessus de sa tête),
+  un peu plus vite, sans plus s'arrêter pour se battre. Le Champion et les troupes du rival ne fuient jamais.
+- S'il sort vivant (ou si une Voleuse s'enfuit avec son butin), il devient un **vétéran** : il reçoit un nom
+  (« Tristan le Chevalier ») et **revient une ou deux vagues plus tard** (2 vétérans par vague au plus).
+  Par rang (3 au maximum, un de plus à chaque évasion) : +30 % de vie, +20 % de dégâts, +50 % de rançon.
+- Il se **souvient des pièges qui l'ont blessé** : il les évite (ils « coûtent » plus cher dans son chemin)
+  et ils ne lui font que la moitié des dégâts. Il garde **rancune** à l'espèce qui l'a le plus abîmé :
+  +30 % de dégâts contre elle.
+- Abattu ou capturé, il ne revient plus. Les vétérans en attente sont dans la sauvegarde.
+- Réglages : `HERO_FLEE_BELOW`, `NEMESIS_*` dans `rules.gd`.
+
+*Combos de pièges* (`scripts/combos.gd`)
+- Six combinaisons **secrètes** ; le codex n'affiche qu'un indice tant qu'on ne les a pas déclenchées
+  (la découverte est gardée pour toutes les parties dans `user://combos.cfg`) :
+
+  | Combo | Comment | Effet |
+  |-------|---------|-------|
+  | Rune de feu | Rune à 2 cases au plus d'un Brasero | explosion 50 % plus large, le sol brûle 6 s |
+  | Réaction en chaîne | Runes proches | l'explosion fait sauter les autres runes, +25 % chacune |
+  | Pointes ardentes | Pointes à 2 cases au plus d'un Brasero | +50 % de dégâts, le héros prend feu 3 s |
+  | Empalement | Pointes + héros ralenti (Araignée) | dégâts doublés |
+  | Détonation | Éclair lancé sur une Rune | la rune explose aussitôt, 50 % plus fort |
+  | Porte hérissée | Pointes collées à une Porte | réarmement deux fois plus rapide |
+
+- Le nom du combo s'envole au-dessus du piège ; la première fois, le journal l'annonce.
+- Les héros peuvent maintenant **brûler** (`apply_burn` dans `unit.gd`).
+
 **Étape 36 — La voix du Seigneur**
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu

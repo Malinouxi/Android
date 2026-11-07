@@ -14,10 +14,16 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.1"
+const VERSION := "2.2"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.2", "changes": [
+		"Traits de caractère : chaque créature arrive avec 1 ou 2 traits (Avare, Peureuse, Bagarreuse, Rancunière, Pieuse, Gourmande, Insomniaque, Studieuse, Paresseuse, Coquette, Solitaire, Robuste). Ils sont sur sa fiche et dans le codex.",
+		"Les héros battent en retraite : sous 25 % de vie, ils fuient vers l'entrée grise. Rattrape-les !",
+		"Les vétérans : un héros qui s'échappe (ou une Voleuse qui s'enfuit) revient 1 ou 2 vagues plus tard avec un nom, plus fort. Il évite les pièges qui l'ont blessé (et ils lui font moins mal), et en veut à l'espèce qui l'a le plus abîmé.",
+		"Combos de pièges secrets (6) : Rune de feu, Réaction en chaîne, Pointes ardentes, Empalement, Détonation, Porte hérissée. Le codex donne un indice pour ceux que tu n'as pas encore découverts.",
+	]},
 	{"version": "2.1", "changes": [
 		"Les salles se construisent d'un seul bloc, à leur taille : Bibliothèque 2 x 3, Entraînement 2 x 4, Temple 2 x 3, Atelier 2 x 2, Prison 2 x 2 (4 cellules), Trésor 1 x 2. Le prix est celui de la salle entière.",
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
@@ -191,6 +197,49 @@ const STEALTH_RADIUS := 40.0
 const MISSION_AGGRO_RADIUS := 40.0
 ## Secondes qu'il faut au Moine pour ouvrir une cellule de Prison.
 const UNLOCK_TIME := 3.0
+
+# --- Retraite des héros et vétérans (voir hero.gd et nemeses.gd) -------------------
+## Un héros sous cette part de sa vie bat en retraite vers l'entrée (sauf le
+## Champion et les troupes du rival).
+const HERO_FLEE_BELOW := 0.25
+## La peur donne des ailes : vitesse multipliée pendant la fuite.
+const HERO_FLEE_SPEED := 1.15
+## Un héros échappé revient entre NEMESIS_RETURN_MIN et NEMESIS_RETURN_MAX vagues plus tard...
+const NEMESIS_RETURN_MIN := 1
+const NEMESIS_RETURN_MAX := 2
+## ... au plus NEMESIS_PER_WAVE par vague.
+const NEMESIS_PER_WAVE := 2
+## Par rang de vétéran (1 à 3) : +30 % de vie, +20 % de dégâts, +50 % de rançon.
+const NEMESIS_HP_BONUS := 0.3
+const NEMESIS_DAMAGE_BONUS := 0.2
+const NEMESIS_REWARD_BONUS := 0.5
+## Rancune : dégâts multipliés contre l'espèce qui l'a le plus abîmé.
+const NEMESIS_GRUDGE_DAMAGE := 1.3
+## Un piège dont il se souvient ne lui fait que cette part des dégâts...
+const NEMESIS_TRAP_DAMAGE := 0.5
+## ... et il l'évite : la case « coûte » autant que tant de cases de marche.
+const NEMESIS_TRAP_AVOID := 8.0
+
+# --- Combos de pièges (voir combos.gd) --------------------------------------------
+## Distance (en cases) entre un Brasero et une Rune ou des Pointes pour le combo.
+const COMBO_BRAZIER_RADIUS := 2
+## Rune de feu : rayon de l'explosion multiplié, puis le sol brûle.
+const FIRE_RUNE_RADIUS := 1.5
+const FIRE_TIME := 6.0            ## Secondes pendant lesquelles le sol brûle.
+const FIRE_BURN_TIME := 2.0       ## Un héros dans les flammes brûle encore tant de secondes...
+const FIRE_BURN_DPS := 12.0       ## ... en perdant tant de vie par seconde.
+## Réaction en chaîne : chaque Rune suivante fait tant de fois plus de dégâts.
+const CHAIN_DAMAGE := 1.25
+## Pointes ardentes : dégâts multipliés, brûlure de tant de secondes et de dégâts par seconde.
+const HOT_SPIKES_DAMAGE := 1.5
+const HOT_SPIKES_BURN_TIME := 3.0
+const HOT_SPIKES_BURN_DPS := 6.0
+## Empalement : dégâts des Pointes multipliés sur un héros ralenti.
+const IMPALE_DAMAGE := 2.0
+## Détonation : dégâts de la Rune multipliés quand l'Éclair la fait exploser.
+const DETONATION_DAMAGE := 1.5
+## Porte hérissée : temps de réarmement des Pointes collées à une Porte multiplié.
+const DOOR_SPIKES_REARM := 0.5
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

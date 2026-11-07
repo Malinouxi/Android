@@ -59,6 +59,11 @@ const HASTE_SPEED_FACTOR := 1.8
 ## Secondes de ralentissement restantes (morsure d'araignée).
 var _slow_left := 0.0
 const SLOW_SPEED_FACTOR := 0.5
+## Brûlure (combos de pièges, voir combos.gd) : secondes restantes, dégâts par seconde.
+var _burn_left := 0.0
+var _burn_dps := 0.0
+var _burn_tick := 0.0
+const BURN_TICK := 0.5
 
 
 ## Quand l'unité entre dans la scène, on la range dans un « groupe » selon son camp.
@@ -188,6 +193,14 @@ func update_effects(delta: float) -> void:
 	_slow_left = maxf(0.0, _slow_left - delta)
 	if regen > 0.0:
 		heal(regen * delta)
+	if _burn_left > 0.0:
+		# La brûlure fait ses dégâts par petits coups (toutes les BURN_TICK secondes).
+		_burn_left -= delta
+		_burn_tick -= delta
+		if _burn_tick <= 0.0:
+			_burn_tick = BURN_TICK
+			Fx.burst("sparks", position, Color("ff7a1a"))
+			take_damage(_burn_dps * BURN_TICK)
 
 
 func apply_haste(duration: float) -> void:
@@ -207,6 +220,23 @@ func _on_hit_landed(_target: Unit, _damage: float) -> void:
 
 func apply_slow(duration: float) -> void:
 	_slow_left = maxf(_slow_left, duration)
+
+
+func is_slowed() -> bool:
+	return _slow_left > 0.0
+
+
+## Met le feu à l'unité : dps dégâts par seconde pendant duration secondes.
+func apply_burn(duration: float, dps: float) -> void:
+	if _burn_left <= 0.0:
+		_burn_tick = BURN_TICK
+		_burn_dps = 0.0
+	_burn_left = maxf(_burn_left, duration)
+	_burn_dps = maxf(_burn_dps, dps)
+
+
+func is_burning() -> bool:
+	return _burn_left > 0.0
 
 
 ## Une cible valable : vivante, pas dans la main du maître, pas prisonnière
@@ -232,11 +262,14 @@ func load_abilities(info: Dictionary) -> void:
 	keen_nose = info.get("keen_nose", false)
 
 
-func take_damage(amount: float) -> void:
+## source : l'unité qui frappe (null pour un piège ou un sort).
+func take_damage(amount: float, source: Unit = null) -> void:
 	if is_dead():
 		return
 	var damage_taken := amount * (1.0 - armor)
 	hp -= damage_taken
+	if source != null:
+		_on_damaged(source, damage_taken)
 	Fx.number(position, damage_taken, Color("ff8a80") if team == Team.DUNGEON else Color.WHITE)
 	# Petit flash blanc : un « Tween » fait revenir la couleur normale en douceur.
 	modulate = Color(2.5, 2.5, 2.5)
@@ -244,6 +277,18 @@ func take_damage(amount: float) -> void:
 	if hp <= 0.0:
 		hp = 0.0
 		die()
+
+
+## Appelée quand une unité ennemie nous frappe (les créatures Rancunières et les
+## héros s'en souviennent, voir creature.gd et hero.gd).
+func _on_damaged(_source: Unit, _amount: float) -> void:
+	pass
+
+
+## Les dégâts d'un coup porté à cette cible. Les classes filles les modifient
+## (traits des créatures, rancune des héros vétérans).
+func damage_against(_target: Unit) -> float:
+	return attack_damage
 
 
 ## Les classes filles peuvent compléter die() (libérer un lit...) puis appeler super().
@@ -300,8 +345,9 @@ func fight(target_object, delta: float) -> bool:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = attack_interval
 			show_strike(target.position)
-			target.take_damage(attack_damage)
-			_on_hit_landed(target, attack_damage)
+			var damage := damage_against(target)
+			target.take_damage(damage, self)
+			_on_hit_landed(target, damage)
 			_apply_hit_abilities(target)
 			Fx.burst("sparks", target.position)
 			Sound.play(_attack_sound(), position)
@@ -330,7 +376,7 @@ func _apply_hit_abilities(target: Unit) -> void:
 			var other := node as Unit
 			if other != null and other != target and other.is_targetable() \
 					and other.position.distance_to(target.position) <= splash_radius:
-				other.take_damage(attack_damage * SPLASH_FACTOR)
+				other.take_damage(attack_damage * SPLASH_FACTOR, self)
 		map.add_effect(target.position, splash_radius, Color(1.0, 0.5, 0.1, 0.6))
 
 

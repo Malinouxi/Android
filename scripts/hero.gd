@@ -29,6 +29,11 @@ signal stole(hero: Hero, amount: int)
 signal escaped(hero: Hero, amount: int)
 ## Émis quand le Moine ouvre une cellule.
 signal freed_prisoner(hero: Hero)
+## Émis quand le héros, gravement blessé, commence à battre en retraite.
+signal started_fleeing(hero: Hero)
+## Émis quand le héros sort VIVANT par l'entrée (fuite, ou Voleuse avec son butin) :
+## il reviendra plus tard en vétéran (voir nemeses.gd).
+signal retreated(hero: Hero)
 
 const AGGRO_RADIUS := 128.0  ## Distance (pixels) à laquelle il repère un ennemi.
 const DIG_INTERVAL := 0.6    ## Secondes entre deux coups de pioche.
@@ -67,6 +72,18 @@ var sacrifice_requested := false
 var no_ransom := false
 var _dying := false
 
+## LA RETRAITE ET LES VÉTÉRANS (voir nemeses.gd).
+## Vrai quand il bat en retraite vers l'entrée (sous Rules.HERO_FLEE_BELOW de sa vie).
+var fleeing := false
+## Sa fiche de vétéran s'il est déjà revenu (vide sinon).
+var nemesis: Dictionary = {}
+## Les pièges qui l'ont blessé : case -> true. Il s'en souvient s'il s'échappe.
+var known_traps: Dictionary = {}
+## Les pièges qu'il connaissait EN ARRIVANT (vétéran) : case -> true.
+var _veteran_traps: Dictionary = {}
+## Dégâts reçus de chaque espèce de créature : Creatures.Type -> dégâts.
+var _damage_by_species: Dictionary = {}
+
 
 ## À appeler juste après Hero.new().
 func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void:
@@ -89,6 +106,15 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 
 func to_save() -> Dictionary:
 	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp, "loot": loot}
+	if not nemesis.is_empty():
+		data["nemesis"] = nemesis
+	if fleeing:
+		data["fleeing"] = true
+	if not known_traps.is_empty():
+		var traps := []
+		for cell: Vector2i in known_traps:
+			traps.append(SaveGame.cell_to_array(cell))
+		data["known_traps"] = traps
 	if is_captured():
 		data["prison"] = SaveGame.cell_to_array(prison_cell)
 		data["sacrifice"] = sacrifice_requested
@@ -201,11 +227,128 @@ func _escape() -> void:
 
 
 func display_name() -> String:
+	if not nemesis.is_empty():
+		return Nemeses.title(nemesis)
 	return Heroes.info(type)["name"]
 
 
 func reward() -> int:
-	return Heroes.info(type)["reward"]
+	return int(Heroes.info(type)["reward"] * (1.0 + Rules.NEMESIS_REWARD_BONUS * rank()))
+
+
+# ---------------------------------------------------------------------------
+# Les vétérans et la retraite
+# ---------------------------------------------------------------------------
+
+## Son rang de vétéran (0 : un héros ordinaire).
+func rank() -> int:
+	return int(nemesis.get("rank", 0))
+
+
+func is_veteran() -> bool:
+	return not nemesis.is_empty()
+
+
+## Fait de ce héros un vétéran qui revient (fiche de nemeses.gd) : plus fort, et
+## il se souvient des pièges qui l'ont blessé.
+func apply_nemesis(entry: Dictionary) -> void:
+	nemesis = entry.duplicate(true)
+	var info := Heroes.info(type)
+	max_hp = info["hp"] * (1.0 + Rules.NEMESIS_HP_BONUS * rank())
+	hp = max_hp
+	attack_damage = info["damage"] * (1.0 + Rules.NEMESIS_DAMAGE_BONUS * rank())
+	for values in nemesis.get("traps", []):
+		var cell := SaveGame.array_to_cell(values)
+		known_traps[cell] = true
+		_veteran_traps[cell] = true
+
+
+## L'espèce de créature qui l'a le plus abîmé (-1 si aucune).
+func worst_enemy_species() -> int:
+	var best := -1
+	for species: int in _damage_by_species:
+		if best < 0 or _damage_by_species[species] > _damage_by_species[best]:
+			best = species
+	return best
+
+
+## Rancune : il frappe plus fort l'espèce qui l'a le plus abîmé la dernière fois.
+func damage_against(target: Unit) -> float:
+	var grudge := int(nemesis.get("grudge", -1))
+	if grudge >= 0 and target is Creature and (target as Creature).type == grudge:
+		return attack_damage * Rules.NEMESIS_GRUDGE_DAMAGE
+	return attack_damage
+
+
+func _on_damaged(source: Unit, amount: float) -> void:
+	if source is Creature:
+		var species := (source as Creature).type
+		_damage_by_species[species] = _damage_by_species.get(species, 0.0) + amount
+
+
+## Un piège l'a blessé : il s'en souviendra.
+func remember_trap(cell: Vector2i) -> void:
+	known_traps[cell] = true
+
+
+## Vrai s'il connaît ce piège depuis une vague précédente (il lui fait moins mal).
+func knows_trap(cell: Vector2i) -> bool:
+	return _veteran_traps.has(cell)
+
+
+## Les pièges qu'il évite en cherchant son chemin (ceux qu'il connaissait en arrivant).
+func _avoided_traps() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	result.assign(_veteran_traps.keys())
+	return result
+
+
+## Le Champion et les troupes du rival ne fuient jamais ; les autres oui.
+func _can_flee() -> bool:
+	var info := Heroes.info(type)
+	return not info.get("boss", false) and not info.get("rival", false)
+
+
+## Gravement blessé : il bat en retraite vers l'entrée grise.
+func start_fleeing(announce := true) -> void:
+	if fleeing:
+		return
+	fleeing = true
+	_target = null
+	_unlock_left = -1.0
+	_prisoner_target = null
+	path.clear()
+	_mission_cell = NO_CELL
+	speed = Heroes.info(type)["speed"] * Rules.HERO_FLEE_SPEED
+	if announce:
+		Fx.burst("sparks", position, Color("ffffff"))
+		started_fleeing.emit(self)
+
+
+## La fuite : vers l'entrée, en creusant s'il le faut. Acculé (aucun chemin),
+## il se bat là où il est.
+func _flee(delta: float) -> void:
+	if current_cell() == map.entrance_cell:
+		_leave_alive()
+		return
+	if path.is_empty() or _mission_cell != map.entrance_cell:
+		_mission_cell = map.entrance_cell
+		follow_path(map.find_hero_path_to(current_cell(), map.entrance_cell, _avoided_traps()))
+		if path.is_empty():
+			_mission_cell = NO_CELL
+			var enemy := find_nearest_enemy(Rules.MISSION_AGGRO_RADIUS)
+			if enemy != null:
+				fight(enemy, delta)
+			return
+	_walk_or_dig(delta)
+
+
+## Il sort vivant du donjon : il reviendra (main.gd le note dans le registre des vétérans).
+func _leave_alive() -> void:
+	retreated.emit(self)
+	remove_from_group(_group_name(team))
+	Fx.burst("smoke", position, Color(0.5, 0.5, 0.6, 0.6))
+	queue_free()
 
 
 func _process(delta: float) -> void:
@@ -241,9 +384,13 @@ func _process(delta: float) -> void:
 	if _target != null and not is_instance_valid(_target):
 		_target = null
 
+	# Gravement blessé : il bat en retraite (et ne s'arrête plus pour se battre).
+	if not fleeing and _can_flee() and hp < max_hp * Rules.HERO_FLEE_BELOW:
+		start_fleeing()
+
 	# Trois fois par seconde, on regarde s'il y a un ennemi à proximité.
 	_think_timer -= delta
-	if _think_timer <= 0.0:
+	if not fleeing and _think_timer <= 0.0:
 		_think_timer = 0.3
 		var radius := Rules.MISSION_AGGRO_RADIUS if _has_mission() else AGGRO_RADIUS
 		var enemy := find_nearest_enemy(radius)
@@ -251,7 +398,9 @@ func _process(delta: float) -> void:
 			_target = enemy
 			path.clear()
 
-	if _target != null:
+	if fleeing:
+		_flee(delta)
+	elif _target != null:
 		_unlock_left = -1.0
 		if not fight(_target, delta):
 			_target = null
@@ -329,9 +478,7 @@ func _thief_mission(delta: float) -> bool:
 func _run_away() -> void:
 	escaped.emit(self, loot)
 	loot = 0
-	remove_from_group(_group_name(team))
-	Fx.burst("smoke", position, Color(0.5, 0.5, 0.6, 0.6))
-	queue_free()
+	_leave_alive()
 
 
 ## Le Moine : vers le prisonnier le plus proche, puis il ouvre sa cellule.
@@ -440,7 +587,7 @@ func _march(delta: float) -> void:
 		return
 
 	if path.is_empty():
-		follow_path(map.find_hero_path(current_cell()))
+		follow_path(map.find_hero_path(current_cell(), _avoided_traps()))
 		if path.is_empty():
 			return
 	_walk_or_dig(delta)
@@ -487,6 +634,12 @@ func _draw() -> void:
 	draw_sprite(info["sprite"], sprite_scale)
 	draw_strike()
 	draw_health_bar(-16.0 * sprite_scale - 6.0)
+	var title := overhead_text()
+	if title != "":
+		var font := ThemeDB.fallback_font
+		var width := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+		draw_string(font, Vector2(-width / 2, -16.0 * sprite_scale - 10.0), title, HORIZONTAL_ALIGNMENT_LEFT,
+				-1, 10, Color("ffd54a") if is_veteran() else Color.WHITE)
 	if loot > 0:
 		# Le sac d'or volé, sur l'épaule.
 		draw_circle(Vector2(9, -4), 5.0, Color("ffd54a"))
@@ -502,6 +655,16 @@ func _draw() -> void:
 		if sacrifice_requested:
 			# Un poignard rouge au-dessus : il sera conduit à l'autel.
 			draw_texture_rect(SACRIFICE_ICON, Rect2(-8, -34, 16, 16), false)
+
+
+## Le texte au-dessus de sa tête : son nom s'il est vétéran, « fuit ! » en retraite.
+func overhead_text() -> String:
+	if knocked_out or carrier != null or is_captured():
+		return ""
+	var text := String(nemesis["name"]) if is_veteran() else ""
+	if fleeing:
+		text = (text + " fuit !") if text != "" else "fuit !"
+	return text
 
 
 const SACRIFICE_ICON := preload("res://assets/icons/dagger.png")

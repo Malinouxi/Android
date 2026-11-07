@@ -118,6 +118,12 @@ var trap_stock := {Defenses.Type.SPIKES: 0, Defenses.Type.RUNE: 0, Defenses.Type
 var _autosave_timer := AUTOSAVE_INTERVAL
 var _game_over := false
 
+## Musique adaptative : on passe en musique de combat tant que des héros sont dans
+## le donjon, et on revient au calme quelques secondes après le dernier.
+const CALM_MUSIC_DELAY := 8.0
+var _music_timer := 0.0
+var _calm_countdown := 0.0
+
 # Peinture au doigt (voir camera_controller.gd) : cases déjà traitées pendant ce geste.
 var _paint_active := false
 var _paint_cells := {}
@@ -150,7 +156,7 @@ func _ready() -> void:
 	Fx.layer = effects_root
 	Fx.world = world_root
 	Fx.camera = camera
-	Sound.reset_music_volume() # Au cas où la défaite l'avait baissée.
+	Sound.play_music("calm")
 	# On branche les signaux sur nos fonctions.
 	map.gold_changed.connect(_refresh_hud)
 	camera.tapped.connect(_on_camera_tapped)
@@ -266,6 +272,7 @@ func _process(delta: float) -> void:
 		_goal_timer = 1.0
 		_check_goal()
 	_check_full_pockets()
+	_update_music(delta)
 
 	# On rafraîchit l'interface 4 fois par seconde (compte à rebours de la paie...).
 	_hud_timer -= delta
@@ -498,6 +505,19 @@ func _update_waves(delta: float) -> void:
 	_start_wave()
 
 
+func _update_music(delta: float) -> void:
+	if _game_over:
+		return
+	_calm_countdown -= delta
+	_music_timer -= delta
+	if _music_timer > 0.0:
+		return
+	_music_timer = 0.5
+	if not get_tree().get_nodes_in_group("heroes").is_empty():
+		_calm_countdown = CALM_MUSIC_DELAY
+	Sound.play_music("combat" if _calm_countdown > 0.0 else "calm")
+
+
 func _start_wave() -> void:
 	_wave_timer = _wave_interval
 	_wave_warned = false
@@ -675,7 +695,7 @@ func _on_heart_destroyed() -> void:
 	_game_over = true
 	SaveGame.delete() # Une partie perdue ne se reprend pas !
 	get_tree().paused = true # Tout s'arrête, sauf l'interface (voir hud.gd).
-	Sound.set_music_volume(-20.0)
+	Sound.play_music("defeat")
 	Sound.play("game_over")
 	hud.show_game_over(_waves_survived)
 
@@ -737,8 +757,8 @@ func _on_victory() -> void:
 	Levels.record_victory(level.get("id", 0), stars)
 	Engine.time_scale = 1.0
 	get_tree().paused = true
+	Sound.play_music("victory")
 	Sound.play("discovery")
-	Sound.play("level_up")
 	hud.show_victory(level.get("name", ""), stars, Levels.has_next(level.get("id", 0)))
 
 

@@ -191,8 +191,8 @@ def menu_theme():
             at += length
     # Le glas, au début de chaque phrase.
     for bar in [0, 4, 8, 12]:
-        tr.bell("D3", bar * 4, 7.0, gain=0.55, pan=-0.3)
-    tr.bell("A3", 62, 5.0, gain=0.25, pan=0.4, brightness=0.8)
+        tr.bell("D3", bar * 4, 4.0, gain=0.55, pan=-0.3)
+    tr.bell("A3", 62, 2.0, gain=0.25, pan=0.4, brightness=0.8)
 
     # Le chœur chante la mélodie (mesures 5 à 16).
     melody = [("A4", 2), ("D5", 2), ("C5", 2), ("A4", 2), ("Bb4", 2), ("G4", 1), ("A4", 1),
@@ -287,8 +287,8 @@ def calm_theme():
     for start, name, dur in cello:
         tr.strings(name, 48 + start, dur, gain=0.11, pan=-0.15, voices=1, attack=0.15, bright=2000)
     # Cloche lointaine.
-    tr.bell("A3", 24 * 3, 7.0, gain=0.15, pan=0.6, send=0.85, brightness=0.6)
-    tr.bell("D3", 72, 7.0, gain=0.12, pan=-0.6, send=0.85, brightness=0.6)
+    tr.bell("A3", 24 * 3, 4.5, gain=0.15, pan=0.6, send=0.85, brightness=0.6)
+    tr.bell("D3", 72, 4.5, gain=0.12, pan=-0.6, send=0.85, brightness=0.6)
     drips(tr, 34, seed=5)
     wind(tr, 0.05)
     return tr.render(loop=True, loudness=0.09, reverb_seconds=4.2)
@@ -329,8 +329,8 @@ def combat_theme():
             tr.add(gs.snare_roll(tr.sec(2), SR, tr.rng), at + 2, 0.2, 0.35, 0.3)
     # Cloches et tam-tam au début de chaque grande phrase.
     for bar in [0, 8, 16, 24]:
-        tr.bell("D3", bar * 4, 5.0, gain=0.4, pan=-0.4)
-        tr.add(gs.gong(N("D2"), 6.0, SR, tr.rng), bar * 4, 0.3, 0.35 if bar % 16 == 0 else 0.2, 0.5)
+        tr.bell("D3", bar * 4, 1.8 if bar == 16 else 3.6, gain=0.4, pan=-0.4)
+        tr.add(gs.gong(N("D2"), 1.8 if bar == 16 else 3.6, SR, tr.rng), bar * 4, 0.3, 0.35 if bar % 16 == 0 else 0.2, 0.5)
     # Le chœur (« o ») : mélodie martelée, mesures 9 à 16 et 25 à 32.
     melody = [("D5", 4), ("D5", 2), ("F5", 2), ("E5", 4), ("D5", 2), ("C#5", 2),
               ("D5", 4), ("Bb4", 2), ("D5", 2), ("C#5", 6), ("A4", 2),

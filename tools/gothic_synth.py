@@ -258,30 +258,34 @@ def harpsichord(freq, duration, sr, rng, release=0.15):
     return soften_attack(out * 0.6, sr)
 
 
-# Partiels d'une cloche d'église (rapports à la note « nominale ») : bourdon,
-# fondamentale, tierce mineure, quinte, octave... d'où son timbre sombre.
-BELL_PARTIALS = [(0.5, 0.9, 1.0), (1.0, 0.8, 0.55), (1.19, 0.6, 0.4), (1.5, 0.35, 0.3),
-                 (2.0, 0.55, 0.25), (2.51, 0.25, 0.15), (2.66, 0.2, 0.13), (3.01, 0.18, 0.1),
-                 (4.16, 0.12, 0.07), (5.43, 0.08, 0.05)]
+# Partiels de la cloche (rapport à la note jouée, force, durée de vie relative).
+# Une vraie cloche d'église a une tierce mineure et des partiels « faux » qui
+# frottent contre les accords de la musique : ici la cloche est ACCORDÉE
+# (comme un carillon) : bourdon à l'octave grave, note, quinte, octaves.
+# Un seul partiel métallique, très court, donne le « ting » du coup.
+BELL_PARTIALS = [(0.5, 0.7, 1.0), (1.0, 1.0, 0.7), (1.5, 0.25, 0.35), (2.0, 0.5, 0.4),
+                 (2.004, 0.2, 0.4), (3.0, 0.18, 0.2), (4.0, 0.12, 0.12), (6.0, 0.05, 0.06)]
+BELL_STRIKE = (2.76, 0.25, 0.02)
 
 
 def bell(freq, duration, sr, rng, brightness=1.0):
-    """Cloche : partiels inharmoniques, chacun avec sa propre durée (le grave
-    « bourdonne » longtemps), et un léger battement entre deux partiels proches."""
+    """Cloche accordée : partiels justes, chacun avec sa propre durée (le grave
+    « bourdonne » longtemps), un léger battement à l'octave, et le « ting » du coup."""
     n = samples(duration, sr)
     t = np.arange(n) / sr
     out = np.zeros(n)
-    for ratio, amp, life in BELL_PARTIALS:
+    for ratio, amp, life in BELL_PARTIALS + [BELL_STRIKE]:
         f = freq * ratio
         if f > sr * 0.45:
             continue
         amp = amp * (brightness if ratio > 1.6 else 1.0)
         decay = np.exp(-t / (life * duration))
-        beat = 1 + 0.15 * np.sin(2 * np.pi * rng.uniform(0.5, 2.0) * t)
-        out += amp * decay * beat * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28))
-    strike_n = min(n, samples(0.02, sr))
-    out[:strike_n] += fft_filter(noise(strike_n, rng), sr, low=1500) * np.linspace(1, 0, strike_n) * 0.5
-    return soften_attack(out / 2.2, sr)
+        out += amp * decay * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28))
+    strike_n = min(n, samples(0.015, sr))
+    out[:strike_n] += fft_filter(noise(strike_n, rng), sr, low=1500) * np.linspace(1, 0, strike_n) * 0.3
+    # Fin douce : la cloche s'éteint avant la fin du son.
+    out *= np.minimum(1, (n - np.arange(n)) / samples(0.3, sr))
+    return soften_attack(out / 2.0, sr)
 
 
 def timpani(freq, duration, sr, rng, force=1.0):
@@ -324,18 +328,20 @@ def snare_roll(duration, sr, rng, force=1.0):
 
 
 def gong(freq, duration, sr, rng):
-    """Tam-tam : une nuée de partiels qui enfle un instant puis s'éteint lentement."""
+    """Tam-tam accordé : une nuée de partiels proches des harmoniques de la note
+    (légèrement désaccordés, ce qui le fait miroiter), qui enfle puis s'éteint."""
     n = samples(duration, sr)
     t = np.arange(n) / sr
     out = np.zeros(n)
-    for _ in range(40):
-        f = freq * rng.uniform(1, 30)
+    for k in range(1, 24):
+        f = freq * k * (1 + rng.uniform(-0.004, 0.004))
         if f > sr * 0.45:
-            continue
-        swell = (1 - np.exp(-t / rng.uniform(0.05, 0.4))) * np.exp(-t / (duration * rng.uniform(0.15, 0.4)))
-        out += swell * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28)) / (1 + f / 800)
+            break
+        swell = (1 - np.exp(-t / rng.uniform(0.05, 0.3))) * np.exp(-t / (duration * rng.uniform(0.15, 0.35)))
+        out += swell * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28)) / k ** 0.8
     out += np.sin(2 * np.pi * freq * t) * np.exp(-t / (duration * 0.35)) * 1.5
-    return out / 6
+    out *= np.minimum(1, (n - np.arange(n)) / samples(0.3, sr))
+    return out / 5
 
 
 def brass(freq, duration, sr, rng, attack=0.12, release=0.35):

@@ -177,12 +177,12 @@ def make_effects():
                            * rng.uniform(0.1, 0.3), rng.uniform(0.02, 0.12)) for _ in range(5)])
         save("dig_%d" % i, room(mix(hit, iron, crumble), 0.12, 0.6), 0.55)
 
-    # Or arraché à un filon : une petite cloche claire.
-    save("gold", room(mix(bell(2100, 0.7, 1.3) * 0.8, at(bell(2800, 0.5, 1.3) * 0.4, 0.05)), 0.15), 0.42)
+    # Or arraché à un filon : une petite cloche claire (accordée en ré mineur, comme la musique).
+    save("gold", room(mix(bell("A6", 0.7, 1.3) * 0.8, at(bell("D7", 0.5, 1.3) * 0.4, 0.05)), 0.15), 0.42)
 
     # Pièces déposées au trésor : une pluie de tintements.
     coins = mix(*[at(bell(f, 0.45, 1.4), delay) for f, delay in
-                  [(2500, 0), (3100, 0.05), (2250, 0.1), (2850, 0.15), (3400, 0.2), (2650, 0.26)]])
+                  [("D7", 0), ("F7", 0.05), ("A6", 0.1), ("E7", 0.15), ("A7", 0.2), ("D7", 0.26)]])
     save("coins", room(coins, 0.15), 0.5)
 
     # Revendiquer une case : un murmure sombre du chœur (la magie du Seigneur).
@@ -303,7 +303,7 @@ def make_effects():
     # La main du maître : ramasser (souffle qui monte) et déposer (choc mat).
     d = 0.25
     lift = bandpass(noise(d), 500, 3000) * swell(d, 0.8) * 0.5
-    save("pickup", room(mix(lift, at(bell(1600, 0.4, 1.1) * 0.25, 0.12)), 0.2), 0.38)
+    save("pickup", room(mix(lift, at(bell("A6", 0.4, 1.1) * 0.25, 0.12)), 0.2), 0.38)
     save("drop", room(thud(0.25, 260, 90, 0.05, 1.0), 0.12), 0.5)
 
     # Flèche de l'archer : un sifflement court puis le « toc » dans le bois.

@@ -334,6 +334,18 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - La musique est en OGG Vorbis (`assets/music/`, 2,3 Mo pour les 5 morceaux) ; les boucles se raccordent
   sans couture (l'écho de la fin retombe sur le début).
 
+**Étape 36 — La voix du Seigneur**
+- Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
+  caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu
+  pendant qu'il parle. La voix suit le réglage « Effets sonores ».
+- Fabriquée par `tools/generate_voice.py` : une voix de synthèse française libre (Piper « fr-gilles-low »,
+  corpus CC0) lit chaque phrase, puis elle est baissée de 6 demi-tons, doublée une octave plus bas,
+  saturée en grondement et plongée dans l'écho d'une caverne.
+- Les phrases sont lues directement dans `LINES` (`scripts/lord_portrait.gd`) et `_advice()`
+  (`scripts/main.gd`) : ajoute une réplique, relance le script, il la dira. Le conseil qui donne un nombre
+  de secondes est dit sans le nombre (« Des héros arrivent bientôt... »).
+- Les cloches de la musique sont **accordées** (comme un carillon) pour ne plus sonner faux.
+
 **Étape 34 — Salles et ambiance d'après l'image de référence**
 - Le mobilier des salles est refait en low-poly **texturé** (textures peintes calculées par
   `tools/blender/textures.py` : pierre, dalles, planches, bois, fer, or, tissu, paille, cuir, bave) :
@@ -542,6 +554,7 @@ tools/generate_art.py      Lance la génération de toutes les images
 tools/art32.py             Les dessins en 32 x 32 (tuiles, personnages, objets, icônes)
 tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
 tools/generate_music.py    Le script Python qui compose la musique gothique (OGG)
+tools/generate_voice.py    Le script Python qui enregistre la voix du Seigneur (OGG)
 tools/gothic_synth.py      Les instruments simulés (orgue, chœur, cordes, cloches...) et la réverbération
 tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb)
 ```

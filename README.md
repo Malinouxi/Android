@@ -129,7 +129,7 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   9 en stock au maximum). Le bouton indique le stock (« Pointes x2 »). Démolir un piège le remet en stock.
 
 **Étape 10 — Son**
-- Une **ambiance de caverne** en boucle (bourdon grave, souffle d'air, gouttes d'eau, cloche lointaine).
+- Une **ambiance de caverne** en boucle (remplacée par la musique gothique de l'étape 35).
 - Plus de 30 **effets sonores** : pioche, or, pièces, revendication, construction, pièges, portail, coups
   (poing, épée, magie), morts, pointes, explosion, porte, cœur frappé, cor de guerre des vagues, sorts,
   passage de niveau, découverte, main du maître, clics, erreurs, défaite.
@@ -313,6 +313,39 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout reconstruire : `blender --background --python tools/blender/build_all.py`. Construire un
   personnage remplace dans Blender la scène du précédent (les noms des pivots doivent rester uniques).
 
+**Étape 35 — Musique et sons gothiques**
+- Une vraie **musique gothique**, composée par calcul (`tools/generate_music.py`, toujours 100 % originale),
+  avec des instruments simulés dans `tools/gothic_synth.py` : **orgue d'église** (plusieurs jeux),
+  **chœur** (voyelles « a », « o », « ou »), **violoncelles et contrebasses**, **clavecin**, **cloches**
+  (glas), **timbales**, **tambours de guerre** et **tam-tam**, dans l'écho d'une **cathédrale**.
+- La musique est **adaptative** (`Sound.play_music`, fondus enchaînés) :
+
+  | Morceau | Quand | Instruments |
+  |---------|-------|-------------|
+  | *Le Trône des Profondeurs* | menu principal, après une victoire ou une défaite | orgue, glas, chœur, violoncelles |
+  | *Les Galeries* | pendant la construction | clavecin, contrebasse, bourdon d'orgue, chœur lointain, gouttes d'eau |
+  | *L'Assaut* | dès qu'un héros est dans le donjon (et 8 s après le dernier) | timbales, tambours, cordes piquées, orgue, chœur |
+  | Victoire | objectif atteint | roulement, orgue et chœur qui finissent en ré majeur, carillon |
+  | Défaite | cœur détruit | glas funèbre, chœur qui descend |
+
+- Tous les **effets sonores** sont refaits dans le même style, avec un petit écho de salle de pierre :
+  pioche sur la roche, clochettes d'or, murmure du chœur quand on revendique, trompe de guerre des héros,
+  râle des mourants, acier des épées, orgue qui grince pour une erreur, glas de la défaite...
+- La musique est en OGG Vorbis (`assets/music/`, 2,3 Mo pour les 5 morceaux) ; les boucles se raccordent
+  sans couture (l'écho de la fin retombe sur le début).
+
+**Étape 36 — La voix du Seigneur**
+- Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
+  caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu
+  pendant qu'il parle. La voix suit le réglage « Effets sonores ».
+- Fabriquée par `tools/generate_voice.py` : une voix de synthèse française libre (Piper « fr-gilles-low »,
+  corpus CC0) lit chaque phrase, puis elle est baissée de 6 demi-tons, doublée une octave plus bas,
+  saturée en grondement et plongée dans l'écho d'une caverne.
+- Les phrases sont lues directement dans `LINES` (`scripts/lord_portrait.gd`) et `_advice()`
+  (`scripts/main.gd`) : ajoute une réplique, relance le script, il la dira. Le conseil qui donne un nombre
+  de secondes est dit sans le nombre (« Des héros arrivent bientôt... »).
+- Les cloches de la musique sont **accordées** (comme un carillon) pour ne plus sonner faux.
+
 **Étape 34 — Salles et ambiance d'après l'image de référence**
 - Le mobilier des salles est refait en low-poly **texturé** (textures peintes calculées par
   `tools/blender/textures.py` : pierre, dalles, planches, bois, fer, or, tissu, paille, cuir, bave) :
@@ -438,12 +471,19 @@ avec Godot 4.7.2 et le réglage d'export `export_presets.cfg`).
 5. **Une règle vraiment nouvelle** (un nouveau comportement) demande du code : décris-la, et on l'ajoute
    ensemble au bon endroit.
 
-## Modifier les sons
+## Modifier les sons et la musique
 
 Les sons sont dans `assets/sounds/` (WAV). Ils sont fabriqués par `tools/generate_sounds.py` à partir de
-formules (ondes, bruit, enveloppes) : change les chiffres et relance `python3 tools/generate_sounds.py`
-(il faut numpy : `pip install numpy`). Tu peux aussi remplacer un WAV par ton propre enregistrement
-(garde le même nom). La liste des sons utilisés est dans `scripts/sound.gd`.
+formules (ondes, bruit, enveloppes) et des instruments de `tools/gothic_synth.py` : change les chiffres et
+relance `python3 tools/generate_sounds.py` (il faut numpy : `pip install numpy`). Tu peux aussi remplacer
+un WAV par ton propre enregistrement (garde le même nom). La liste des sons utilisés est dans `scripts/sound.gd`.
+
+La musique est dans `assets/music/` (OGG). Chaque morceau est une **partition écrite en Python** dans
+`tools/generate_music.py` (accords, mélodies du chœur, rythmes des tambours) : modifie-la puis relance
+`python3 tools/generate_music.py` (tous les morceaux) ou `python3 tools/generate_music.py combat` (un seul).
+Il faut numpy et **ffmpeg** (pour l'encodage en OGG). Les instruments eux-mêmes (timbre de l'orgue,
+voyelles du chœur, partiels des cloches, réverbération) se règlent dans `tools/gothic_synth.py`.
+Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scripts/menu.gd`.
 
 ## Modifier les graphismes
 
@@ -504,15 +544,18 @@ scripts/rules.gd           LES RÈGLES : réglages généraux, version des règl
 scripts/codex_content.gd   Les textes du codex (à compléter selon les retours des joueurs)
 scripts/codex.gd           L'écran du codex (articles + tableaux automatiques)
 scripts/level_select.gd    L'écran de choix des niveaux (scène scenes/level_select.tscn)
-scripts/sound.gd           Le son (autoload « Sound ») : effets, ambiance, réglages
+scripts/sound.gd           Le son (autoload « Sound ») : effets, musique adaptative, réglages
 scripts/ui.gd              Le thème de l'interface (autoload « Ui ») : police, boutons, panneaux
 scripts/camera_controller.gd  Contrôles tactiles : glisser, pincer, toucher, peindre
 scripts/minimap.gd         La mini-carte (en bas à gauche)
 scripts/hud.gd             Interface : or, ouvriers, barre d'outils, messages
-assets/                    Les images PNG (pixel art 32 x 32) et les sons WAV (assets/sounds/)
+assets/                    Les images PNG, les sons WAV (assets/sounds/) et la musique OGG (assets/music/)
 tools/generate_art.py      Lance la génération de toutes les images
 tools/art32.py             Les dessins en 32 x 32 (tuiles, personnages, objets, icônes)
 tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
+tools/generate_music.py    Le script Python qui compose la musique gothique (OGG)
+tools/generate_voice.py    Le script Python qui enregistre la voix du Seigneur (OGG)
+tools/gothic_synth.py      Les instruments simulés (orgue, chœur, cordes, cloches...) et la réverbération
 tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb)
 ```
 
@@ -541,7 +584,7 @@ Avancer par petites étapes, chacune jouable :
 8. ✅ **Menu principal, pause et sauvegarde** (automatique et manuelle).
 9. ✅ **Territoire, niveaux des créatures, sorts, bibliothèque et atelier** (mécaniques classiques du
    genre, conçues pour ce jeu et le tactile).
-10. ✅ **Son** : ambiance et effets sonores originaux, positionnés sur la carte.
+10. ✅ **Son** : musique gothique adaptative et effets sonores originaux, positionnés sur la carte.
 11. ✅ Confort tactile, nouveau contenu, campagne de 8 niveaux, maître rival.
 12. Équilibrage, tutoriel, export APK.
 

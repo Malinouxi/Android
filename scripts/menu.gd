@@ -25,6 +25,7 @@ var _view3d: View3D
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
+	Sound.play_music("menu")
 	_build_background()
 	_build_ui()
 

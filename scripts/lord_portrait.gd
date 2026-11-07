@@ -7,7 +7,9 @@ extends Control
 ## Il réagit à ce qui se passe sur la carte (voir react, appelé par hud.gd pour
 ## chaque message du journal) : colère, joie, inquiétude ; au repos il cligne
 ## des yeux, regarde autour de lui et souffle de la fumée. Il parle dans une
-## bulle (say). Le toucher demande un conseil (signal advice_requested).
+## bulle (say), d'une voix grave et caverneuse (assets/voice/, fabriquée par
+## tools/generate_voice.py), et sa mâchoire bouge en rythme. Le toucher demande
+## un conseil (signal advice_requested).
 
 signal advice_requested
 
@@ -28,6 +30,14 @@ const LINES := {
 	Mood.ANGRY: ["Des intrus !", "Qu'ils périssent !", "Mon donjon ! Défendez-le !", "Grrr..."],
 	Mood.HAPPY: ["Ha ha ha !", "Excellent...", "Mon or !", "Délicieux.", "Encore !"],
 	Mood.WORRIED: ["Hmm...", "Ça ne me plaît pas.", "Fais attention...", "Ennuyeux."],
+}
+
+## Les voix : assets/voice/<12 premiers caractères du MD5 du texte>.ogg.
+const VOICE_PATH := "res://assets/voice/%s.ogg"
+## Répliques qui changent (un nombre dedans) : la voix dit une phrase fixe à la
+## place (même table que ALIASES dans tools/generate_voice.py).
+const VOICE_ALIASES := {
+	"Des héros arrivent dans": "Des héros arrivent bientôt. Prépare pièges et portes !",
 }
 
 var mood: int = Mood.IDLE
@@ -314,7 +324,19 @@ func say(text: String, duration := BUBBLE_TIME) -> void:
 	_bubble_label.text = text
 	_bubble.visible = true
 	_bubble.reset_size()
-	_bubble_left = duration
+	var spoken := Sound.play_voice(_voice_for(text))
+	_bubble_left = maxf(duration, spoken + 0.4) # La bulle reste tant qu'il parle.
+
+
+## La voix enregistrée d'une réplique, ou null s'il n'y en a pas.
+func _voice_for(text: String) -> AudioStream:
+	for prefix: String in VOICE_ALIASES:
+		if text.begins_with(prefix):
+			text = VOICE_ALIASES[prefix]
+	var path := VOICE_PATH % text.md5_text().substr(0, 12)
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as AudioStream
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -384,6 +406,10 @@ func _animate(delta: float) -> void:
 			brow_tilt = -0.4
 			brow_height = 0.04
 			eye_color = Color("ffb74d")
+	# Quand il parle, la mâchoire suit le volume de sa voix.
+	var voice := Sound.voice_level()
+	if voice > 0.0:
+		jaw_open = maxf(jaw_open * 0.5, 0.04 + voice * 0.42)
 	if _blink > 0.0:
 		lid = 1.0
 	_head.rotation = _head.rotation.lerp(head_rot, minf(1.0, delta * 8.0))

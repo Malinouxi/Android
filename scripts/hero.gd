@@ -18,6 +18,13 @@ extends Unit
 ##   - la Voleuse se faufile jusqu'au Trésor, vole de l'or et s'enfuit par l'entrée ;
 ##   - le Moine libérateur va à la Prison et ouvre les cellules.
 ## En mission, ils ne se battent que si un ennemi est tout près d'eux.
+##
+## LES TACTIQUES (voir plus bas, « Escouades, objectifs et tactiques ») : chaque
+## héros appartient à une ESCOUADE (squad) avec un rôle (« main » : le chemin le
+## plus court ; « flank » : un autre chemin ; « sapper » : un tunnel tout droit),
+## et parfois un OBJECTIF (piller le Trésor, libérer les prisonniers, saccager la
+## Bibliothèque, chasser les ouvriers, abattre ta meilleure créature, ou explorer
+## pour l'éclaireur). Main.gd forme les escouades et gère leur retraite.
 
 ## Émis quand le héros arrive en prison.
 signal captured(hero: Hero)
@@ -90,6 +97,23 @@ var home_cell := Vector2i(-1, -1)
 ## l'ignorent. Il se réveille sur ordre du maître (assaut), ou s'il est blessé.
 var awake := false
 var _calm_left := 0.0
+## LES ESCOUADES (voir main.gd) : numéro, rôle et objectif.
+var squad := -1
+var role := "main"
+var objective := ""
+## Secondes pendant lesquelles il attend son escouade à l'entrée.
+var hold_left := 0.0
+## Le chemin de l'escouade principale, que les flanqueurs évitent : case -> true.
+var flank_avoid: Dictionary = {}
+## Les pièges signalés par un éclaireur (il les évite) : case -> true.
+var scouted_traps: Dictionary = {}
+## (L'éclaireur) Les pièges qu'il a repérés : case -> true.
+var seen_traps: Dictionary = {}
+## Sa perte a déjà été comptée pour son escouade (main.gd).
+var loss_counted := false
+var _prey = null # (Pas de type : la proie a pu disparaître.)
+var _objective_timer := 0.0
+var _scout_time := 0.0
 ## Dégâts reçus de chaque espèce de créature : Creatures.Type -> dégâts.
 var _damage_by_species: Dictionary = {}
 
@@ -124,6 +148,20 @@ func to_save() -> Dictionary:
 		data["nemesis"] = nemesis
 	if fleeing:
 		data["fleeing"] = true
+	if is_scout():
+		data["scout"] = true
+	if squad >= 0:
+		data["squad"] = squad
+		data["role"] = role
+		data["objective"] = objective
+		data["hold"] = hold_left
+	for key in ["flank_avoid", "scouted_traps", "seen_traps"]:
+		var cells: Dictionary = get(key)
+		if not cells.is_empty():
+			var list := []
+			for cell: Vector2i in cells:
+				list.append(SaveGame.cell_to_array(cell))
+			data[key] = list
 	if is_guardian():
 		data["home"] = SaveGame.cell_to_array(home_cell)
 		data["awake"] = awake
@@ -429,12 +467,13 @@ func start_fleeing(announce := true) -> void:
 ## La fuite : vers l'entrée, en creusant s'il le faut. Acculé (aucun chemin),
 ## il se bat là où il est.
 func _flee(delta: float) -> void:
-	if current_cell() == map.entrance_cell:
+	var exit := map.nearest_entrance(current_cell())
+	if current_cell() == exit:
 		_leave_alive()
 		return
-	if path.is_empty() or _mission_cell != map.entrance_cell:
-		_mission_cell = map.entrance_cell
-		follow_path(map.find_hero_path_to(current_cell(), map.entrance_cell, _avoided_traps()))
+	if path.is_empty() or _mission_cell != exit:
+		_mission_cell = exit
+		follow_path(map.find_hero_path_to(current_cell(), exit, _avoided_traps(), _path_weights()))
 		if path.is_empty():
 			_mission_cell = NO_CELL
 			var enemy := find_nearest_enemy(Rules.MISSION_AGGRO_RADIUS)
@@ -446,6 +485,9 @@ func _flee(delta: float) -> void:
 
 ## Il sort vivant du donjon : il reviendra (main.gd le note dans le registre des vétérans).
 func _leave_alive() -> void:
+	if loot > 0: # Un pillard sort avec ton or : il est perdu.
+		escaped.emit(self, loot)
+		loot = 0
 	retreated.emit(self)
 	remove_from_group(_group_name(team))
 	Fx.burst("smoke", position, Color(0.5, 0.5, 0.6, 0.6))
@@ -500,6 +542,10 @@ func _process(delta: float) -> void:
 		_think_timer = 0.3
 		var radius := Rules.MISSION_AGGRO_RADIUS if _has_mission() else AGGRO_RADIUS
 		var enemy := find_nearest_enemy(radius)
+		# Un chasseur se jette sur sa proie dès qu'il la voit.
+		if _is_hunting() and is_instance_valid(_prey) and _prey.is_targetable() \
+				and position.distance_to(_prey.position) <= AGGRO_RADIUS:
+			enemy = _prey
 		if enemy != _target:
 			_target = enemy
 			path.clear()
@@ -508,9 +554,15 @@ func _process(delta: float) -> void:
 		_flee(delta)
 	elif _target != null:
 		_unlock_left = -1.0
-		if not fight(_target, delta):
+		if _should_keep_distance():
+			_keep_distance(delta)
+		elif not fight(_target, delta):
 			_target = null
 			path.clear()
+	elif hold_left > 0.0:
+		# Il attend son escouade à l'entrée avant d'avancer.
+		hold_left -= delta
+		path.clear()
 	elif not _do_mission(delta):
 		_march(delta)
 
@@ -527,12 +579,26 @@ func _process(delta: float) -> void:
 
 func _has_mission() -> bool:
 	var info := Heroes.info(type)
-	return info.get("stealth", false) or info.get("liberator", false)
+	return info.get("stealth", false) or info.get("liberator", false) or objective != "" \
+			or type == Heroes.Type.CLERIC
 
 
 ## Fait avancer la mission. Renvoie false s'il n'y a rien à faire : le héros
 ## marche alors vers le cœur, comme les autres.
 func _do_mission(delta: float) -> bool:
+	match objective:
+		"treasury":
+			return _raid_mission(delta)
+		"prison":
+			return _liberator_mission(delta)
+		"library":
+			return _wreck_mission(delta)
+		"workers", "assassinate":
+			return _hunt_mission(delta)
+		"scout":
+			return _scout_mission(delta)
+	if type == Heroes.Type.CLERIC and _support(delta):
+		return true
 	var info := Heroes.info(type)
 	if info.get("stealth", false):
 		return _thief_mission(delta)
@@ -612,7 +678,7 @@ func _liberator_mission(delta: float) -> bool:
 	if position.distance_to(prisoner.position) > 20.0:
 		if path.is_empty():
 			# Sa priorité : la Prison. Pas de couloir ? Il CREUSE droit vers elle.
-			follow_path(map.find_hero_path_to(current_cell(), prisoner.prison_cell))
+			follow_path(map.find_hero_path_to(current_cell(), prisoner.prison_cell, _avoided_traps(), _path_weights()))
 			if path.is_empty():
 				_prisoner_target = null # Vraiment inaccessible (de la roche partout).
 				return false
@@ -632,6 +698,255 @@ func _liberator_mission(delta: float) -> bool:
 		freed_prisoner.emit(prisoner)
 		_prisoner_target = null
 	return true
+
+
+# ---------------------------------------------------------------------------
+# Escouades, objectifs et tactiques
+# ---------------------------------------------------------------------------
+
+## Les cases que ce héros préfère éviter en cherchant son chemin, avec leur
+## surcoût : le chemin de l'escouade principale (flanqueurs), les pièges signalés
+## par l'éclaireur, et les abords des créatures redoutables (héros fragiles).
+func _path_weights() -> Dictionary:
+	var weights := {}
+	for cell: Vector2i in flank_avoid:
+		weights[cell] = Rules.FLANK_AVOID_WEIGHT
+	for cell: Vector2i in scouted_traps:
+		if map.defenses.has(cell):
+			weights[cell] = maxf(weights.get(cell, 1.0), Rules.NEMESIS_TRAP_AVOID)
+	if max_hp < Rules.FRAGILE_HP:
+		var r := Rules.STRONG_AVOID_RADIUS
+		for node in get_tree().get_nodes_in_group("dungeon"):
+			var creature := node as Creature
+			if creature == null or not _is_formidable(creature):
+				continue
+			var center := creature.current_cell()
+			for dy in range(-r, r + 1):
+				for dx in range(-r, r + 1):
+					var cell := center + Vector2i(dx, dy)
+					weights[cell] = maxf(weights.get(cell, 1.0), Rules.STRONG_AVOID_WEIGHT)
+	return weights
+
+
+## Une créature qui fait peur aux héros fragiles.
+static func _is_formidable(creature: Creature) -> bool:
+	return creature.type == Creatures.Type.DEMON or creature.type == Creatures.Type.COLOSSUS \
+			or creature.level >= Rules.STRONG_LEVEL
+
+
+## Le rapport de l'éclaireur : la vague connaît ces pièges et les évite.
+func learn_traps(cells: Array) -> void:
+	for cell in cells:
+		scouted_traps[cell] = true
+
+
+## Les héros à distance (et le Clerc) reculent quand une créature les colle.
+func _should_keep_distance() -> bool:
+	if attack_range <= 50.0 and type != Heroes.Type.CLERIC:
+		return false
+	return is_instance_valid(_target) and position.distance_to(_target.position) < Rules.KITE_DISTANCE
+
+
+## Recule d'une case (celle qui l'éloigne le plus). Acculé, il se bat.
+func _keep_distance(delta: float) -> void:
+	if path.is_empty():
+		var here := current_cell()
+		var best := here
+		var best_distance := position.distance_to(_target.position)
+		for direction in DungeonMap.DIRECTIONS:
+			var cell: Vector2i = here + direction
+			if map.is_walkable(cell) and not map.has_door(cell):
+				var distance := map.cell_to_world(cell).distance_to(_target.position)
+				if distance > best_distance + 4.0:
+					best = cell
+					best_distance = distance
+		if best == here:
+			if not fight(_target, delta):
+				_target = null
+			return
+		path.assign([best])
+	move_along_path(delta)
+
+
+## Le Clerc reste derrière ses compagnons (il les soigne) au lieu de foncer.
+func _support(delta: float) -> bool:
+	_objective_timer -= delta
+	if _objective_timer > 0.0 and not path.is_empty():
+		_walk_or_dig(delta)
+		return true
+	_objective_timer = 0.6
+	var ally: Hero = null
+	var best := INF
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var other := node as Hero
+		if other == null or other == self or other.type == Heroes.Type.CLERIC or other.is_guardian():
+			continue
+		var distance := position.distance_to(other.position)
+		if other.squad == squad and squad >= 0:
+			distance *= 0.5 # Il suit d'abord son escouade.
+		if distance < best:
+			best = distance
+			ally = other
+	if ally == null:
+		return false # Seul : il marche vers le cœur comme les autres.
+	if position.distance_to(ally.position) <= 56.0:
+		path.clear()
+		return true
+	follow_path(map.find_hero_path_to(current_cell(), ally.current_cell(), _avoided_traps(), _path_weights()))
+	if path.is_empty():
+		return false
+	_walk_or_dig(delta)
+	return true
+
+
+## Objectif « piller le Trésor » : au coffre le plus proche, puis il s'enfuit avec l'or.
+func _raid_mission(delta: float) -> bool:
+	if loot > 0:
+		start_fleeing(false)
+		return true
+	if _mission_cell == NO_CELL or int(map.stored_gold.get(_mission_cell, 0)) <= 0:
+		_objective_timer -= delta
+		if _objective_timer > 0.0:
+			return false
+		_objective_timer = 1.0
+		_mission_cell = _nearest_cell(map.stored_gold.keys().filter(
+				func(c: Vector2i) -> bool: return int(map.stored_gold[c]) > 0))
+		path.clear()
+		if _mission_cell == NO_CELL:
+			objective = "" # Plus rien à piller : il marche sur le cœur.
+			return false
+	if current_cell() == _mission_cell:
+		loot = map.steal_gold(_mission_cell, Rules.RAID_LOOT)
+		_mission_cell = NO_CELL
+		if loot > 0:
+			play_attack()
+			Sound.play("coins", position)
+			Fx.burst("coins", position)
+			stole.emit(self, loot)
+			start_fleeing(false)
+		return true
+	return _go_toward(_mission_cell, delta)
+
+
+## Objectif « saccager la Bibliothèque » : il frappe la salle jusqu'à la détruire.
+func _wreck_mission(delta: float) -> bool:
+	if map.get_room(current_cell()) == Rooms.Type.LIBRARY:
+		_mission_cell = current_cell()
+	if map.get_room(_mission_cell) != Rooms.Type.LIBRARY:
+		_objective_timer -= delta
+		if _objective_timer > 0.0:
+			return false
+		_objective_timer = 1.0
+		var cells: Array = []
+		for cell: Vector2i in map.rooms:
+			if map.rooms[cell] == Rooms.Type.LIBRARY:
+				cells.append(cell)
+		_mission_cell = _nearest_cell(cells)
+		path.clear()
+		if _mission_cell == NO_CELL:
+			objective = ""
+			return false
+	if current_cell() == _mission_cell:
+		path.clear()
+		if _attack_cooldown <= 0.0:
+			_attack_cooldown = attack_interval
+			show_strike(map.cell_to_world(_mission_cell) + Vector2(0, -8))
+			if map.damage_room(_mission_cell, attack_damage * 2.0):
+				objective = "" # La salle est détruite : maintenant, le cœur !
+				_mission_cell = NO_CELL
+		return true
+	return _go_toward(_mission_cell, delta)
+
+
+## Objectifs « chasser les ouvriers » et « abattre ta meilleure créature ».
+func _is_hunting() -> bool:
+	return objective == "workers" or objective == "assassinate"
+
+
+func _hunt_mission(delta: float) -> bool:
+	_objective_timer -= delta
+	if not is_instance_valid(_prey) or _prey.is_dead() or not _prey.is_targetable():
+		if _objective_timer > 0.0:
+			return false
+		_objective_timer = 1.0
+		_prey = _find_prey()
+		path.clear()
+		if _prey == null:
+			objective = ""
+			return false
+	if _objective_timer <= 0.0:
+		_objective_timer = 1.5
+		path.clear() # La proie bouge : on recalcule régulièrement.
+	return _go_toward(_prey.current_cell(), delta)
+
+
+func _find_prey() -> Unit:
+	var best: Unit = null
+	var best_score := -INF
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var unit := node as Unit
+		if unit == null or not unit.is_targetable():
+			continue
+		var score := 0.0
+		if objective == "workers":
+			if not unit is Worker:
+				continue
+			score = -position.distance_to(unit.position) # Le plus proche.
+		else:
+			var creature := unit as Creature
+			if creature == null:
+				continue
+			score = creature.level * 1000.0 + creature.max_hp # La plus forte.
+		if score > best_score:
+			best_score = score
+			best = unit
+	return best
+
+
+## L'éclaireur : il avance vers le cœur en notant les pièges, puis rebrousse chemin.
+func _scout_mission(delta: float) -> bool:
+	_scout_time += delta
+	_objective_timer -= delta
+	if _objective_timer <= 0.0:
+		_objective_timer = 0.4
+		var here := current_cell()
+		for cell: Vector2i in map.defenses:
+			var kind: int = map.defenses[cell]["type"]
+			if kind != Defenses.Type.SPIKES and kind != Defenses.Type.RUNE and kind != Defenses.Type.DOOR:
+				continue
+			if maxi(absi(cell.x - here.x), absi(cell.y - here.y)) <= Rules.SCOUT_SIGHT:
+				seen_traps[cell] = true
+	var depth := absi(current_cell().x - map.heart_cell.x) + absi(current_cell().y - map.heart_cell.y)
+	if _scout_time >= Rules.SCOUT_TIME or depth <= Rules.SCOUT_DEPTH:
+		start_fleeing(false) # Il en a assez vu : il repart faire son rapport.
+		return true
+	return false # (Il avance vers le cœur, comme les autres.)
+
+
+func is_scout() -> bool:
+	return objective == "scout"
+
+
+## Avance vers une case (en creusant s'il le faut). Renvoie false si c'est impossible.
+func _go_toward(cell: Vector2i, delta: float) -> bool:
+	if path.is_empty():
+		follow_path(map.find_hero_path_to(current_cell(), cell, _avoided_traps(), _path_weights()))
+		if path.is_empty():
+			return false
+	_walk_or_dig(delta)
+	return true
+
+
+## La case la plus proche (en ligne droite) parmi une liste, ou NO_CELL.
+func _nearest_cell(cells: Array) -> Vector2i:
+	var best := NO_CELL
+	var best_distance := INF
+	for cell: Vector2i in cells:
+		var distance := position.distance_to(map.cell_to_world(cell))
+		if distance < best_distance:
+			best_distance = distance
+			best = cell
+	return best
 
 
 ## Les portes arrêtent les héros (les autres unités passent librement).
@@ -693,7 +1008,10 @@ func _march(delta: float) -> void:
 		return
 
 	if path.is_empty():
-		follow_path(map.find_hero_path(current_cell(), _avoided_traps()))
+		if role == "sapper":
+			follow_path(map.find_sapper_path(current_cell())) # Un tunnel tout droit vers le cœur.
+		else:
+			follow_path(map.find_hero_path(current_cell(), _avoided_traps(), _path_weights()))
 		if path.is_empty():
 			return
 	_walk_or_dig(delta)

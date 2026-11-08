@@ -3,7 +3,7 @@ class_name Heroes
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
 enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK,
-		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK, COLOSSUS, SPECTRE }
+		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK, COLOSSUS, SPECTRE, SCOUT }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
@@ -113,6 +113,13 @@ const INFO := {
 		"hp": 120.0, "damage": 13.0, "range": 28.0, "attack_interval": 1.0,
 		"reward": 30, "first_wave": 999, "lifesteal": 0.2,
 		"fearless": true, "no_capture": true, "tint": Color(0.6, 0.8, 1.4), "alpha": 0.7,
+	},
+	Type.SCOUT: {
+		# L'Éclaireur : il arrive avant certaines vagues, repère tes pièges et repart.
+		# S'il ressort vivant, la vague suivante les connaît (voir main.gd).
+		"name": "Éclaireur", "sprite": "adventurer", "size": 7.0, "speed": 120.0,
+		"hp": 70.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.9,
+		"reward": 40, "first_wave": 999, "scout": true, "tint": Color(0.7, 1.0, 0.7),
 	},
 }
 ## Une vague sur CHAMPION_EVERY est menée par le Champion du royaume.

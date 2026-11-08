@@ -403,6 +403,33 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   le Colosse ancien dans `creatures.gd`. Le Colosse ne compte pas comme envahisseur : une vague peut être
   repoussée pendant qu'il dort dans sa caverne.
 
+**Étape 39 — Des héros plus malins** (règles 2.4)
+
+- **Escouades** (`_form_squads` dans `main.gd`) : 4 héros ou plus -> 2 escouades, 7 ou plus -> 3.
+
+  | Rôle | Comportement |
+  |------|--------------|
+  | Gros de la troupe | le chemin le plus court vers le cœur (le Champion et les vétérans y vont) |
+  | Flanqueurs | évitent le chemin du gros de la troupe (coût x6) ; ils portent l'objectif de la vague |
+  | Sapeurs | les Nains d'abord ; creuser leur coûte presque autant que marcher : un tunnel tout droit |
+
+  Les escouades entrent l'une après l'autre (6 s d'écart) et chacune attend ses retardataires à l'entrée.
+- **Objectifs** (dès la vague 3, une vague sur deux, annoncés) : piller le Trésor (120 or chacun, puis
+  fuite), libérer les prisonniers, saccager la Bibliothèque (60 PV par case, la salle est détruite),
+  massacrer les ouvriers, abattre la meilleure créature. Sans cible possible, ils marchent sur le cœur.
+- **Tactiques** : retraite d'escouade quand la moitié est tombée (3 héros au moins) ; Archers,
+  Magiciennes et Clercs reculent si une créature est à moins de 44 pixels ; le Clerc suit ses compagnons ;
+  les héros fragiles (moins de 120 PV) évitent les abords des Démons, Colosses anciens et créatures de
+  niveau 4 et plus.
+- **Seconde entrée** : cachée dès la création de la carte, un éboulement l'ouvre 10 s avant la vague 5
+  (réglage `SECOND_ENTRANCE_WAVE`, ou `second_entrance_wave` dans un niveau ; 0 = jamais). Les fuyards
+  sortent par l'entrée la plus proche.
+- **Éclaireur** (dès la vague 3, une vague sur trois, 45 s avant elle) : il repère pièges et portes à
+  3 cases, rebrousse chemin à 6 cases du cœur ou après 40 s. Ressorti vivant, la vague suivante évite
+  ces pièges ; il ne devient pas vétéran.
+- Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
+  Réglages : partie « Tactiques des héros » de `rules.gd`.
+
 **Étape 36 — La voix du Seigneur**
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu

@@ -14,10 +14,17 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.3"
+const VERSION := "2.4"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.4", "changes": [
+		"Escouades : les grandes vagues se divisent en 2 ou 3 groupes. Le gros de la troupe prend le chemin le plus court, les flanqueurs en cherchent un autre, les sapeurs (surtout les Nains) percent un tunnel tout droit vers le cœur.",
+		"Objectifs : une vague sur deux (dès la vague 3) a un but annoncé : piller le Trésor, libérer les prisonniers, saccager la Bibliothèque, chasser les ouvriers ou abattre ta meilleure créature.",
+		"Tactiques : chaque escouade se regroupe à l'entrée avant d'avancer ; si la moitié tombe, les survivants battent en retraite ensemble ; Clercs, Archers et Magiciennes restent à distance ; les héros fragiles évitent tes créatures redoutables.",
+		"Seconde entrée : à la vague 5, un éboulement ouvre une nouvelle entrée grise ailleurs sur la carte. Les escouades se répartissent entre les deux.",
+		"Éclaireur : avant certaines vagues, un éclaireur visite ton donjon. S'il ressort vivant, la vague suivante connaît tes pièges et les évite.",
+	]},
 	{"version": "2.3", "changes": [
 		"Les profondeurs : chaque carte cache 3 secrets loin du cœur. Creuser à côté donne un indice ; creuser une case qui les touche les réveille.",
 		"Le Colosse endormi : un gardien neutre qui veille sur un trésor. Il ne quitte pas sa caverne, mais frappe fort. Vaincu, il se soumet et te sert.",
@@ -235,6 +242,48 @@ const RUIN_DISCOVERIES := 2
 const RUIN_FALLBACK_GOLD := 800
 ## ... et tant de spectres qui se réveillent.
 const RUIN_SPECTRES := 3
+
+# --- Tactiques des héros (voir main.gd, « Vagues », et hero.gd) -------------------
+## Une vague de tant de héros ou plus se divise en 2 escouades, puis en 3.
+const TWO_SQUADS_FROM := 4
+const THREE_SQUADS_FROM := 7
+## Secondes entre l'arrivée de deux escouades.
+const SQUAD_GAP := 6.0
+## Une escouade attend ses retardataires à l'entrée, puis encore tant de secondes.
+const REGROUP_TIME := 2.0
+## Les flanqueurs évitent le chemin de l'escouade principale (coût multiplié).
+const FLANK_AVOID_WEIGHT := 6.0
+## Pour un sapeur, creuser une case coûte autant que marcher sur tant de cases.
+const SAPPER_DIG_WEIGHT := 1.5
+## Une escouade d'au moins tant de héros bat en retraite quand la moitié est tombée.
+const SQUAD_RETREAT_MIN_SIZE := 3
+## Un héros « fragile » (moins de tant de PV) évite les abords (tant de cases) de tes
+## créatures redoutables (Démon, Colosse ancien, ou niveau STRONG_LEVEL et plus).
+const FRAGILE_HP := 120.0
+const STRONG_AVOID_RADIUS := 2
+const STRONG_AVOID_WEIGHT := 5.0
+const STRONG_LEVEL := 4
+## Les héros à distance (et le Clerc) reculent si une créature s'approche à moins de tant de pixels.
+const KITE_DISTANCE := 44.0
+## Objectifs : dès la vague OBJECTIVE_FIRST_WAVE, une vague sur OBJECTIVE_EVERY en a un.
+const OBJECTIVE_FIRST_WAVE := 3
+const OBJECTIVE_EVERY := 2
+## Les pillards emportent tant d'or chacun.
+const RAID_LOOT := 120
+## Points de vie d'une salle saccagée, par case.
+const ROOM_HP_PER_CELL := 60.0
+## Seconde entrée : un éboulement l'ouvre à cette vague (un niveau peut changer ce
+## chiffre avec « second_entrance_wave » ; 0 = jamais).
+const SECOND_ENTRANCE_WAVE := 5
+## L'éclaireur : dès la vague SCOUT_FIRST_WAVE, une vague sur SCOUT_EVERY, il arrive
+## SCOUT_LEAD secondes avant elle. Il rebrousse chemin à SCOUT_DEPTH cases du cœur,
+## ou au bout de SCOUT_TIME secondes, et repère les pièges à SCOUT_SIGHT cases.
+const SCOUT_FIRST_WAVE := 3
+const SCOUT_EVERY := 3
+const SCOUT_LEAD := 45.0
+const SCOUT_DEPTH := 6
+const SCOUT_TIME := 40.0
+const SCOUT_SIGHT := 3
 
 # --- Retraite des héros et vétérans (voir hero.gd et nemeses.gd) -------------------
 ## Un héros sous cette part de sa vie bat en retraite vers l'entrée (sauf le

@@ -1060,6 +1060,11 @@ func _build_environment() -> void:
 	add_child(sun)
 
 
+## La lueur d'une entrée des héros (la seconde s'ouvre en cours de partie).
+func add_entrance_light(cell: Vector2i) -> void:
+	_light(to_3d(map.cell_to_world(cell), 1.2), Color(0.8, 0.85, 1.0), 4.0, 1.0)
+
+
 func _light(at: Vector3, color: Color, light_range: float, energy: float) -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.position = at
@@ -1128,3 +1133,5 @@ func _build_heart_and_portal() -> void:
 	add_child(portal)
 	_light(portal.position, Color(0.7, 0.4, 1.0), 5.0, 1.6)
 	_light(to_3d(map.cell_to_world(map.entrance_cell), 1.2), Color(0.8, 0.85, 1.0), 4.0, 1.0)
+	for gate in map.extra_entrances:
+		add_entrance_light(gate)

@@ -29,6 +29,8 @@ signal treasure_found(cell: Vector2i, amount: int)
 ## on creuse près d'un secret (un indice), puis on le réveille.
 signal secret_hinted(kind: String, cell: Vector2i)
 signal secret_revealed(kind: String, center: Vector2i)
+## Les héros ont détruit une salle (objectif « saccager »).
+signal room_wrecked(room_type: int, cell: Vector2i)
 ## La lave vient de couler sur cette case (main.gd brûle et repousse les unités).
 signal lava_flowed(cell: Vector2i)
 ## Un combo de pièges vient de se déclencher (voir combos.gd ; main.gd l'annonce).
@@ -116,6 +118,13 @@ var beds: Dictionary = {}
 var portal_cell: Vector2i
 ## Position de l'entrée des héros.
 var entrance_cell: Vector2i
+## Les entrées ouvertes en cours de partie (voir open_hidden_entrance).
+var extra_entrances: Array[Vector2i] = []
+## Une seconde entrée, cachée sous la roche jusqu'à ce qu'un éboulement l'ouvre
+## (main.gd, à la vague Rules.SECOND_ENTRANCE_WAVE). (-1, -1) : aucune.
+var hidden_entrance := Vector2i(-1, -1)
+## Points de vie des salles attaquées par les héros : identifiant de bloc -> PV.
+var room_hp: Dictionary = {}
 
 ## Le maître rival (seulement dans certains niveaux).
 var has_rival := false
@@ -295,6 +304,9 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	avoid.append(entrance_cell)
 	_place_gems(rng, avoid)
 	_place_secrets(rng, avoid)
+	extra_entrances.clear()
+	hidden_entrance = _find_gate_cell(rng, avoid, 12)
+	room_hp.clear()
 
 	damage.clear()
 	marked.clear()
@@ -346,23 +358,72 @@ func _place_gems(rng: RandomNumberGenerator, avoid: Array[Vector2i]) -> void:
 
 
 func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) -> Vector2i:
-	var gate := Vector2i(3, 3)
+	var gate := _find_gate_cell(rng, avoid, 12)
+	if gate == Vector2i(-1, -1):
+		gate = Vector2i(3, 3)
+	_open_gate(gate, tile)
+	return gate
+
+
+## Une case pour une « porte », à 12 à 22 cases du cœur et à au moins min_gap
+## cases de celles de avoid. (-1, -1) si on n'en trouve pas.
+func _find_gate_cell(rng: RandomNumberGenerator, avoid: Array[Vector2i], min_gap: int) -> Vector2i:
 	for _attempt in 200:
 		var cell := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
 		var distance := _manhattan(cell, heart_cell)
 		var far_enough := true
 		for other in avoid:
-			if _manhattan(cell, other) < 12:
+			if _manhattan(cell, other) < min_gap:
 				far_enough = false
 		if far_enough and distance >= 12 and distance <= 22:
-			gate = cell
-			break
+			return cell
+	return Vector2i(-1, -1)
+
+
+## Creuse la clairière d'une porte et la relie (par de la terre) au cœur.
+func _open_gate(gate: Vector2i, tile: int) -> void:
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			_set_tile(gate + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(gate, tile)
-
 	_carve_to_heart(gate)
+
+
+## Toutes les entrées des héros.
+func entrances() -> Array[Vector2i]:
+	var result: Array[Vector2i] = [entrance_cell]
+	result.append_array(extra_entrances)
+	return result
+
+
+## L'entrée la plus proche d'une case (pour les fuyards).
+func nearest_entrance(cell: Vector2i) -> Vector2i:
+	var best := entrance_cell
+	for other in extra_entrances:
+		if _manhattan(cell, other) < _manhattan(cell, best):
+			best = other
+	return best
+
+
+## Un éboulement ouvre la seconde entrée. Renvoie sa case, ou (-1, -1) s'il n'y en a pas.
+func open_hidden_entrance() -> Vector2i:
+	var gate := hidden_entrance
+	if gate == Vector2i(-1, -1):
+		return gate
+	hidden_entrance = Vector2i(-1, -1)
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var cell := gate + Vector2i(dx, dy)
+			var tile := get_tile(cell)
+			if tile in [Tile.HEART, Tile.PORTAL, Tile.ENTRANCE, Tile.RIVAL_HEART, Tile.LAVA, Tile.GEM]:
+				continue
+			marked.erase(cell)
+			damage.erase(cell)
+			rooms.erase(cell)
+	_open_gate(gate, Tile.ENTRANCE)
+	extra_entrances.append(gate)
+	_setup_pathfinding()
+	_redraw_all()
 	return gate
 
 
@@ -449,6 +510,8 @@ func to_save() -> Dictionary:
 		"heart": SaveGame.cell_to_array(heart_cell),
 		"portal": SaveGame.cell_to_array(portal_cell),
 		"entrance": SaveGame.cell_to_array(entrance_cell),
+		"extra_entrances": _cells_to_array_list_ordered(extra_entrances),
+		"hidden_entrance": SaveGame.cell_to_array(hidden_entrance),
 		"heart_hp": heart_hp,
 		"heart_gold": heart_gold,
 		"damage": _cells_to_list(damage),
@@ -488,6 +551,11 @@ func load_save(data: Dictionary) -> bool:
 	heart_cell = SaveGame.array_to_cell(data["heart"])
 	portal_cell = SaveGame.array_to_cell(data["portal"])
 	entrance_cell = SaveGame.array_to_cell(data["entrance"])
+	extra_entrances.clear()
+	for values in data.get("extra_entrances", []):
+		extra_entrances.append(SaveGame.array_to_cell(values))
+	hidden_entrance = SaveGame.array_to_cell(data.get("hidden_entrance", [-1, -1]))
+	room_hp.clear()
 	heart_hp = float(data["heart_hp"])
 	heart_gold = int(data["heart_gold"])
 	damage = _list_to_cells(data["damage"])
@@ -1807,7 +1875,7 @@ func _queue_lava_flow(center: Vector2i) -> void:
 func _lava_can_flow(cell: Vector2i) -> bool:
 	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell) \
 			and not construction.has(cell) and not is_next_to_heart(cell) \
-			and _manhattan(cell, portal_cell) > 1 and _manhattan(cell, entrance_cell) > 1
+			and _manhattan(cell, portal_cell) > 1 and _manhattan(cell, nearest_entrance(cell)) > 1
 
 
 ## La lave coule (une case à la fois), puis refroidit et se fige en or volcanique.
@@ -1877,11 +1945,15 @@ func is_next_to_heart(cell: Vector2i) -> bool:
 ## Chemin d'un héros vers une case voisine du cœur. Il peut traverser de la
 ## terre (le héros devra la creuser), mais pas la roche.
 ## avoid : des cases de pièges que ce héros (un vétéran) préfère éviter.
-func find_hero_path(from_cell: Vector2i, avoid: Array[Vector2i] = []) -> Array[Vector2i]:
+## weights : d'autres cases à éviter (case -> multiplicateur de leur « coût ») :
+## le chemin de l'escouade principale pour les flanqueurs, les abords d'une créature
+## redoutable pour les héros fragiles... (voir hero.gd, _path_weights).
+func find_hero_path(from_cell: Vector2i, avoid: Array[Vector2i] = [], weights := {}) -> Array[Vector2i]:
 	var best: Array[Vector2i] = []
 	if hero_astar.is_point_solid(from_cell):
 		return best
 	var saved := _avoid_traps(avoid)
+	_apply_weights(weights, saved)
 	for direction in DIRECTIONS:
 		var goal := heart_cell + direction
 		if hero_astar.is_point_solid(goal):
@@ -1896,10 +1968,12 @@ func find_hero_path(from_cell: Vector2i, avoid: Array[Vector2i] = []) -> Array[V
 ## Chemin d'un héros vers n'importe quelle case, en creusant la terre au besoin
 ## (le Moine s'en sert pour rejoindre la Prison, les fuyards pour rejoindre
 ## l'entrée). Vide si c'est impossible (roche).
-func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i, avoid: Array[Vector2i] = []) -> Array[Vector2i]:
+func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i, avoid: Array[Vector2i] = [],
+		weights := {}) -> Array[Vector2i]:
 	if hero_astar.is_point_solid(from_cell) or hero_astar.is_point_solid(to_cell):
 		return []
 	var saved := _avoid_traps(avoid)
+	_apply_weights(weights, saved)
 	var result := hero_astar.get_id_path(from_cell, to_cell)
 	_restore_weights(saved)
 	return result
@@ -1918,6 +1992,52 @@ func _avoid_traps(avoid: Array[Vector2i]) -> Dictionary:
 		saved[cell] = hero_astar.get_point_weight_scale(cell)
 		hero_astar.set_point_weight_scale(cell, saved[cell] * Rules.NEMESIS_TRAP_AVOID)
 	return saved
+
+
+## Multiplie le coût de cases quelconques (en gardant les anciens poids dans saved).
+func _apply_weights(weights: Dictionary, saved: Dictionary) -> void:
+	for cell: Vector2i in weights:
+		if not is_inside(cell) or hero_astar.is_point_solid(cell):
+			continue
+		if not saved.has(cell):
+			saved[cell] = hero_astar.get_point_weight_scale(cell)
+		hero_astar.set_point_weight_scale(cell, hero_astar.get_point_weight_scale(cell) * float(weights[cell]))
+
+
+## Le chemin d'un SAPEUR vers le cœur : pour lui, creuser coûte presque autant que
+## marcher. Il perce donc un tunnel tout droit au lieu de suivre tes couloirs.
+func find_sapper_path(from_cell: Vector2i) -> Array[Vector2i]:
+	var weights := {}
+	for y in HEIGHT:
+		for x in WIDTH:
+			var cell := Vector2i(x, y)
+			if is_diggable(cell):
+				weights[cell] = Rules.SAPPER_DIG_WEIGHT / HERO_DIG_WEIGHT
+	return find_hero_path(from_cell, [], weights)
+
+
+## Les héros frappent une salle (objectif « saccager ») : à 0 PV, elle est détruite.
+## Renvoie true si elle vient d'être détruite.
+func damage_room(cell: Vector2i, amount: float) -> bool:
+	var type := get_room(cell)
+	if type == Rooms.Type.NONE:
+		return false
+	var id := block_at(cell)
+	var key = id if id >= 0 else cell
+	if not room_hp.has(key):
+		var cells := _block_cells(id).size() if id >= 0 else 1
+		room_hp[key] = Rules.ROOM_HP_PER_CELL * cells
+	room_hp[key] -= amount
+	Fx.burst("dust", cell_to_world(cell), Color("8d6e63"))
+	if room_hp[key] > 0.0:
+		return false
+	room_hp.erase(key)
+	remove_room(cell)
+	Sound.play("door_break", cell_to_world(cell))
+	Fx.shake(4.0)
+	_redraw_all()
+	room_wrecked.emit(type, cell)
+	return true
 
 
 func _restore_weights(saved: Dictionary) -> void:

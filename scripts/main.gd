@@ -102,6 +102,16 @@ var _waves_survived := 0
 var _wave_in_progress := false
 var _wave_warned := false
 var _pending_heroes: Array[int] = []
+## L'escouade de chaque héros en attente (même ordre que _pending_heroes).
+var _pending_squads: Array[int] = []
+## Les ESCOUADES de la vague (voir _start_wave) : numéro -> {"role", "entrance",
+## "objective", "size", "lost", "retreated", "avoid" (chemin à éviter), "scouted"}.
+var _squads: Dictionary = {}
+var _next_squad_id := 0
+var _last_spawned_squad := -1
+## L'éclaireur : la vague pour laquelle il est venu, et son rapport (cases de pièges).
+var _scout_wave := 0
+var _scout_report: Array = []
 var _hero_spawn_timer := 0.0
 ## Nombre de Champions du royaume vaincus (objectif du niveau 9).
 var _champions_defeated := 0
@@ -502,7 +512,8 @@ func _on_creature_died(unit: Unit) -> void:
 
 func _update_waves(delta: float) -> void:
 	_flee_message_timer -= delta
-	# Les héros d'une vague entrent un par un (les vétérans qui reviennent d'abord).
+	# Les héros d'une vague entrent un par un (les vétérans qui reviennent d'abord),
+	# escouade par escouade.
 	if not _pending_veterans.is_empty() or not _pending_heroes.is_empty():
 		_hero_spawn_timer -= delta
 		if _hero_spawn_timer <= 0.0:
@@ -510,7 +521,11 @@ func _update_waves(delta: float) -> void:
 			if not _pending_veterans.is_empty():
 				_spawn_veteran(_pending_veterans.pop_front())
 			else:
-				_spawn_hero(_pending_heroes.pop_front())
+				var squad_id: int = _pending_squads.pop_front() if not _pending_squads.is_empty() else -1
+				_spawn_hero(_pending_heroes.pop_front(), squad_id)
+				# L'escouade suivante attend un peu avant d'entrer.
+				if not _pending_squads.is_empty() and _pending_squads[0] != squad_id:
+					_hero_spawn_timer = Rules.SQUAD_GAP
 	elif _wave_in_progress and _invader_count() == 0:
 		# Plus aucun héros vivant : la vague est repoussée.
 		_wave_in_progress = false
@@ -519,8 +534,13 @@ func _update_waves(delta: float) -> void:
 		hud.show_message("Vague repoussée ! Bravo, ton donjon tient bon.", 5.0)
 
 	_wave_timer -= delta
+	# L'éclaireur arrive un peu avant certaines vagues.
+	if _wave_timer <= Rules.SCOUT_LEAD and _scout_wave != _next_wave and _scout_due(_next_wave):
+		_scout_wave = _next_wave
+		_send_scout()
 	if _wave_timer <= 10.0 and not _wave_warned:
 		_wave_warned = true
+		_maybe_open_second_entrance()
 		Sound.play("horn", null, -12.0)
 		hud.show_message("Des héros approchent de l'entrée grise ! Prépare tes créatures.", 5.0)
 	if _wave_timer > 0.0:
@@ -546,13 +566,18 @@ func _start_wave() -> void:
 	_wave_warned = false
 	var count := mini(1 + _next_wave, MAX_HEROES_PER_WAVE)
 	var types := Heroes.types_for_wave(_next_wave)
+	types = types.filter(func(t: int) -> bool: return not Heroes.info(t).get("scout", false))
+	var wave_heroes: Array[int] = []
 	for i in count:
-		_pending_heroes.append(types.pick_random())
+		wave_heroes.append(types.pick_random())
+	var champion := _champion_leads_wave(_next_wave)
+	if champion:
+		wave_heroes.push_front(Heroes.Type.CHAMPION) # Il entre le premier.
+	var main_squad := _form_squads(wave_heroes, _next_wave)
 	_hero_spawn_timer = 0.0
 	_wave_in_progress = true
 	Sound.play("horn")
-	if _champion_leads_wave(_next_wave):
-		_pending_heroes.push_front(Heroes.Type.CHAMPION) # Il entre le premier.
+	if champion:
 		Fx.shake(5.0, 0.5)
 		hud.show_message("Vague %d : le CHAMPION DU ROYAUME mène %d héros contre toi !" % [_next_wave, count], 6.0)
 	else:
@@ -560,6 +585,8 @@ func _start_wave() -> void:
 	# Les héros qui t'ont échappé reviennent, plus forts (voir nemeses.gd).
 	var veterans := nemeses.take_due(_next_wave, Rules.NEMESIS_PER_WAVE)
 	if not veterans.is_empty():
+		for entry: Dictionary in veterans:
+			entry["squad"] = main_squad # Les vétérans entrent avec le gros de la troupe.
 		_pending_veterans.append_array(veterans)
 		var names: Array[String] = []
 		for entry: Dictionary in veterans:
@@ -717,14 +744,222 @@ func _on_lava_flowed(cell: Vector2i) -> void:
 			unit.take_damage(Rules.LAVA_DAMAGE)
 
 
-func _spawn_hero(type: int) -> void:
-	_add_hero(type, map.entrance_cell)
+func _spawn_hero(type: int, squad_id := -1) -> void:
+	var squad: Dictionary = _squads.get(squad_id, {})
+	var cell := map.entrance_cell
+	if squad.has("entrance"):
+		cell = SaveGame.array_to_cell(squad["entrance"])
+	var hero := _add_hero(type, cell)
+	_join_squad(hero, squad_id)
+
+
+# ---------------------------------------------------------------------------
+# Les escouades, leurs objectifs, l'éclaireur et la seconde entrée
+# ---------------------------------------------------------------------------
+
+const ROLE_NAMES := {"main": "le gros de la troupe", "flank": "des flanqueurs", "sapper": "des sapeurs"}
+const OBJECTIVE_TEXTS := {
+	"treasury": "piller ton Trésor",
+	"prison": "libérer tes prisonniers",
+	"library": "saccager ta Bibliothèque",
+	"workers": "massacrer tes ouvriers",
+	"assassinate": "abattre ta meilleure créature",
+}
+
+
+## Répartit les héros d'une vague en escouades et les met dans la file d'attente.
+## Renvoie le numéro de l'escouade principale.
+func _form_squads(wave_heroes: Array[int], wave: int) -> int:
+	var total := wave_heroes.size()
+	var squad_count := 1
+	if total >= Rules.THREE_SQUADS_FROM:
+		squad_count = 3
+	elif total >= Rules.TWO_SQUADS_FROM:
+		squad_count = 2
+	var gates := map.entrances()
+	var objective := _choose_objective(wave)
+	var ids: Array[int] = []
+	for i in squad_count:
+		var id := _next_squad_id
+		_next_squad_id += 1
+		ids.append(id)
+		var gate: Vector2i = gates[i % gates.size()]
+		_squads[id] = {"role": ["main", "flank", "sapper"][i], "entrance": SaveGame.cell_to_array(gate),
+				"objective": "", "size": 0, "lost": 0, "retreated": false, "avoid": [],
+				"scouted": _scout_report.duplicate()}
+	# L'objectif est confié aux flanqueurs (au gros de la troupe s'il est seul).
+	_squads[ids[1 if squad_count > 1 else 0]]["objective"] = objective
+	# Les flanqueurs évitent le chemin du gros de la troupe.
+	if squad_count > 1:
+		var main_gate := SaveGame.array_to_cell(_squads[ids[0]]["entrance"])
+		var route := map.find_hero_path(main_gate)
+		var avoid := []
+		for i in range(2, maxi(2, route.size() - 3)): # (Ni l'entrée, ni les abords du cœur.)
+			avoid.append(SaveGame.cell_to_array(route[i]))
+		_squads[ids[1]]["avoid"] = avoid
+	# Les Nains vont chez les sapeurs ; le Champion reste avec le gros de la troupe.
+	var buckets: Array = []
+	for i in squad_count:
+		buckets.append([])
+	var others: Array[int] = []
+	for type in wave_heroes:
+		if squad_count == 3 and type == Heroes.Type.DWARF:
+			buckets[2].append(type)
+		elif type == Heroes.Type.CHAMPION:
+			buckets[0].append(type)
+		else:
+			others.append(type)
+	var target_size := int(ceil(float(total) / squad_count))
+	var next := 0
+	for type in others:
+		# Chacun rejoint la première escouade pas encore pleine (dans l'ordre).
+		var tries := 0
+		while buckets[next].size() >= target_size and tries < squad_count:
+			next = (next + 1) % squad_count
+			tries += 1
+		buckets[next].append(type)
+		next = (next + 1) % squad_count
+	for i in squad_count:
+		_squads[ids[i]]["size"] = buckets[i].size()
+		for type in buckets[i]:
+			_pending_heroes.append(type)
+			_pending_squads.append(ids[i])
+	# On annonce le plan des héros.
+	if squad_count > 1:
+		var parts: Array[String] = []
+		for i in squad_count:
+			if buckets[i].is_empty():
+				continue
+			var gate_text := " (par la seconde entrée)" if SaveGame.array_to_cell(_squads[ids[i]]["entrance"]) != map.entrance_cell else ""
+			parts.append("%s : %d%s" % [ROLE_NAMES[_squads[ids[i]]["role"]], buckets[i].size(), gate_text])
+		hud.show_message("Les héros arrivent en %d escouades — %s." % [squad_count, ", ".join(parts)], 6.0)
+	if objective != "":
+		hud.show_message("Leur objectif : %s !" % OBJECTIVE_TEXTS[objective], 6.0)
+	if not _scout_report.is_empty():
+		hud.show_message("Grâce à leur éclaireur, ils connaissent %d de tes pièges et vont les éviter." %
+				_scout_report.size(), 5.0)
+	_scout_report.clear()
+	return ids[0]
+
+
+## L'objectif de la vague (ou "" : le cœur). Une vague sur Rules.OBJECTIVE_EVERY,
+## parmi ceux qui ont un sens dans ton donjon.
+func _choose_objective(wave: int) -> String:
+	if wave < Rules.OBJECTIVE_FIRST_WAVE or (wave - Rules.OBJECTIVE_FIRST_WAVE) % Rules.OBJECTIVE_EVERY != 0:
+		return ""
+	var options: Array[String] = ["workers"]
+	if map.get_treasury_stored() > 0:
+		options.append("treasury")
+	if not map.prisoners.is_empty():
+		options.append("prison")
+	if map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
+		options.append("library")
+	if creatures_root.get_child_count() > 0:
+		options.append("assassinate")
+	return options.pick_random()
+
+
+## Un héros rejoint son escouade : son rôle, son objectif, le chemin à éviter, et
+## le temps qu'il attendra ses compagnons à l'entrée.
+func _join_squad(hero: Hero, squad_id: int) -> void:
+	if not _squads.has(squad_id):
+		return
+	var squad: Dictionary = _squads[squad_id]
+	hero.squad = squad_id
+	hero.role = squad["role"]
+	var info := Heroes.info(hero.type)
+	if squad["objective"] != "" and not info.get("stealth", false) and not info.get("liberator", false) \
+			and not info.get("boss", false):
+		hero.objective = squad["objective"]
+	for values in squad["avoid"]:
+		hero.flank_avoid[SaveGame.array_to_cell(values)] = true
+	var scouted: Array = []
+	for values in squad["scouted"]:
+		scouted.append(SaveGame.array_to_cell(values))
+	hero.learn_traps(scouted)
+	var waiting := _pending_squads.count(squad_id)
+	hero.hold_left = waiting * HERO_SPAWN_GAP + Rules.REGROUP_TIME
+
+
+## Un héros d'une escouade est tombé (mort, assommé ou capturé). Si la moitié de
+## l'escouade est tombée, les survivants battent en retraite ensemble.
+func _on_squad_loss(hero: Hero) -> void:
+	if hero.loss_counted or not _squads.has(hero.squad):
+		return
+	hero.loss_counted = true
+	var squad: Dictionary = _squads[hero.squad]
+	squad["lost"] = int(squad["lost"]) + 1
+	if squad["retreated"] or int(squad["size"]) < Rules.SQUAD_RETREAT_MIN_SIZE \
+			or int(squad["lost"]) * 2 < int(squad["size"]):
+		return
+	squad["retreated"] = true
+	# Ceux qui n'étaient pas encore entrés ne viennent plus.
+	for i in range(_pending_squads.size() - 1, -1, -1):
+		if _pending_squads[i] == hero.squad:
+			_pending_squads.remove_at(i)
+			_pending_heroes.remove_at(i)
+	var fleeing := 0
+	for node in heroes_root.get_children():
+		var other := node as Hero
+		if other == null or other == hero or other.squad != hero.squad or other.is_dead() \
+				or other.is_captured() or other.knocked_out or other.carrier != null or not other._can_flee():
+			continue
+		other.start_fleeing(false)
+		fleeing += 1
+	if fleeing > 0:
+		Sound.play("horn", hero.position, -8.0)
+		hud.show_message("L'escouade a perdu la moitié des siens : %d héros battent en retraite ! Rattrape-les, sinon ils reviendront." %
+				fleeing, 5.0)
+
+
+func _scout_due(wave: int) -> bool:
+	return wave >= Rules.SCOUT_FIRST_WAVE and (wave - Rules.SCOUT_FIRST_WAVE) % Rules.SCOUT_EVERY == 0
+
+
+func _send_scout() -> void:
+	var gates := map.entrances()
+	var scout := _add_hero(Heroes.Type.SCOUT, gates.pick_random())
+	scout.objective = "scout"
+	Sound.play("horn", scout.position, -16.0)
+	hud.show_message("Un éclaireur se faufile dans ton donjon ! S'il ressort vivant, la prochaine vague connaîtra tes pièges.", 5.0)
+
+
+## L'éclaireur est ressorti : la prochaine vague évitera les pièges qu'il a vus.
+func _on_scout_returned(scout: Hero) -> void:
+	_scout_report.clear()
+	for cell: Vector2i in scout.seen_traps:
+		_scout_report.append(SaveGame.cell_to_array(cell))
+	Sound.play("error")
+	hud.show_message("L'éclaireur est reparti faire son rapport : la prochaine vague connaît %d de tes pièges." %
+			_scout_report.size(), 5.0)
+
+
+## À la vague Rules.SECOND_ENTRANCE_WAVE, un éboulement ouvre une seconde entrée.
+func _maybe_open_second_entrance() -> void:
+	var from_wave: int = level.get("second_entrance_wave", Rules.SECOND_ENTRANCE_WAVE)
+	if from_wave <= 0 or _next_wave < from_wave or map.hidden_entrance == Vector2i(-1, -1):
+		return
+	var gate := map.open_hidden_entrance()
+	var at := map.cell_to_world(gate)
+	Sound.play("explosion", at)
+	Fx.shake(8.0, 0.6)
+	Fx.burst("dust", at)
+	if _lights_root != null:
+		_make_light(at, Color(0.8, 0.85, 1.0), 170.0, 0.8)
+	if _view3d != null:
+		_view3d.add_entrance_light(gate)
+	hud.show_message("Un éboulement ouvre une SECONDE ENTRÉE grise ! Désormais, les escouades de héros se répartissent entre les deux.", 7.0)
 
 
 ## Un vétéran revient par l'entrée : plus fort, et il se souvient de tes pièges.
 func _spawn_veteran(entry: Dictionary) -> void:
-	var hero := _add_hero(int(entry["type"]), map.entrance_cell)
+	var squad_id := int(entry.get("squad", -1))
+	var cell := map.entrance_cell
+	if _squads.has(squad_id):
+		cell = SaveGame.array_to_cell(_squads[squad_id]["entrance"])
+	var hero := _add_hero(int(entry["type"]), cell)
 	hero.apply_nemesis(entry)
+	_join_squad(hero, squad_id)
 	Sound.play("horn", hero.position, -6.0)
 	Fx.burst("sparks", hero.position, Color("ffd54a"))
 	Fx.flash_light(hero.position, Color(1.0, 0.85, 0.4), 140.0, 0.5)
@@ -743,6 +978,9 @@ func _on_hero_started_fleeing(hero: Hero) -> void:
 ## Un héros est sorti vivant : il reviendra en vétéran, une ou deux vagues plus tard.
 func _on_hero_retreated(hero: Hero) -> void:
 	if _game_over:
+		return
+	if hero.is_scout():
+		_on_scout_returned(hero) # Un éclaireur ne revient pas en vétéran : il fait son rapport.
 		return
 	var return_wave := _next_wave + randi_range(Rules.NEMESIS_RETURN_MIN, Rules.NEMESIS_RETURN_MAX) - 1
 	var entry := nemeses.record(hero, return_wave)
@@ -781,14 +1019,18 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 			hud.show_message("Le Colosse se rendort dans sa caverne.", 3.0))
 	hero.died.connect(_on_hero_died)
 	hero.captured.connect(_on_hero_captured)
-	hero.fell.connect(func(_hero: Hero) -> void:
+	hero.fell.connect(func(fallen: Hero) -> void:
+		_on_squad_loss(fallen)
 		_hint("Un héros est assommé ! Tes Attrapeurs de cauchemar vont l'emmener en prison."))
 	hero.stole.connect(func(thief: Hero, amount: int) -> void:
 		Sound.play("horn", thief.position, -14.0)
-		hud.show_message("Une Voleuse a pillé ton Trésor : %d or ! Arrête-la avant qu'elle ne sorte !" % amount, 5.0))
-	hero.escaped.connect(func(_thief: Hero, amount: int) -> void:
+		hud.show_message("%s a pillé ton Trésor : %d or ! Arrête-le avant qu'il ne sorte !" % [thief.display_name(), amount], 5.0))
+	hero.escaped.connect(func(thief: Hero, amount: int) -> void:
 		Sound.play("error")
-		hud.show_message("La Voleuse s'est enfuie avec %d or. Un Cerbère au Trésor l'aurait flairée..." % amount, 5.0))
+		if thief.type == Heroes.Type.THIEF:
+			hud.show_message("La Voleuse s'est enfuie avec %d or. Un Cerbère au Trésor l'aurait flairée..." % amount, 5.0)
+		else:
+			hud.show_message("%s s'est enfui avec %d or de ton Trésor." % [thief.display_name(), amount], 5.0))
 	hero.started_fleeing.connect(_on_hero_started_fleeing)
 	hero.retreated.connect(_on_hero_retreated)
 	hero.freed_prisoner.connect(func(prisoner: Hero) -> void:
@@ -834,6 +1076,7 @@ func _request_sacrifice(world_position: Vector2) -> void:
 
 ## Un héros vaincu finit en Prison : il rapporte sa rançon, et sera interrogé.
 func _on_hero_captured(hero: Hero) -> void:
+	_on_squad_loss(hero)
 	if hero.type == Heroes.Type.CHAMPION:
 		_champions_defeated += 1
 	if hero.is_veteran():
@@ -847,6 +1090,9 @@ func _on_hero_captured(hero: Hero) -> void:
 ## Un héros vaincu rapporte une rançon, rangée au trésor s'il y a de la place.
 func _on_hero_died(unit: Unit) -> void:
 	var hero := unit as Hero
+	_on_squad_loss(hero)
+	if hero.is_scout():
+		hud.show_message("L'éclaireur est mort : la prochaine vague arrivera à l'aveugle.", 4.0)
 	if hero.type == Heroes.Type.CHAMPION:
 		_champions_defeated += 1
 		Fx.shake(8.0, 0.5)
@@ -1112,6 +1358,11 @@ func save_game() -> bool:
 			"waves_survived": _waves_survived,
 			"wave_in_progress": _wave_in_progress,
 			"pending_heroes": _pending_heroes,
+			"pending_squads": _pending_squads,
+			"squads": _squads,
+			"next_squad_id": _next_squad_id,
+			"scout_wave": _scout_wave,
+			"scout_report": _scout_report,
 			"arrival_timer": _arrival_timer,
 			"portal_connected": _portal_connected,
 			"rival_timer": _rival_timer,
@@ -1153,6 +1404,17 @@ func _load_game(data: Dictionary) -> bool:
 			hero.apply_nemesis(values["nemesis"])
 		for cell_values in values.get("known_traps", []):
 			hero.remember_trap(SaveGame.array_to_cell(cell_values))
+		if values.has("squad"):
+			hero.squad = int(values["squad"])
+			hero.role = String(values.get("role", "main"))
+			hero.objective = String(values.get("objective", ""))
+			hero.hold_left = float(values.get("hold", 0.0))
+		elif values.get("scout", false):
+			hero.objective = "scout"
+		for key in ["flank_avoid", "scouted_traps", "seen_traps"]:
+			var cells: Dictionary = hero.get(key)
+			for cell_values in values.get(key, []):
+				cells[SaveGame.array_to_cell(cell_values)] = true
 		if values.get("fleeing", false):
 			hero.start_fleeing(false)
 		if values.has("home"):
@@ -1184,6 +1446,18 @@ func _load_game(data: Dictionary) -> bool:
 	_pending_heroes.clear()
 	for type in state["pending_heroes"]:
 		_pending_heroes.append(int(type))
+	_pending_squads.clear()
+	for id in state.get("pending_squads", []):
+		_pending_squads.append(int(id))
+	while _pending_squads.size() < _pending_heroes.size(): # (Ancienne sauvegarde.)
+		_pending_squads.append(-1)
+	_squads.clear()
+	var saved_squads: Dictionary = state.get("squads", {})
+	for key in saved_squads: # (Le JSON a changé les numéros en textes.)
+		_squads[int(key)] = saved_squads[key]
+	_next_squad_id = int(state.get("next_squad_id", 0))
+	_scout_wave = int(state.get("scout_wave", 0))
+	_scout_report = state.get("scout_report", []).duplicate(true)
 
 	research.load_save(data.get("research", {}))
 	mana = float(data.get("mana", Spells.START_MANA))
@@ -1395,6 +1669,8 @@ func _setup_lighting() -> void:
 	_heart_light = _make_light(map.cell_to_world(map.heart_cell), Color(1.0, 0.4, 0.35), 260.0, 1.3)
 	_make_light(map.cell_to_world(map.portal_cell), Color(0.75, 0.4, 1.0), 200.0, 1.1)
 	_make_light(map.cell_to_world(map.entrance_cell), Color(0.8, 0.85, 1.0), 170.0, 0.8)
+	for gate in map.extra_entrances:
+		_make_light(map.cell_to_world(gate), Color(0.8, 0.85, 1.0), 170.0, 0.8)
 	if map.has_rival:
 		_rival_light = _make_light(map.cell_to_world(map.rival_heart_cell), Color(0.4, 0.6, 1.0), 240.0, 1.2)
 	_refresh_torches()

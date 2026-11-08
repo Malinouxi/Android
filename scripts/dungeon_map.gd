@@ -1554,9 +1554,14 @@ func has_door(cell: Vector2i) -> bool:
 
 
 ## Un héros frappe une porte. À 0 point de vie, elle est détruite.
-func damage_door(cell: Vector2i, amount: float) -> void:
+## Porte électrifiée (combo) : celui qui la frappe prend une décharge.
+func damage_door(cell: Vector2i, amount: float, attacker: Unit = null) -> void:
 	if not has_door(cell):
 		return
+	if attacker != null and is_door_electrified(cell):
+		attacker.take_damage(Rules.SHOCK_DOOR_DAMAGE)
+		Fx.burst("sparks", attacker.position, Color("80d8ff"))
+		combo_triggered.emit("porte_electrifiee", cell_to_world(cell))
 	defenses[cell]["hp"] -= amount
 	Sound.play("door_hit", cell_to_world(cell))
 	_redraw_all()
@@ -1573,6 +1578,10 @@ func _update_traps(delta: float) -> void:
 	for cell: Vector2i in defenses:
 		var defense: Dictionary = defenses[cell]
 		defense["cooldown"] = maxf(0.0, defense["cooldown"] - delta)
+		if defense.get("shock", 0.0) > 0.0:
+			defense["shock"] -= delta # Porte électrifiée (combo) : la charge s'épuise.
+			if defense["shock"] <= 0.0:
+				_redraw_all()
 		if defense["flash"] > 0.0:
 			defense["flash"] -= delta
 			if defense["flash"] <= 0.0:
@@ -1595,7 +1604,12 @@ func _update_traps(delta: float) -> void:
 				if defense["cooldown"] <= 0.0:
 					_spike(cell, defense, info, hero)
 			Defenses.Type.RUNE:
-				_explode(cell, info["damage"], info["radius"])
+				var rune_damage: float = info["damage"]
+				# Rune engluée : un héros pris dans la Toile du maître ne s'en écarte pas.
+				if hero.is_webbed():
+					rune_damage *= Rules.STUCK_RUNE_DAMAGE
+					combo_triggered.emit("rune_engluee", cell_to_world(cell))
+				_explode(cell, rune_damage, info["radius"])
 
 
 ## Les pointes sortent sous un héros, avec leurs combos (voir combos.gd).
@@ -1644,14 +1658,16 @@ func _next_to_door(cell: Vector2i) -> bool:
 ## La rune explose : tous les héros proches sont touchés, puis elle disparaît.
 ## Combos : près d'un brasero, le sol s'embrase (Rune de feu) ; les autres runes
 ## dans l'explosion sautent à leur tour (Réaction en chaîne).
-func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
+func _explode(cell: Vector2i, explosion_damage: float, radius: float, forced_fire := false) -> void:
 	var center := cell_to_world(cell)
 	remove_defense(cell)
-	var on_fire := near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS)
+	var near_fire := near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS)
+	var on_fire := near_fire or forced_fire
 	if on_fire:
 		radius *= Rules.FIRE_RUNE_RADIUS
-		fires.append({"position": center, "radius": radius, "time": Rules.FIRE_TIME, "flicker": 0.0})
-		combo_triggered.emit("rune_feu", center)
+		add_fire(center, radius, Rules.FIRE_TIME)
+		if near_fire:
+			combo_triggered.emit("rune_feu", center)
 	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
 	Sound.play("explosion", center)
 	Fx.burst("smoke", center)
@@ -1687,6 +1703,82 @@ func detonate_runes(center: Vector2, radius: float) -> int:
 			_explode(cell, info["damage"] * Rules.DETONATION_DAMAGE, info["radius"])
 			count += 1
 	return count
+
+
+## Brasier runique : le sort Brasier fait exploser les Runes de sa zone, en Runes de feu.
+## Renvoie le nombre de runes qui explosent.
+func ignite_runes(center: Vector2, radius: float) -> int:
+	var count := 0
+	for cell: Vector2i in defenses.keys():
+		if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.RUNE \
+				and cell_to_world(cell).distance_to(center) <= radius + TILE_SIZE * 0.5:
+			var info: Dictionary = Defenses.INFO[Defenses.Type.RUNE]
+			combo_triggered.emit("brasier_runique", cell_to_world(cell))
+			_explode(cell, info["damage"], info["radius"], true)
+			count += 1
+	return count
+
+
+## Porte électrifiée : l'Éclair du maître charge les Portes de sa zone.
+## Renvoie le nombre de portes chargées.
+func electrify_doors(center: Vector2, radius: float) -> int:
+	var count := 0
+	for cell: Vector2i in defenses:
+		if has_door(cell) and cell_to_world(cell).distance_to(center) <= radius + TILE_SIZE * 0.5:
+			defenses[cell]["shock"] = Rules.SHOCK_DOOR_TIME
+			count += 1
+	if count > 0:
+		_redraw_all()
+	return count
+
+
+func is_door_electrified(cell: Vector2i) -> bool:
+	return has_door(cell) and defenses[cell].get("shock", 0.0) > 0.0
+
+
+## Allume du sol qui brûle (les héros qui y passent prennent feu) pendant time secondes.
+func add_fire(center: Vector2, radius: float, time: float) -> void:
+	fires.append({"position": center, "radius": radius, "time": time, "flicker": 0.0})
+
+
+## L'Exorciste éteint les flammes proches. Renvoie true s'il y en avait.
+func extinguish_fires(center: Vector2, radius: float) -> bool:
+	var before := fires.size()
+	fires = fires.filter(func(f: Dictionary) -> bool:
+		return (f["position"] as Vector2).distance_to(center) > radius + float(f["radius"]) * 0.5)
+	return fires.size() < before
+
+
+## Effondrement : peut-on faire s'écrouler le plafond de cette case ? Seulement un
+## couloir de sol creusé : pas une salle, un piège, un chantier, ni le cœur, le portail,
+## une entrée ou la caverne du Colosse.
+func can_collapse(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell) \
+			and not construction.has(cell) and not guarded.has(cell) and not prisoners.has(cell)
+
+
+## Le plafond s'écroule : la case redevient de la terre (à recreuser). L'or qui
+## traînait là glisse sur une case voisine. main.gd s'occupe des unités.
+func collapse(cell: Vector2i) -> bool:
+	if not can_collapse(cell):
+		return false
+	_set_tile(cell, Tile.EARTH)
+	claimed.erase(cell)
+	reserved.erase(cell)
+	marked.erase(cell)
+	damage.erase(cell)
+	decorations.erase(cell)
+	candelabras.erase(cell)
+	if loose_gold.has(cell):
+		var amount: int = loose_gold[cell]
+		loose_gold.erase(cell)
+		for direction in DIRECTIONS:
+			if is_walkable(cell + direction):
+				drop_gold(cell + direction, amount)
+				break
+	_refresh_pathing(cell)
+	_redraw_all()
+	return true
 
 
 ## Le sol qui brûle : les héros qui y passent prennent feu.

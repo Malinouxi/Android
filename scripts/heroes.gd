@@ -3,13 +3,15 @@ class_name Heroes
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
 enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK,
-		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK, COLOSSUS, SPECTRE, SCOUT }
+		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK, COLOSSUS, SPECTRE, SCOUT, EXORCIST }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
 ## Capacités facultatives : les mêmes que les créatures (voir creatures.gd), plus
-##   "dig_speed" (vitesse de creusage, 3.0 = 3 fois plus vite) et
-##   "door_damage" (multiplie les dégâts infligés aux portes).
+##   "dig_speed" (vitesse de creusage, 3.0 = 3 fois plus vite),
+##   "door_damage" (multiplie les dégâts infligés aux portes) et
+##   "immune" (les sorts du maître qui ne lui font rien : "web" Toile, "terror"
+##   Terreur, "collapse" Effondrement ; ceux qui ne fuient jamais ignorent la Terreur).
 ## Et pour les habitants des profondeurs (jamais dans les vagues : "first_wave": 999) :
 ##   "guardian" (ne quitte pas sa caverne, voir hero.gd), "fearless" (ne fuit jamais),
 ##   "no_capture" (ne tombe pas assommé, ne finit pas au Cimetière),
@@ -66,24 +68,28 @@ const INFO := {
 		"name": "Nain", "sprite": "dwarf", "size": 7.0, "speed": 60.0,
 		"hp": 130.0, "damage": 10.0, "range": 26.0, "attack_interval": 1.0,
 		"reward": 50, "first_wave": 2, "dig_speed": 3.0, "armor": 0.1,
+		"immune": ["collapse"], # Un nain sait se tirer d'un éboulement.
 	},
 	Type.MAGE: {
 		# La magicienne : boules de feu à distance, qui touchent plusieurs cibles.
 		"name": "Magicienne", "sprite": "mage", "size": 8.0, "speed": 65.0,
 		"hp": 70.0, "damage": 14.0, "range": 100.0, "attack_interval": 1.6,
 		"reward": 70, "first_wave": 4, "splash": 48.0, "attack_sound": "zap",
+		"immune": ["web"], # Elle brûle la Toile d'un claquement de doigts.
 	},
 	Type.PALADIN: {
 		# Le paladin : armure dorée, et il se soigne en continu.
 		"name": "Paladin", "sprite": "paladin", "size": 9.0, "speed": 55.0,
 		"hp": 260.0, "damage": 13.0, "range": 28.0, "attack_interval": 1.2,
 		"reward": 110, "first_wave": 6, "armor": 0.25, "regen": 3.0,
+		"immune": ["terror"], # Sa foi le protège de la peur.
 	},
 	Type.GIANT: {
 		# Le géant : énorme et lent ; il défonce les portes 4 fois plus vite.
 		"name": "Géant", "sprite": "giant", "size": 13.0, "speed": 45.0,
 		"hp": 520.0, "damage": 24.0, "range": 34.0, "attack_interval": 1.8,
 		"reward": 160, "first_wave": 8, "door_damage": 4.0, "armor": 0.1,
+		"immune": ["web"], # Bien trop fort pour une toile.
 	},
 	Type.CHAMPION: {
 		# Le Champion du royaume : le chef des héros. Il mène une vague sur CHAMPION_EVERY
@@ -98,6 +104,7 @@ const INFO := {
 		"name": "Moine libérateur", "sprite": "monk", "size": 8.0, "speed": 70.0,
 		"hp": 100.0, "damage": 6.0, "range": 26.0, "attack_interval": 1.2,
 		"reward": 50, "first_wave": 3, "liberator": true,
+		"immune": ["terror"], # Rien ne le détourne de sa mission.
 	},
 	Type.COLOSSUS: {
 		# Le Colosse endormi : un gardien des profondeurs, neutre. Il ne marche pas sur
@@ -120,6 +127,16 @@ const INFO := {
 		"name": "Éclaireur", "sprite": "adventurer", "size": 7.0, "speed": 120.0,
 		"hp": 70.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.9,
 		"reward": 40, "first_wave": 999, "scout": true, "tint": Color(0.7, 1.0, 0.7),
+	},
+	Type.EXORCIST: {
+		# L'Exorciste : la réponse du royaume à tes sorts. Toutes les quelques secondes,
+		# il DISSIPE la magie autour de lui (voir hero.gd, _exorcise) : ses alliés sont
+		# libérés de la Toile et de la Terreur, tes unités perdent Hâte, Sanctuaire,
+		# Fouet et Possession, et les flammes du Brasier s'éteignent.
+		"name": "Exorciste", "sprite": "cleric", "size": 8.0, "speed": 65.0,
+		"hp": 110.0, "damage": 7.0, "range": 26.0, "attack_interval": 1.1,
+		"reward": 90, "first_wave": 5, "armor": 0.1, "immune": ["web", "terror"], "exorcist": true,
+		"tint": Color(0.75, 0.6, 1.3),
 	},
 }
 ## Une vague sur CHAMPION_EVERY est menée par le Champion du royaume.

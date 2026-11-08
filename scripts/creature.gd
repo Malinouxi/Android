@@ -108,6 +108,18 @@ var _grudge_target = null # (Pas de type : le héros a pu disparaître depuis.)
 var fleeing := false
 const FLEE_RECOVER := 0.7
 
+## Possession (sort du maître) : pendant ce temps, c'est toi qui la diriges.
+var possessed_left := 0.0
+## Son ordre : le héros à attaquer (pas de type : il a pu disparaître) ou la case où aller.
+var _command_target = null
+var _command_cell := NO_CELL
+var _possession_bonus := 1.0
+## Le Renégat (sort Conversion) garde l'allure du héros qu'il était.
+var sprite_override := ""
+## Traînée de feu (Démon sous Hâte) : distance parcourue depuis la dernière flamme.
+var _trail_distance := 0.0
+var _last_position := Vector2.ZERO
+
 
 ## À appeler juste après Creature.new().
 func setup_creature(dungeon_map: DungeonMap, cell: Vector2i, creature_type: int) -> void:
@@ -179,6 +191,8 @@ func damage_against(target: Unit) -> float:
 	var alone_bonus := Traits.mult(traits, "alone_damage")
 	if alone_bonus != 1.0 and _neighbors() == 0:
 		damage *= alone_bonus # Solitaire : elle se bat mieux seule.
+	if possessed_left > 0.0:
+		damage *= _possession_bonus # Possédée : la rage du maître guide ses coups.
 	return damage
 
 
@@ -211,17 +225,24 @@ func _neighbors() -> int:
 
 ## Ce qu'il faut pour recréer la créature au chargement (voir main.gd).
 func to_save() -> Dictionary:
-	return {
+	var data := {
 		"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp,
 		"energy": energy, "hunger": hunger, "happiness": happiness,
 		"level": level, "xp": xp, "traits": traits,
 	}
+	if sprite_override != "":
+		data["sprite"] = sprite_override
+		data["tint"] = self_modulate.to_html()
+	return data
 
 
 ## Remet les valeurs sauvegardées (après setup_creature).
 func load_save(data: Dictionary) -> void:
 	level = int(data.get("level", 1))
 	xp = float(data.get("xp", 0.0))
+	if data.has("sprite"):
+		sprite_override = str(data["sprite"])
+		self_modulate = Color.html(str(data.get("tint", "ffffff")))
 	if data.has("traits"): # (Une ancienne sauvegarde garde les traits tirés à l'arrivée.)
 		traits.clear()
 		for id in data["traits"]:
@@ -254,6 +275,8 @@ func receive_pay(paid: bool) -> void:
 
 ## Ce que fait la créature en ce moment (pour sa fiche, voir hud.gd).
 func activity_text() -> String:
+	if possessed_left > 0.0:
+		return "possédée par le maître"
 	if fleeing and state != State.SLEEPING:
 		return "fuit, apeurée"
 	if state == State.WORKING:
@@ -266,7 +289,9 @@ func activity_text() -> String:
 ## Petit texte affiché quand on touche la créature.
 func describe() -> String:
 	var activity: String = STATE_NAMES[state]
-	if state == State.WORKING:
+	if possessed_left > 0.0:
+		activity = "possédée"
+	elif state == State.WORKING:
 		activity = WORK_NAMES[_work_room]
 	elif state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
 		activity = "garde le %s" % Rooms.display_name(_guarded_room())
@@ -299,6 +324,14 @@ func _process(delta: float) -> void:
 	_update_mood(delta)
 	update_attack_cooldown(delta)
 	update_effects(delta)
+	if not is_inside_tree() or is_queued_for_deletion():
+		return # Une créature temporaire vient de s'effacer (voir vanish).
+	_update_fire_trail()
+	# Possédée : elle n'obéit plus qu'au maître.
+	if possessed_left > 0.0:
+		_process_possessed(delta)
+		queue_redraw()
+		return
 	_update_combat(delta)
 
 	match state:
@@ -344,7 +377,7 @@ func _process(delta: float) -> void:
 				_work_timer = WORK_DURATION
 				_work_tick = 0.0
 		State.WORKING:
-			_process_working(delta)
+			_process_working(delta * work_factor()) # Le Fouet la fait travailler plus vite.
 		State.RAIDING:
 			_process_raiding(delta)
 		State.GOING_TO_CATCH:
@@ -352,6 +385,137 @@ func _process(delta: float) -> void:
 		State.CARRYING:
 			_process_carrying(delta)
 	queue_redraw()
+
+
+# ---------------------------------------------------------------------------
+# Les sorts du maître : Possession, Traînée de feu, unités temporaires
+# ---------------------------------------------------------------------------
+
+## Possession : le maître la dirige pendant duration secondes (dégâts multipliés).
+func possess(duration: float, damage_bonus: float) -> void:
+	_drop_carried()
+	map.release_work_spot(self)
+	_work_room = Rooms.Type.NONE
+	_work_cell = NO_CELL
+	_enemy = null
+	fleeing = false
+	path.clear()
+	state = State.WANDER
+	possessed_left = duration
+	_possession_bonus = damage_bonus
+	_command_target = null
+	_command_cell = NO_CELL
+	apply_haste(duration)
+
+
+## Un ordre du maître à la créature possédée : un héros à attaquer, ou une case où aller.
+func command(target: Unit, cell: Vector2i) -> void:
+	_command_target = target
+	_command_cell = cell if target == null else NO_CELL
+	path.clear()
+
+
+func is_possessed() -> bool:
+	return possessed_left > 0.0
+
+
+func _end_possession() -> void:
+	possessed_left = 0.0
+	_command_target = null
+	_command_cell = NO_CELL
+	path.clear()
+	state = State.WANDER
+
+
+func _process_possessed(delta: float) -> void:
+	possessed_left -= delta
+	if possessed_left <= 0.0:
+		_end_possession()
+		return
+	# 1. Le héros désigné par le maître, où qu'il soit.
+	if _command_target != null:
+		if is_instance_valid(_command_target) and _command_target.is_targetable() \
+				and fight(_command_target, delta):
+			return
+		_command_target = null
+		path.clear()
+	# 2. La case désignée.
+	if _command_cell != NO_CELL:
+		if current_cell() == _command_cell:
+			_command_cell = NO_CELL
+			path.clear()
+		elif path.is_empty() and not go_to(_command_cell):
+			_command_cell = NO_CELL
+		else:
+			move_along_path(delta)
+		return
+	# 3. Sans ordre : elle se jette sur le héros le plus proche.
+	var enemy := find_nearest_enemy(AGGRO_RADIUS)
+	if enemy != null:
+		fight(enemy, delta)
+
+
+## L'Exorciste chasse aussi l'esprit du maître.
+func dispel() -> bool:
+	var had := super()
+	if possessed_left > 0.0:
+		_end_possession()
+		had = true
+	return had
+
+
+## Traînée de feu (combo) : un Démon sous Hâte enflamme le sol derrière lui.
+func _update_fire_trail() -> void:
+	if type != Creatures.Type.DEMON or not is_hasted():
+		_last_position = position
+		_trail_distance = 0.0
+		return
+	_trail_distance += position.distance_to(_last_position)
+	_last_position = position
+	if _trail_distance >= Rules.FIRE_TRAIL_STEP:
+		_trail_distance = 0.0
+		map.add_fire(position, 18.0, Rules.FIRE_TRAIL_TIME)
+		map.combo_triggered.emit("trainee_de_feu", position)
+
+
+## Rappel (sort du maître) : elle apparaît d'un coup sur cette case, prête à se battre.
+func recall_to(cell: Vector2i) -> void:
+	_drop_carried()
+	map.release_work_spot(self)
+	_work_room = Rooms.Type.NONE
+	_work_cell = NO_CELL
+	_enemy = null
+	fleeing = false
+	path.clear()
+	state = State.WANDER
+	position = map.cell_to_world(cell)
+	_last_position = position
+
+
+## Une créature temporaire (Revenant relevé) s'efface : elle libère tout.
+func vanish() -> void:
+	_drop_carried()
+	map.release_bed(self)
+	map.release_work_spot(self)
+	super()
+
+
+## Effondrement : la case suivante s'est bouchée, elle abandonne ce qu'elle faisait.
+func on_path_blocked() -> void:
+	super()
+	match state:
+		State.GOING_TO_WORK:
+			_stop_work()
+		State.GOING_TO_CATCH:
+			_stop_catch()
+		State.CARRYING:
+			_drop_carried()
+		State.LEAVING:
+			if not go_to(map.portal_cell):
+				_leave_now()
+			return
+	if state != State.FIGHTING and state != State.SLEEPING and state != State.EATING and state != State.WORKING:
+		state = State.WANDER
 
 
 # ---------------------------------------------------------------------------
@@ -805,13 +969,15 @@ func _leave_now() -> void:
 
 func sprite_info() -> Array:
 	var info := Creatures.info(type)
-	return [info["sprite"], info["size"] / 8.0]
+	return [sprite_override if sprite_override != "" else info["sprite"], info["size"] / 8.0]
 
 
 func _draw() -> void:
 	var info := Creatures.info(type)
 	var sprite_scale: float = info["size"] / 8.0 # Taille 8 = image normale (32 pixels).
-	draw_sprite(info["sprite"], sprite_scale)
+	if possessed_left > 0.0:
+		draw_arc(Vector2.ZERO, 11.0 * sprite_scale, 0.0, TAU, 20, Color(1.0, 0.2, 0.3, 0.8), 2.0)
+	draw_sprite(sprite_info()[0], sprite_scale)
 	var radius := 14.0 * sprite_scale
 
 	# Barre d'humeur au-dessus de la tête : verte = contente, rouge = furieuse.

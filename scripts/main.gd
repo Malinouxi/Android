@@ -55,6 +55,27 @@ const TOOL_SPELLS := {
 	Hud.Tool.SPELL_HEAL: Spells.Type.HEAL,
 	Hud.Tool.SPELL_LIGHTNING: Spells.Type.LIGHTNING,
 	Hud.Tool.SPELL_HASTE: Spells.Type.HASTE,
+	Hud.Tool.SPELL_WEB: Spells.Type.WEB,
+	Hud.Tool.SPELL_FIRESTORM: Spells.Type.FIRESTORM,
+	Hud.Tool.SPELL_TERROR: Spells.Type.TERROR,
+	Hud.Tool.SPELL_COLLAPSE: Spells.Type.COLLAPSE,
+	Hud.Tool.SPELL_POSSESSION: Spells.Type.POSSESSION,
+	Hud.Tool.SPELL_WHIP: Spells.Type.WHIP,
+	Hud.Tool.SPELL_FEAST: Spells.Type.FEAST,
+	Hud.Tool.SPELL_EYE: Spells.Type.EYE,
+	Hud.Tool.SPELL_SUMMON: Spells.Type.SUMMON,
+	Hud.Tool.SPELL_TRANSMUTE: Spells.Type.TRANSMUTE,
+	Hud.Tool.SPELL_RAISE: Spells.Type.RAISE,
+	Hud.Tool.SPELL_CONVERT: Spells.Type.CONVERT,
+	Hud.Tool.SPELL_SANCTUARY: Spells.Type.SANCTUARY,
+	Hud.Tool.SPELL_RECALL: Spells.Type.RECALL,
+}
+## Conversion : les troupes du rival redeviennent des créatures de leur espèce ;
+## les autres héros deviennent des Renégats (voir creatures.gd).
+const CONVERTED_TYPES := {
+	Heroes.Type.RIVAL_KOBOLD: Creatures.Type.KOBOLD,
+	Heroes.Type.RIVAL_ORC: Creatures.Type.ORC,
+	Heroes.Type.RIVAL_WARLOCK: Creatures.Type.WARLOCK,
 }
 ## L'atelier arrête de fabriquer quand le stock total atteint ce nombre.
 const MAX_TRAP_STOCK := Rules.MAX_TRAP_STOCK
@@ -128,6 +149,10 @@ var _combo_shown := {}
 ## La recherche de la Bibliothèque (voir research.gd).
 var research := Research.new()
 var mana := Spells.START_MANA
+## La créature possédée (sort Possession), ou null.
+var _possessed: Creature = null
+## La prochaine vague, tirée à l'avance (l'Œil du maître la montre) : {"wave", "heroes"}.
+var _wave_plan: Dictionary = {}
 ## Points de fabrication accumulés par l'Atelier vers le prochain piège.
 var workshop_points := 0.0
 ## Pièges et portes fabriqués, prêts à être posés : Defenses.Type -> nombre.
@@ -448,8 +473,15 @@ func _add_workshop_points(amount: float) -> void:
 
 func _cast_spell(type: int, world_position: Vector2) -> void:
 	var info: Dictionary = Spells.INFO[type]
+	# Possession : donner un ordre à la créature déjà possédée ne coûte rien.
+	if type == Spells.Type.POSSESSION and _command_possessed(world_position):
+		return
 	if mana < info["mana"]:
 		_fail("Pas assez de mana : %s coûte %d." % [info["name"], info["mana"]])
+		return
+	var room := Spells.required_room(type)
+	if room != Rooms.Type.NONE and map.count_room_tiles(room) == 0:
+		_fail("%s : il te faut d'abord un %s." % [info["name"], Rooms.display_name(room)])
 		return
 	var cast := false
 	match type:
@@ -461,30 +493,382 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 		Spells.Type.LIGHTNING:
 			for unit in _units_near("heroes", world_position, info["radius"]):
 				Fx.lightning(unit.position) # Un éclair tombe sur chaque héros touché.
-				unit.take_damage(info["damage"])
+				unit.take_damage(info["damage"] * (1.0 - unit.spell_resist))
 				cast = true
 			# Combo Détonation : la foudre fait sauter les runes dans la zone.
 			if map.detonate_runes(world_position, info["radius"]) > 0:
 				Fx.lightning(world_position)
 				cast = true
-		Spells.Type.HASTE:
-			var targets := _units_near("dungeon", world_position, 20.0)
-			if not targets.is_empty():
-				targets[0].apply_haste(info["duration"])
-				Fx.burst("haste", targets[0].position)
+			# Combo Porte électrifiée : la foudre charge les portes de la zone.
+			if map.electrify_doors(world_position, info["radius"]) > 0:
+				Fx.lightning(world_position)
 				cast = true
+		Spells.Type.HASTE:
+			var target := _my_unit_at(world_position)
+			if target != null:
+				target.apply_haste(info["duration"])
+				Fx.burst("haste", target.position)
+				cast = true
+		Spells.Type.WEB:
+			cast = _enchant_heroes(world_position, info, func(hero: Hero) -> bool:
+				return hero.apply_web(info["duration"]))
+		Spells.Type.FIRESTORM:
+			if map.is_walkable(map.world_to_cell(world_position)):
+				map.add_fire(world_position, info["radius"], info["duration"])
+				map.ignite_runes(world_position, info["radius"]) # Combo Brasier runique.
+				Fx.burst("sparks", world_position, Color("ff7a1a"))
+				cast = true
+		Spells.Type.TERROR:
+			cast = _enchant_heroes(world_position, info, func(hero: Hero) -> bool:
+				return hero.frighten(info["duration"]))
+		Spells.Type.COLLAPSE:
+			cast = _collapse(map.world_to_cell(world_position), info)
+		Spells.Type.POSSESSION:
+			var creature := _my_unit_at(world_position, false) as Creature
+			if creature != null and not creature.is_leaving():
+				if is_instance_valid(_possessed) and _possessed != creature and _possessed.is_possessed():
+					_possessed.possessed_left = 0.01 # Le maître lâche l'ancienne.
+				creature.possess(info["duration"], info["damage_bonus"])
+				_possessed = creature
+				hud.show_message("%s est possédée : touche un héros pour qu'elle l'attaque, ou le sol pour l'y envoyer." %
+						creature.display_name(), 4.0)
+				cast = true
+		Spells.Type.WHIP:
+			var target := _my_unit_at(world_position)
+			if target != null:
+				target.apply_whip(info["duration"], info["work_factor"])
+				if target is Creature:
+					var whipped := target as Creature
+					whipped.happiness = maxf(0.0, whipped.happiness - info["mood"])
+				Fx.burst("sparks", target.position, Color("ffb74d"))
+				cast = true
+		Spells.Type.FEAST:
+			for creature: Creature in creatures_root.get_children():
+				if creature.is_dead() or creature.is_leaving() or creature.is_undead():
+					continue
+				creature.hunger = 0.0
+				creature.happiness = minf(100.0, creature.happiness + info["mood"])
+				Fx.burst("heal", creature.position, Color("ffd54a"))
+				cast = true
+			if cast:
+				hud.show_message("Festin ! Tes créatures se régalent.", 3.0)
+		Spells.Type.EYE:
+			cast = true
+			_master_eye(world_position, info)
+		Spells.Type.SUMMON:
+			cast = _summon_worker(world_position, info)
+		Spells.Type.TRANSMUTE:
+			if map.get_treasury_capacity() - map.get_treasury_stored() < info["gold"]:
+				_fail("Transmutation : il faut %d or de place libre au Trésor." % info["gold"])
+				return
+			map.add_gold_to_treasury(info["gold"])
+			Fx.burst("coins", world_position)
+			hud.show_message("Transmutation : %d mana deviennent %d or." % [info["mana"], info["gold"]], 3.0)
+			cast = true
+		Spells.Type.RAISE:
+			cast = _raise_dead(info)
+		Spells.Type.CONVERT:
+			cast = _convert_prisoner(world_position)
+		Spells.Type.SANCTUARY:
+			if not _near_room_tile(map.world_to_cell(world_position), Rooms.Type.TEMPLE, 3):
+				_fail("Sanctuaire : touche ton Temple (ou juste à côté).")
+				return
+			for unit in _units_near("dungeon", world_position, info["radius"]):
+				unit.apply_ward(info["duration"], info["protection"])
+				Fx.burst("magic", unit.position, Color(0.75, 0.6, 1.0))
+			cast = true # (Même sans personne : le Temple rayonne pour rien.)
+		Spells.Type.RECALL:
+			cast = _recall_creatures()
 	if not cast:
-		_fail("Aucune cible ici : touche %s." % (
-				"un héros (ou une rune...)" if type == Spells.Type.LIGHTNING else "une de tes unités"))
+		_fail("Aucune cible ici : %s" % _target_hint(type))
 		return
 	mana -= info["mana"]
-	Sound.play(["heal", "lightning", "haste"][type], world_position)
+	Sound.play(info.get("sound", "zap"), world_position)
 	map.add_effect(world_position, info.get("radius", 24.0), info["color"])
 	var spell_color: Color = info["color"]
 	Fx.burst("magic", world_position, Color(spell_color, 1.0))
 	Fx.flash_light(world_position, Color(spell_color, 1.0), 160.0)
-	if type == Spells.Type.LIGHTNING:
+	if type == Spells.Type.LIGHTNING or type == Spells.Type.COLLAPSE:
 		Fx.shake(6.0)
+
+
+## Ce qu'il fallait toucher pour ce sort (message d'erreur).
+func _target_hint(type: int) -> String:
+	match Spells.INFO[type]["target"]:
+		"zone":
+			return "touche des héros." if type != Spells.Type.HEAL else "touche tes unités blessées."
+		"unit":
+			return "touche une de tes créatures ou un ouvrier."
+		"creature":
+			return "touche une de tes créatures."
+		"cell":
+			return "touche un couloir de ton donjon (pas une salle ni un piège)."
+		"prisoner":
+			return "touche un héros enfermé dans ta Prison."
+	return Spells.INFO[type]["help"]
+
+
+## Envoûte les héros d'une zone (Toile, Terreur). apply(hero) renvoie false si le
+## héros y est insensible. Renvoie true si au moins un héros est envoûté.
+func _enchant_heroes(world_position: Vector2, info: Dictionary, apply: Callable) -> bool:
+	var heroes := _units_near("heroes", world_position, info["radius"])
+	var color: Color = info["color"]
+	var count := 0
+	var immune := 0
+	for unit in heroes:
+		var hero := unit as Hero
+		if hero == null or hero.is_guardian():
+			continue
+		if apply.call(hero):
+			count += 1
+			Fx.burst("magic", hero.position, Color(color, 1.0))
+		else:
+			immune += 1
+			Fx.text(hero.position, "insensible", Color("e1f5fe"))
+	if count == 0 and immune > 0:
+		_fail("%s : ces héros y sont insensibles !" % info["name"])
+		return false
+	return count > 0
+
+
+## Une de tes unités sous le doigt (créature, ou ouvrier si with_workers), ou null.
+func _my_unit_at(world_position: Vector2, with_workers := true) -> Unit:
+	var unit := _unit_at(world_position, creatures_root)
+	if unit == null and with_workers:
+		unit = _unit_at(world_position, workers_root)
+	if unit != null and not unit.is_dead():
+		return unit
+	# Pas de personnage sous le doigt : le plus proche du point touché.
+	var best: Unit = null
+	var best_distance := 24.0
+	for candidate in _units_near("dungeon", world_position, best_distance):
+		if candidate is Worker and not with_workers:
+			continue
+		if not (candidate is Worker or candidate is Creature) or candidate.in_hand:
+			continue
+		var distance := candidate.position.distance_to(world_position)
+		if distance <= best_distance:
+			best = candidate
+			best_distance = distance
+	return best
+
+
+## Le héros sous le doigt (vivant, pas prisonnier), ou null.
+func _hero_at(world_position: Vector2) -> Hero:
+	var hero := _unit_at(world_position, heroes_root) as Hero
+	if hero != null and hero.is_targetable():
+		return hero
+	var best: Hero = null
+	var best_distance := 28.0
+	for unit in _units_near("heroes", world_position, best_distance):
+		if unit is Hero and unit.position.distance_to(world_position) <= best_distance:
+			best = unit as Hero
+			best_distance = unit.position.distance_to(world_position)
+	return best
+
+
+## Vrai si une case de cette salle se trouve à moins de radius cases.
+func _near_room_tile(cell: Vector2i, room: int, radius: int) -> bool:
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if map.get_room(cell + Vector2i(dx, dy)) == room:
+				return true
+	return false
+
+
+## Possession : un toucher donne un ordre à la créature déjà possédée (gratuit).
+## Renvoie false si le toucher n'est pas un ordre (on lance alors le sort).
+func _command_possessed(world_position: Vector2) -> bool:
+	if not is_instance_valid(_possessed) or not _possessed.is_possessed():
+		_possessed = null
+		return false
+	var touched := _my_unit_at(world_position, false)
+	if touched != null:
+		return touched == _possessed # Une autre créature : on la possède à sa place.
+	var hero := _hero_at(world_position)
+	if hero != null:
+		_possessed.command(hero, Vector2i(-1, -1))
+		Fx.text(hero.position, "Cible !", Color("ff5252"))
+		return true
+	var cell := map.world_to_cell(world_position)
+	if map.is_walkable(cell):
+		_possessed.command(null, cell)
+		map.add_effect(map.cell_to_world(cell), 14.0, Color(1.0, 0.2, 0.3, 0.7))
+		return true
+	return false
+
+
+## Effondrement : le plafond d'un couloir s'écroule. Les unités qui s'y trouvent sont
+## écrasées et repoussées sur une case voisine ; les chemins qui passaient là sont coupés.
+func _collapse(cell: Vector2i, info: Dictionary) -> bool:
+	var exit := Vector2i(-1, -1)
+	for direction in DungeonMap.DIRECTIONS:
+		if map.is_walkable(cell + direction):
+			exit = cell + direction
+			break
+	if not map.can_collapse(cell) or exit == Vector2i(-1, -1):
+		_fail("Effondrement : touche un couloir (pas une salle, un piège ou un cul-de-sac fermé).")
+		return false
+	# On repère les unités avant que la case ne se bouche.
+	var crushed: Array[Unit] = []
+	for root in [workers_root, creatures_root, heroes_root]:
+		for node in root.get_children():
+			var unit := node as Unit
+			if unit == null or unit.is_dead() or unit.in_hand:
+				continue
+			var hero := unit as Hero
+			if hero != null and (hero.is_captured() or hero.knocked_out or hero.carrier != null):
+				continue
+			if unit.current_cell() == cell:
+				crushed.append(unit)
+			elif unit.path.has(cell) and hero == null:
+				unit.on_path_blocked() # (Les héros, eux, creuseront.)
+	map.collapse(cell)
+	var center := map.cell_to_world(cell)
+	Fx.burst("dust", center, Color("8d6e63"))
+	Fx.burst("smoke", center, Color(0.5, 0.4, 0.3, 0.7))
+	for unit in crushed:
+		unit.position = map.cell_to_world(exit)
+		unit.path.clear()
+		var crush: float = info["damage"]
+		if unit is Hero:
+			crush *= 1.0 - unit.spell_resist
+			if unit.is_immune("collapse"):
+				crush *= 0.25 # Le Nain sait se tirer d'un éboulement.
+		unit.take_damage(crush)
+	return true
+
+
+## Œil du maître : la prochaine vague, les Voleuses démasquées, les secrets proches.
+func _master_eye(world_position: Vector2, info: Dictionary) -> void:
+	var heroes := _planned_heroes(_next_wave)
+	var counts := {}
+	for type in heroes:
+		counts[type] = counts.get(type, 0) + 1
+	var parts: Array[String] = []
+	for type: int in counts:
+		parts.append("%d %s" % [counts[type], Heroes.info(type)["name"]])
+	var champion := " Le Champion du royaume les mène !" if _champion_leads_wave(_next_wave) else ""
+	var veterans := nemeses.waiting.filter(func(e: Dictionary) -> bool: return int(e["return_wave"]) <= _next_wave)
+	var veteran_text := (" Et %d vétéran%s." % [veterans.size(), "s" if veterans.size() > 1 else ""]) if not veterans.is_empty() else ""
+	hud.show_message("L'Œil du maître voit la vague %d : %s.%s%s" % [_next_wave, ", ".join(parts), champion, veteran_text], 8.0)
+	# Les héros discrets (la Voleuse) sont démasqués.
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var hero := node as Hero
+		if hero != null and hero.stealthy:
+			hero.unmask(info["duration"])
+			Fx.burst("magic", hero.position, Color("ffd54a"))
+	# Les secrets des profondeurs proches du point touché donnent leur indice.
+	var cell := map.world_to_cell(world_position)
+	var radius := int(info["radius"] / DungeonMap.TILE_SIZE)
+	for secret: Dictionary in map.secrets:
+		var center: Vector2i = secret["center"]
+		if secret["revealed"] or maxi(absi(center.x - cell.x), absi(center.y - cell.y)) > radius:
+			continue
+		secret["hinted"] = true
+		map.add_effect(map.cell_to_world(center), 48.0, Color(1.0, 0.85, 0.3, 0.6))
+		Fx.text(map.cell_to_world(center), "?", Color("ffd54a"))
+		_on_secret_hinted(secret["kind"], center)
+
+
+## Invocation : un ouvrier fantôme pour un temps, sur la case touchée (ou près du cœur).
+func _summon_worker(world_position: Vector2, info: Dictionary) -> bool:
+	var summoned := 0
+	for worker: Worker in workers_root.get_children():
+		if worker.is_summoned():
+			summoned += 1
+	if summoned >= info["max"]:
+		_fail("Invocation : déjà %d ouvriers fantômes à l'œuvre." % summoned)
+		return false
+	var cell := map.world_to_cell(world_position)
+	if not map.is_walkable(cell) or not map.is_claimed(cell):
+		cell = map.get_spawn_cell()
+	var worker := _add_worker(cell)
+	worker.lifetime = info["duration"]
+	worker.self_modulate = Color(0.6, 1.0, 0.7, 0.7) # Un fantôme verdâtre.
+	Fx.burst("magic", worker.position, Color("69f0ae"))
+	hud.show_message("Un ouvrier fantôme vient t'aider pendant %d s." % info["duration"], 3.0)
+	return true
+
+
+## Relever les morts : les tombes pleines se vident tout de suite ; sinon, un
+## Revenant temporaire sort de terre au Cimetière.
+func _raise_dead(info: Dictionary) -> bool:
+	if not map.graves.is_empty():
+		for cell: Vector2i in map.graves:
+			map.graves[cell] = 0.0
+		_grave_timer = 0.0 # Ils se relèvent à la prochaine image (voir _update_graves).
+		return true
+	var spots: Array[Vector2i] = []
+	for cell: Vector2i in map.rooms:
+		if map.rooms[cell] == Rooms.Type.GRAVEYARD and map.is_walkable(cell):
+			spots.append(cell)
+	if spots.is_empty():
+		return false
+	var revenant := _add_creature(Creatures.Type.REVENANT, spots.pick_random())
+	revenant.lifetime = info["duration"]
+	revenant.happiness = 100.0
+	Fx.burst("magic", revenant.position, Color("76ff03"))
+	Fx.burst("dust", revenant.position)
+	hud.show_message("Aucune tombe n'est pleine : un Revenant sort de terre pour %d s." % info["duration"], 4.0)
+	return true
+
+
+## Conversion : le prisonnier touché change de camp.
+func _convert_prisoner(world_position: Vector2) -> bool:
+	var cell := map.world_to_cell(world_position)
+	var hero: Hero = map.prisoners.get(cell)
+	if hero == null:
+		var best_distance := 28.0
+		for prison_cell: Vector2i in map.prisoners:
+			var candidate: Hero = map.prisoners[prison_cell]
+			var distance := map.cell_to_world(prison_cell).distance_to(world_position)
+			if is_instance_valid(candidate) and candidate.is_captured() and distance <= best_distance:
+				hero = candidate
+				best_distance = distance
+	if hero == null or not is_instance_valid(hero) or not hero.is_captured():
+		return false
+	var former := hero.display_name()
+	var at := hero.prison_cell
+	var creature_type: int = CONVERTED_TYPES.get(hero.type, Creatures.Type.RENEGADE)
+	# Le prisonnier quitte sa cellule sans mourir : ni rançon, ni tombe.
+	map.prisoners.erase(at)
+	hero.remove_from_group("prisoners")
+	hero.prison_cell = Vector2i(-1, -1)
+	hero.queue_free()
+	var creature := _add_creature(creature_type, at)
+	if creature_type == Creatures.Type.RENEGADE:
+		creature.sprite_override = Heroes.info(hero.type)["sprite"]
+		creature.self_modulate = Creatures.info(Creatures.Type.RENEGADE)["tint"]
+	creature.happiness = 80.0
+	Fx.burst("magic", creature.position, Color("b388ff"))
+	Fx.flash_light(creature.position, Color(0.7, 0.4, 1.0), 150.0, 0.6)
+	hud.show_message("%s renie son roi et rejoint ton donjon (%s) !" % [former, creature.display_name()], 5.0)
+	return true
+
+
+## Rappel : toutes les créatures disponibles apparaissent autour du cœur.
+func _recall_creatures() -> bool:
+	var spots: Array[Vector2i] = []
+	for dy in range(-3, 4):
+		for dx in range(-3, 4):
+			var cell := map.heart_cell + Vector2i(dx, dy)
+			if map.is_walkable(cell) and map.get_tile(cell) == DungeonMap.Tile.FLOOR:
+				spots.append(cell)
+	if spots.is_empty():
+		_fail("Rappel : il n'y a pas de place autour de ton cœur.")
+		return false
+	var count := 0
+	for creature: Creature in creatures_root.get_children():
+		if creature.is_dead() or creature.is_leaving() or creature.in_hand:
+			continue
+		creature.recall_to(spots.pick_random())
+		Fx.burst("magic", creature.position, Color("ff5252"))
+		count += 1
+	if count > 0:
+		Fx.flash_light(map.cell_to_world(map.heart_cell), Color(1.0, 0.3, 0.3), 220.0, 0.6)
+		hud.show_message("Rappel : %d créature%s accourent au cœur !" % [count, "s" if count > 1 else ""], 3.0)
+	return count > 0
 
 
 ## Les unités d'un groupe (« dungeon » ou « heroes ») à moins de radius pixels.
@@ -564,12 +948,9 @@ func _update_music(delta: float) -> void:
 func _start_wave() -> void:
 	_wave_timer = _wave_interval
 	_wave_warned = false
-	var count := mini(1 + _next_wave, MAX_HEROES_PER_WAVE)
-	var types := Heroes.types_for_wave(_next_wave)
-	types = types.filter(func(t: int) -> bool: return not Heroes.info(t).get("scout", false))
-	var wave_heroes: Array[int] = []
-	for i in count:
-		wave_heroes.append(types.pick_random())
+	var wave_heroes := _planned_heroes(_next_wave)
+	_wave_plan = {}
+	var count := wave_heroes.size()
 	var champion := _champion_leads_wave(_next_wave)
 	if champion:
 		wave_heroes.push_front(Heroes.Type.CHAMPION) # Il entre le premier.
@@ -593,6 +974,26 @@ func _start_wave() -> void:
 			names.append("%s (%s)" % [Nemeses.title(entry), Nemeses.rank_text(int(entry["rank"]))])
 		hud.show_message("Ils reviennent se venger : %s !" % ", ".join(names), 6.0)
 	_next_wave += 1
+
+
+## Les héros d'une vague, tirés au sort une seule fois (l'Œil du maître peut les
+## voir à l'avance). Dès la vague Rules.EXORCIST_SURE_WAVE, il y a toujours au
+## moins un Exorciste : le royaume a compris que tu maîtrises la magie.
+func _planned_heroes(wave: int) -> Array[int]:
+	var heroes: Array[int] = []
+	if int(_wave_plan.get("wave", -1)) == wave:
+		for type in _wave_plan["heroes"]:
+			heroes.append(int(type))
+		return heroes
+	var count := mini(1 + wave, MAX_HEROES_PER_WAVE)
+	var types := Heroes.types_for_wave(wave)
+	types = types.filter(func(t: int) -> bool: return not Heroes.info(t).get("scout", false))
+	for i in count:
+		heroes.append(types.pick_random())
+	if wave >= Rules.EXORCIST_SURE_WAVE and not heroes.has(Heroes.Type.EXORCIST):
+		heroes[randi() % heroes.size()] = Heroes.Type.EXORCIST
+	_wave_plan = {"wave": wave, "heroes": heroes.duplicate()}
+	return heroes
 
 
 ## Le Champion mène-t-il cette vague ? Par défaut, une vague sur Heroes.CHAMPION_EVERY.
@@ -1035,6 +1436,8 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	hero.retreated.connect(_on_hero_retreated)
 	hero.freed_prisoner.connect(func(prisoner: Hero) -> void:
 		hud.show_message("Un Moine a ouvert une cellule : %s s'évade !" % prisoner.display_name(), 4.0))
+	# Plus les vagues passent, plus les héros résistent à tes sorts (voir rules.gd).
+	hero.set_spell_resist(_next_wave - 1)
 	heroes_root.add_child(hero)
 	return hero
 
@@ -1326,12 +1729,13 @@ func save_game() -> bool:
 	if _game_over or not is_node_ready():
 		return false
 	var workers := []
+	# (Les unités temporaires, invoquées par un sort, ne sont pas sauvegardées.)
 	for worker: Worker in workers_root.get_children():
-		if not worker.is_dead():
+		if not worker.is_dead() and worker.lifetime <= 0.0:
 			workers.append(worker.to_save())
 	var creatures := []
 	for creature: Creature in creatures_root.get_children():
-		if not creature.is_dead() and not creature.is_leaving():
+		if not creature.is_dead() and not creature.is_leaving() and creature.lifetime <= 0.0:
 			creatures.append(creature.to_save())
 	var heroes := []
 	for hero: Hero in heroes_root.get_children():
@@ -1369,6 +1773,7 @@ func save_game() -> bool:
 			"rival_squads": _rival_squads,
 			"champions_defeated": _champions_defeated,
 			"pending_veterans": _pending_veterans,
+			"wave_plan": _wave_plan,
 		},
 		"nemeses": nemeses.to_save(),
 		"camera": [camera.position.x, camera.position.y, camera.zoom.x],
@@ -1426,6 +1831,7 @@ func _load_game(data: Dictionary) -> bool:
 				Creature.assault_target = hero
 		hero.hp = float(values["hp"])
 		hero.loot = int(values.get("loot", 0))
+		hero.spell_resist = float(values.get("resist", 0.0))
 
 	Levels.current_id = int(data.get("level_id", 0))
 	level = Levels.current()
@@ -1435,6 +1841,7 @@ func _load_game(data: Dictionary) -> bool:
 	_rival_squads = int(state.get("rival_squads", 0))
 	_champions_defeated = int(state.get("champions_defeated", 0))
 	_pending_veterans = state.get("pending_veterans", []).duplicate(true)
+	_wave_plan = state.get("wave_plan", {}).duplicate(true)
 	nemeses.load_save(data.get("nemeses", []))
 	_payday_timer = float(state["payday_timer"])
 	_wave_timer = float(state["wave_timer"])
@@ -1641,12 +2048,13 @@ func _on_tool_selected(tool: int) -> void:
 			or (TOOL_ROOMS.has(tool) and Rooms.footprint(TOOL_ROOMS[tool]) == Vector2i.ONE)
 	if tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
-	elif tool == Hud.Tool.SPELL_HEAL:
-		hud.show_message("Touche tes unités blessées pour les soigner.", 3.0)
-	elif tool == Hud.Tool.SPELL_LIGHTNING:
-		hud.show_message("Touche un héros pour le foudroyer.", 3.0)
-	elif tool == Hud.Tool.SPELL_HASTE:
-		hud.show_message("Touche une de tes unités pour qu'elle coure plus vite.", 3.0)
+	elif TOOL_SPELLS.has(tool):
+		var spell: int = TOOL_SPELLS[tool]
+		var help: String = Spells.INFO[spell]["help"]
+		var room := Spells.required_room(spell)
+		if room != Rooms.Type.NONE and map.count_room_tiles(room) == 0:
+			help += " Il te faut d'abord un %s." % Rooms.display_name(room)
+		hud.show_message("%s : %s" % [Spells.display_name(spell), help], 4.0)
 
 
 ## Le doigt se pose en mode peinture.

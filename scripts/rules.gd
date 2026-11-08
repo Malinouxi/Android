@@ -14,10 +14,20 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.4"
+const VERSION := "2.5"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.5", "changes": [
+		"14 nouveaux sorts, à découvrir à la Bibliothèque. Onglet Sorts (combat) : Toile, Brasier, Terreur, Effondrement, Possession. Nouvel onglet Pouvoirs (ton donjon) : Fouet, Festin, Œil du maître, Invocation, Transmutation, Relever les morts, Conversion, Sanctuaire, Rappel.",
+		"Relever les morts demande un Cimetière, Conversion une Prison, Sanctuaire un Temple.",
+		"Les héros s'habituent à ta magie : dès la vague 4, chaque vague leur donne 4 % de résistance aux sorts (40 % au plus), plus 10 % par rang de vétéran. Les dégâts des sorts et la durée des envoûtements baissent d'autant.",
+		"Certains héros sont insensibles : Paladin et Moine à la Terreur, Magicienne et Géant à la Toile ; le Nain se tire des éboulements. Le Clerc libère ses alliés de la Toile et de la Terreur.",
+		"Nouveau héros, l'Exorciste (dès la vague 5, au moins un par vague dès la 8) : il dissipe tes sorts autour de lui et éteint les flammes du Brasier.",
+		"4 nouveaux combos secrets avec les sorts (10 en tout).",
+		"Nouvelle créature : le Renégat, un prisonnier converti qui garde l'allure du héros qu'il était.",
+		"Niveau 4 (Le savoir est une arme) : 7 découvertes au lieu de 5, car la liste de recherche est plus longue.",
+	]},
 	{"version": "2.4", "changes": [
 		"Escouades : les grandes vagues se divisent en 2 ou 3 groupes. Le gros de la troupe prend le chemin le plus court, les flanqueurs en cherchent un autre, les sapeurs (surtout les Nains) percent un tunnel tout droit vers le cœur.",
 		"Objectifs : une vague sur deux (dès la vague 3) a un but annoncé : piller le Trésor, libérer les prisonniers, saccager la Bibliothèque, chasser les ouvriers ou abattre ta meilleure créature.",
@@ -327,6 +337,33 @@ const IMPALE_DAMAGE := 2.0
 const DETONATION_DAMAGE := 1.5
 ## Porte hérissée : temps de réarmement des Pointes collées à une Porte multiplié.
 const DOOR_SPIKES_REARM := 0.5
+## Porte électrifiée : une Porte frappée par l'Éclair reste chargée tant de secondes ;
+## chaque coup qu'un héros lui porte lui renvoie tant de dégâts.
+const SHOCK_DOOR_TIME := 20.0
+const SHOCK_DOOR_DAMAGE := 12.0
+## Rune engluée : un héros pris dans la Toile ne s'écarte pas de la Rune : dégâts multipliés.
+const STUCK_RUNE_DAMAGE := 1.6
+## Brasier runique : le Brasier fait exploser les Runes de sa zone en Runes de feu.
+## Traînée de feu : un Démon sous Hâte laisse derrière lui du sol qui brûle (tant de
+## secondes, une flamme tous les FIRE_TRAIL_STEP pixels parcourus).
+const FIRE_TRAIL_TIME := 3.0
+const FIRE_TRAIL_STEP := 24.0
+
+# --- Magie : les héros s'y habituent (voir spells.gd et hero.gd) -------------------
+## Dès la vague SPELL_RESIST_FROM_WAVE, chaque nouvelle vague donne aux héros tant de
+## résistance à la magie en plus (dégâts des sorts et durée des envoûtements
+## réduits d'autant), sans dépasser SPELL_RESIST_MAX...
+const SPELL_RESIST_FROM_WAVE := 4
+const SPELL_RESIST_PER_WAVE := 0.04
+const SPELL_RESIST_MAX := 0.4
+## ... plus tant par rang de vétéran (il a déjà goûté à tes sorts).
+const SPELL_RESIST_PER_RANK := 0.1
+## L'Exorciste dissipe la magie à moins de tant de pixels, toutes les tant de secondes ...
+const EXORCIST_RADIUS := 112.0
+const EXORCIST_INTERVAL := 5.0
+## ... et dès la vague EXORCIST_SURE_WAVE, chaque vague en compte au moins un.
+const EXORCIST_SURE_WAVE := 8
+## Le Clerc, en soignant, libère aussi ses alliés de la Toile et de la Terreur.
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

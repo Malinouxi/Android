@@ -430,6 +430,24 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
   Réglages : partie « Tactiques des héros » de `rules.gd`.
 
+**Étape 40 — Le Seigneur modélisé dans Blender, médaillon et HUD en HD**
+- Le visage du médaillon est **modélisé dans Blender** (`tools/blender/lord.py` → `assets/models/lord.glb`,
+  ~1 000 faces) : même allure, plus agressif (arcade en V, grandes cornes annelées, babines retroussées
+  sur deux rangées de crocs, défenses, pupilles fendues, balafre, oreilles entaillées, gorgerin à pointes).
+- **Il reste branché** sur l'animation de `lord_portrait.gd` : ses pièces mobiles sont des pivots nommés
+  (`head`, `jaw`, `brow_*`, `lid_*`, `eye_*`, `pupil_*`, `lip_*`, `nostril_*`, `ear_*`, `tongue`, `smoke`).
+  Sans le `.glb`, on retrouve le visage construit en code.
+- **Nouvelles animations** : pupilles qui suivent le regard (fendues de colère, dilatées d'inquiétude),
+  babines qui se retroussent en grognant, naseaux qui respirent et se gonflent, oreilles qui frémissent,
+  se couchent (colère) ou se dressent (joie), langue fourchue qui sort quand il rit, tête qui avance
+  quand il rugit, fumée rougeoyante en colère. Au repos : rictus d'un côté, coup de langue sur les crocs.
+- **Médaillon et cadres HD rendus dans Blender** (`tools/blender/hud.py` → `assets/ui_hd/`) : médaillon
+  de pierre et fer riveté à cornes et crâne, cadre des panneaux, creux des compteurs, boutons (4 états),
+  bulle de parole. Rendus en double taille et affichés à moitié (`Ui.hd_frame`, « 9 zones ») : nets sur
+  téléphone. Sans les images, on retrouve les cadres dessinés. Le visage est découpé en rond dans
+  l'ouverture du médaillon, rendu lui aussi en double résolution.
+- Vérifier le portrait dans ses 4 humeurs : `godot --path . -s res://tools/portrait_test.gd`.
+
 **Étape 36 — La voix du Seigneur**
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu
@@ -652,7 +670,8 @@ tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
 tools/generate_music.py    Le script Python qui compose la musique gothique (OGG)
 tools/generate_voice.py    Le script Python qui enregistre la voix du Seigneur (OGG)
 tools/gothic_synth.py      Les instruments simulés (orgue, chœur, cordes, cloches...) et la réverbération
-tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb)
+tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb),
+                           du Seigneur du médaillon (lord.py) et des cadres HD du HUD (hud.py)
 ```
 
 Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau

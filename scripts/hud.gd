@@ -139,7 +139,10 @@ func _process(delta: float) -> void:
 # Les cadres : pierre volcanique, liseré de braise
 # ---------------------------------------------------------------------------
 
-func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBoxFlat:
+func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBox:
+	var hd := Ui.hd_frame("panel", 9) # Le cadre HD de Blender (tools/blender/hud.py).
+	if hd != null:
+		return hd
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0.06, 0.04, 0.04, alpha)
 	box.border_color = border.darkened(0.25)
@@ -170,7 +173,13 @@ func _counter(icon_name: String, label: Label, min_width := 0.0) -> PanelContain
 	style.set_content_margin_all(4)
 	style.content_margin_left = 6
 	style.content_margin_right = 12
-	slot.add_theme_stylebox_override("panel", style)
+	var hd := Ui.hd_frame("slot") # Le creux HD de Blender, s'il existe.
+	if hd != null:
+		hd.content_margin_left = 8
+		hd.content_margin_right = 10
+		hd.content_margin_top = 4
+		hd.content_margin_bottom = 4
+	slot.add_theme_stylebox_override("panel", hd if hd != null else style)
 	slot.custom_minimum_size.x = min_width
 	slot.add_child(_with_icon(hd(icon_name), label, 44))
 	return slot
@@ -330,13 +339,13 @@ func set_assault_button(text: String, attacking := false) -> void:
 ## Le portrait animé du Seigneur, dans son médaillon, à cheval sur la barre du haut.
 func _build_portrait() -> void:
 	portrait = LordPortrait.new()
-	portrait.position = Vector2(6, 2)
+	portrait.position = Vector2(6, 14) # Les cornes du cadre HD dépassent au-dessus.
 	_root.add_child(portrait)
 
 
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
-	_category_panel.position = Vector2(8, LordPortrait.SIZE + 8) # Sous le médaillon.
+	_category_panel.position = Vector2(8, LordPortrait.SIZE + 30) # Sous le médaillon (et son crâne).
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	_category_panel.add_child(column)

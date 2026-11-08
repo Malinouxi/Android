@@ -22,6 +22,15 @@ const STONE_LIGHT := Color("3d2f2b")
 const STONE_DARK := Color("140f0e")
 const WOOD := Color("7a2e1c")
 
+## Les cadres HD (pierre, fer riveté, braise), modélisés et rendus dans Blender par
+## tools/blender/hud.py. Les images sont deux fois trop grandes : on les affiche à
+## moitié de leur taille, pour qu'elles restent nettes sur un écran de téléphone.
+const HD_UI := "res://assets/ui_hd/%s.png"
+## Les marges « 9 zones » de chaque cadre, en pixels de l'image (MARGINS de hud.py).
+const HD_MARGINS := {"panel": 36, "slot": 22, "button": 24, "bubble": 26}
+
+var _hd_textures := {}
+
 
 func _ready() -> void:
 	get_tree().root.theme = build_theme()
@@ -37,16 +46,20 @@ func build_theme() -> Theme:
 	theme.default_font = font
 	theme.default_font_size = 24
 
-	# Les panneaux : pierre volcanique, liseré de braise.
-	theme.set_stylebox("panel", "PanelContainer", _box(Color(0.07, 0.05, 0.05, 0.94), EMBER.darkened(0.3), 3, 10))
+	# Les panneaux : pierre volcanique, liseré de braise (le cadre HD de Blender s'il existe).
+	theme.set_stylebox("panel", "PanelContainer", _or(hd_frame("panel", 12),
+			_box(Color(0.07, 0.05, 0.05, 0.94), EMBER.darkened(0.3), 3, 10)))
 
 	# Les boutons : des dalles de pierre avec un bord inférieur plus épais (effet de relief).
-	theme.set_stylebox("normal", "Button", _box(STONE, WOOD, 2, 6, 4, true))
-	theme.set_stylebox("hover", "Button", _box(STONE_LIGHT, WOOD.lightened(0.2), 2, 6, 4, true))
+	theme.set_stylebox("normal", "Button", _or(hd_frame("button_normal", 8), _box(STONE, WOOD, 2, 6, 4, true)))
+	theme.set_stylebox("hover", "Button", _or(hd_frame("button_hover", 8),
+			_box(STONE_LIGHT, WOOD.lightened(0.2), 2, 6, 4, true)))
 	# Enfoncé (ou outil sélectionné) : bordure dorée bien visible.
-	theme.set_stylebox("pressed", "Button", _box(WOOD, GOLD, 3, 6, 3))
-	theme.set_stylebox("hover_pressed", "Button", _box(WOOD.lightened(0.1), GOLD, 3, 6, 3))
-	theme.set_stylebox("disabled", "Button", _box(Color("2a2522"), STONE_DARK, 2, 6, 2))
+	theme.set_stylebox("pressed", "Button", _or(hd_frame("button_pressed", 8), _box(WOOD, GOLD, 3, 6, 3)))
+	theme.set_stylebox("hover_pressed", "Button", _or(hd_frame("button_pressed", 8),
+			_box(WOOD.lightened(0.1), GOLD, 3, 6, 3)))
+	theme.set_stylebox("disabled", "Button", _or(hd_frame("button_disabled", 8),
+			_box(Color("2a2522"), STONE_DARK, 2, 6, 2)))
 	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 	theme.set_color("font_color", "Button", TEXT_COLOR)
 	theme.set_color("font_hover_color", "Button", Color.WHITE)
@@ -67,6 +80,39 @@ func build_theme() -> Theme:
 ## Une boîte de couleur avec bordure et coins arrondis.
 ## bottom : épaisseur de la bordure du bas (plus épaisse = effet de relief).
 ## shadow : une petite ombre portée sous la boîte (effet de relief).
+## Un cadre HD (voir HD_UI) en « 9 zones » : les coins restent nets, les bords et le
+## centre s'étirent. content_margin : l'espace autour du contenu (-1 : les bords du
+## cadre). Renvoie null si l'image n'existe pas (on garde alors les cadres dessinés).
+func hd_frame(frame_name: String, content_margin := -1.0) -> StyleBoxTexture:
+	var texture := hd_texture(frame_name)
+	if texture == null:
+		return null
+	var box := StyleBoxTexture.new()
+	box.texture = texture
+	box.set_texture_margin_all(HD_MARGINS.get(frame_name.get_slice("_", 0), 16) / 2.0)
+	if content_margin >= 0.0:
+		box.set_content_margin_all(content_margin)
+	return box
+
+
+## Une image HD affichée à moitié de sa taille (null si elle n'existe pas).
+func hd_texture(image_name: String) -> Texture2D:
+	if _hd_textures.has(image_name):
+		return _hd_textures[image_name]
+	var file := HD_UI % image_name
+	var texture: ImageTexture = null
+	if ResourceLoader.exists(file):
+		var source: Texture2D = load(file)
+		texture = ImageTexture.create_from_image(source.get_image())
+		texture.set_size_override(source.get_size() / 2)
+	_hd_textures[image_name] = texture
+	return texture
+
+
+func _or(preferred: StyleBox, fallback: StyleBox) -> StyleBox:
+	return preferred if preferred != null else fallback
+
+
 ## Le style d'un bouton important (bordure dorée), par exemple « Continuer ».
 func primary_button_style() -> StyleBoxFlat:
 	return _box(Color("4e3b2a"), GOLD, 2, 6, 4, true)

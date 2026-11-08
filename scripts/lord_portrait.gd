@@ -20,7 +20,7 @@ signal advice_requested
 
 enum Mood { IDLE, ANGRY, HAPPY, WORRIED }
 
-const SIZE := 132.0          ## Taille du médaillon, en pixels.
+const SIZE := 148.0          ## Taille du médaillon, en pixels.
 const MODEL := "res://assets/models/lord.glb"
 ## Le cadre HD : son bord extérieur et l'ouverture du visage, en fractions de la
 ## demi-largeur de l'image (OUTER et INNER de tools/blender/hud.py).

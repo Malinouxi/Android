@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Les ICÔNES HD de l'interface (128 x 128), dans le style « peinture » de l'interface.
 
+REMPLACÉ par tools/blender/icons.py (icônes 3D de 256 x 256 rendues dans Blender) :
+relancer ce script-ci écraserait les icônes Blender par les anciens dessins 2D.
+
 Usage (depuis la racine du projet) :
     python3 tools/icons_hd.py
 

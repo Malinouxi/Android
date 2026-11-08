@@ -77,10 +77,10 @@ var _refresh_timer := 0.0
 
 const RED := Color("c62828")
 const LOG_LINES := 4 ## Nombre de messages gardés dans le journal.
-const TOP_HEIGHT := 84
-const TOOL_SIZE := 84 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
+const TOP_HEIGHT := 96
+const TOOL_SIZE := 96 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
 
-## Les icônes HD (128 x 128, dessinées par tools/icons_hd.py).
+## Les icônes HD (256 x 256, modélisées dans Blender par tools/blender/icons.py).
 static func hd(icon_name: String) -> Texture2D:
 	return load("res://assets/icons_hd/%s.png" % icon_name)
 
@@ -140,7 +140,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBox:
-	var hd := Ui.hd_frame("panel", 9) # Le cadre HD de Blender (tools/blender/hud.py).
+	var hd := Ui.hd_frame("panel", 14) # Le cadre HD de Blender (tools/blender/hud.py).
 	if hd != null:
 		return hd
 	var box := StyleBoxFlat.new()
@@ -181,7 +181,7 @@ func _counter(icon_name: String, label: Label, min_width := 0.0) -> PanelContain
 		hd.content_margin_bottom = 4
 	slot.add_theme_stylebox_override("panel", hd if hd != null else style)
 	slot.custom_minimum_size.x = min_width
-	slot.add_child(_with_icon(hd(icon_name), label, 44))
+	slot.add_child(_with_icon(hd(icon_name), label, 54))
 	return slot
 
 
@@ -189,28 +189,40 @@ func _build_top_panel() -> void:
 	_top_panel = _framed_panel()
 	_top_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_top_panel.offset_bottom = TOP_HEIGHT
+	# Des stalactites pendent sous la barre du haut (motif répété, tools/blender/hud.py).
+	var fringe_texture := Ui.hd_texture("fringe")
+	if fringe_texture != null:
+		var fringe := TextureRect.new()
+		fringe.texture = fringe_texture
+		fringe.stretch_mode = TextureRect.STRETCH_TILE
+		fringe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fringe.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		fringe.offset_top = TOP_HEIGHT - 8
+		fringe.offset_bottom = TOP_HEIGHT - 8 + fringe_texture.get_height()
+		_root.add_child(fringe)
+		_root.move_child(fringe, _top_panel.get_index())
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 6)
 	_top_panel.add_child(row)
 
 	# La place du portrait du Seigneur (posé par-dessus, voir _build_portrait).
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(LordPortrait.SIZE - 8.0, 60)
+	spacer.custom_minimum_size = Vector2(LordPortrait.SIZE - 20.0, 60)
 	row.add_child(spacer)
 
 	_gold_label = _make_label(28)
 	_gold_label.add_theme_color_override("font_color", Ui.GOLD)
-	row.add_child(_counter("gold", _gold_label, 140))
+	row.add_child(_counter("gold", _gold_label, 110))
 	_treasury_label = _make_label(16)
 	_treasury_label.add_theme_color_override("font_color", Color("d7ccc8"))
 	row.add_child(_treasury_label)
 	_mana_label = _make_label(26)
 	_mana_label.add_theme_color_override("font_color", Color("82b1ff"))
-	row.add_child(_counter("mana", _mana_label, 140))
+	row.add_child(_counter("mana", _mana_label, 128))
 	_creatures_label = _make_label(24)
-	row.add_child(_counter("skull", _creatures_label, 150))
+	row.add_child(_counter("skull", _creatures_label, 128))
 	_workers_label = _make_label(26)
-	row.add_child(_counter("worker", _workers_label, 80))
+	row.add_child(_counter("worker", _workers_label, 0))
 
 	# La vie du cœur : une grande barre rouge, avec sa valeur par-dessus.
 	var heart_box := HBoxContainer.new()
@@ -219,7 +231,7 @@ func _build_top_panel() -> void:
 	var heart_icon := TextureRect.new()
 	heart_icon.texture = hd("heart")
 	heart_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	heart_icon.custom_minimum_size = Vector2(44, 44)
+	heart_icon.custom_minimum_size = Vector2(48, 48)
 	heart_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	heart_box.add_child(heart_icon)
 	_heart_bar = _make_bar(RED, 30)
@@ -345,9 +357,12 @@ func _build_portrait() -> void:
 
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
-	_category_panel.position = Vector2(8, LordPortrait.SIZE + 30) # Sous le médaillon (et son crâne).
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
+	_category_panel.position = Vector2(8, LordPortrait.SIZE + 18) # Sous le médaillon (et son crâne).
+	# En grille de 2 x 2 : des boutons assez hauts pour des icônes lisibles.
+	var column := GridContainer.new()
+	column.columns = 2
+	column.add_theme_constant_override("h_separation", 4)
+	column.add_theme_constant_override("v_separation", 4)
 	_category_panel.add_child(column)
 	var group := ButtonGroup.new()
 	for tab_name: String in TABS:
@@ -359,9 +374,9 @@ func _build_category_panel() -> void:
 		button.expand_icon = true
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		button.custom_minimum_size = Vector2(96, 76)
+		button.custom_minimum_size = Vector2(96, 88)
 		button.add_theme_font_size_override("font_size", 16)
-		button.add_theme_constant_override("icon_max_width", 48)
+		button.add_theme_constant_override("icon_max_width", 60)
 		button.pressed.connect(func() -> void:
 			Sound.play("click")
 			_show_tab(tab_name))
@@ -529,7 +544,7 @@ func _make_tool_button(tool: int) -> Button:
 	button.button_pressed = tool == Tool.DIG
 	button.custom_minimum_size = Vector2(TOOL_SIZE, TOOL_SIZE)
 	button.add_theme_font_size_override("font_size", 17)
-	button.add_theme_constant_override("icon_max_width", 52)
+	button.add_theme_constant_override("icon_max_width", 64)
 	button.pressed.connect(func() -> void:
 		Sound.play("click")
 		_current_tool = tool

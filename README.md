@@ -430,6 +430,21 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
   Réglages : partie « Tactiques des héros » de `rules.gd`.
 
+**Étape 41 — HUD « caverne » et icônes 3D, le tout fait dans Blender**
+- **Les 30 icônes** (outils, salles, défenses, sorts, compteurs) sont **modélisées en 3D** dans Blender
+  (`tools/blender/icons.py` → `assets/icons_hd/`, 256 x 256) : formes lisses, métal et or qui brillent,
+  magie qui luit, chacune posée sur un **petit galet** de roche sombre, avec un contour sombre (Freestyle)
+  pour rester lisible en petit. L'emblème du maître reprend le visage du Seigneur (`lord.py`).
+- **Les cadres deviennent une caverne** (`tools/blender/hud.py`) : bords en basalte taillé à facettes,
+  **fissures de lave** qui rougeoient entre les roches, **stalactites** dans les coins du haut et sous la
+  barre du haut (`fringe.png`, motif répété), **cristaux** dans les coins du bas, rochers et cristaux
+  autour du médaillon. Boutons : braise discrète au repos, lave au survol, filon d'or quand ils sont
+  choisis. Les bords se **répètent** au lieu de s'étirer (`Ui.HD_TILED`) : aucune roche déformée, même
+  sur les grands panneaux. Le menu, la pause et le codex utilisent les mêmes cadres.
+- **Un peu plus grand** : barre du haut et boutons d'outils de 84 à 96 px, icônes des compteurs 54 px,
+  médaillon de 148 px, catégories en grille 2 x 2 (icônes de 60 px).
+- **Codex plus lisible** : texte de 19 à 24, titres de 26 à 32, liste de 18 à 22.
+
 **Étape 40 — Le Seigneur modélisé dans Blender, médaillon et HUD en HD**
 - Le visage du médaillon est **modélisé dans Blender** (`tools/blender/lord.py` → `assets/models/lord.glb`,
   ~1 000 faces) : même allure, plus agressif (arcade en V, grandes cornes annelées, babines retroussées

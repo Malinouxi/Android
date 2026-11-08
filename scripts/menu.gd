@@ -269,7 +269,10 @@ func _on_new_game_pressed() -> void:
 
 
 ## Un cadre de pierre sombre, au liseré rouge sang.
-func _stone_style(background: Color, border: int) -> StyleBoxFlat:
+func _stone_style(background: Color, border: int) -> StyleBox:
+	var hd := Ui.hd_frame("panel", 22) # Le cadre « caverne » de Blender, s'il existe.
+	if hd != null:
+		return hd
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = Color("7a1f14")

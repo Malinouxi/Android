@@ -29,6 +29,9 @@ signal stole(hero: Hero, amount: int)
 signal escaped(hero: Hero, amount: int)
 ## Émis quand le Moine ouvre une cellule.
 signal freed_prisoner(hero: Hero)
+## Émis quand le gardien (le Colosse) se réveille, ou se rendort.
+signal guardian_woke(hero: Hero)
+signal guardian_slept(hero: Hero)
 ## Émis quand le héros, gravement blessé, commence à battre en retraite.
 signal started_fleeing(hero: Hero)
 ## Émis quand le héros sort VIVANT par l'entrée (fuite, ou Voleuse avec son butin) :
@@ -83,6 +86,10 @@ var known_traps: Dictionary = {}
 var _veteran_traps: Dictionary = {}
 ## Le GARDIEN des profondeurs (le Colosse) ne quitte pas sa caverne : sa case.
 var home_cell := Vector2i(-1, -1)
+## Le gardien est-il réveillé ? Endormi, il n'attaque personne et tes créatures
+## l'ignorent. Il se réveille sur ordre du maître (assaut), ou s'il est blessé.
+var awake := false
+var _calm_left := 0.0
 ## Dégâts reçus de chaque espèce de créature : Creatures.Type -> dégâts.
 var _damage_by_species: Dictionary = {}
 
@@ -119,6 +126,8 @@ func to_save() -> Dictionary:
 		data["fleeing"] = true
 	if is_guardian():
 		data["home"] = SaveGame.cell_to_array(home_cell)
+		data["awake"] = awake
+		data["assault"] = Creature.assault_target == self
 	if not known_traps.is_empty():
 		var traps := []
 		for cell: Vector2i in known_traps:
@@ -324,10 +333,46 @@ func is_guardian() -> bool:
 	return Heroes.info(type).get("guardian", false)
 
 
-## Le gardien : il frappe ce qui s'approche de sa caverne, ne poursuit pas plus
-## loin que Rules.GUARDIAN_RADIUS, puis rentre et se remet de ses blessures.
+## Le Colosse endormi n'est pas une cible pour tes créatures, sauf pendant un
+## assaut ordonné par le maître (Creature.assault_target).
+func ignored_as_enemy() -> bool:
+	return is_guardian() and Creature.assault_target != self
+
+
+## Réveille le gardien (assaut du maître, sort, piège...).
+func wake_up() -> void:
+	if awake:
+		return
+	awake = true
+	_calm_left = Rules.GUARDIAN_CALM_TIME
+	Sound.play("horn", position, -6.0)
+	Fx.burst("dust", position)
+	Fx.shake(3.0, 0.3)
+	guardian_woke.emit(self)
+
+
+## Un gardien endormi qu'on blesse (sort, piège) se réveille.
+func take_damage(amount: float, source: Unit = null) -> void:
+	if is_guardian() and not awake and not is_dead():
+		wake_up()
+	super(amount, source)
+
+
+## Le gardien : endormi, il se repose dans sa caverne. Réveillé, il frappe ce qui
+## s'approche, ne poursuit pas plus loin que Rules.GUARDIAN_RADIUS, et se rendort
+## quand il ne voit plus personne pendant Rules.GUARDIAN_CALM_TIME secondes.
 func _guard(delta: float) -> void:
 	var home := map.cell_to_world(home_cell)
+	if not awake:
+		_target = null
+		if current_cell() == home_cell:
+			path.clear()
+			heal(Rules.GUARDIAN_REGEN * delta)
+		elif path.is_empty():
+			go_to(home_cell)
+		else:
+			move_along_path(delta)
+		return
 	if _target != null and (not is_instance_valid(_target) or not _target.is_targetable() \
 			or _target.position.distance_to(home) > Rules.GUARDIAN_RADIUS + 16.0):
 		_target = null
@@ -343,11 +388,17 @@ func _guard(delta: float) -> void:
 				_target = unit
 		if _target != null:
 			path.clear()
-			Sound.play("horn", position, -10.0) # Il s'éveille, furieux.
 	if _target != null:
+		_calm_left = Rules.GUARDIAN_CALM_TIME
 		if not fight(_target, delta):
 			_target = null
 			path.clear()
+		return
+	# Plus personne en vue : au bout d'un moment, il se rendort.
+	_calm_left -= delta
+	if _calm_left <= 0.0 and Creature.assault_target != self:
+		awake = false
+		guardian_slept.emit(self)
 		return
 	# Personne : il rentre dans sa caverne et s'y repose.
 	if current_cell() != home_cell:

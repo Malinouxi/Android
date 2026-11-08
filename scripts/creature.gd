@@ -25,6 +25,9 @@ signal sacrificed(hero: Hero)
 ## chercher ou à fabriquer ? (« static » : partagées par toutes les créatures.)
 static var research_needed := false
 static var workshop_needed := false
+## L'ASSAUT ordonné par le maître (bouton « Attaquer le Colosse ») : toutes les
+## créatures disponibles marchent sur cette cible (un gardien des profondeurs), ou null.
+static var assault_target = null
 
 enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING,
 		GOING_TO_WORK, WORKING, RAIDING, GOING_TO_CATCH, CARRYING }
@@ -612,6 +615,10 @@ func _update_combat(delta: float) -> void:
 	# Une créature endormie ne remarque que les héros tout proches.
 	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS * Traits.mult(traits, "aggro")
 	var enemy := find_nearest_enemy(radius)
+	# Assaut du maître : sans ennemi plus proche, on marche sur le Colosse (même de loin).
+	if enemy == null and state != State.SLEEPING and is_instance_valid(assault_target) \
+			and assault_target.is_targetable() and not is_catcher():
+		enemy = assault_target
 	if enemy == null:
 		# Personne à combattre, mais le cœur du rival est tout près : à l'attaque !
 		if state == State.WANDER and map.has_rival and map.rival_heart_hp > 0.0 \
@@ -619,7 +626,7 @@ func _update_combat(delta: float) -> void:
 			path.clear()
 			state = State.RAIDING
 		return
-	if state != State.FIGHTING:
+	if state != State.FIGHTING or not is_instance_valid(_enemy) or _enemy != enemy:
 		map.release_work_spot(self)
 		path.clear()
 		state = State.FIGHTING
@@ -627,6 +634,15 @@ func _update_combat(delta: float) -> void:
 
 
 ## Peureuse : elle quitte le combat et court se cacher dans son lit (où elle se soigne).
+## Le maître rappelle ses troupes : on cesse de se battre contre le Colosse et on rentre.
+func call_back() -> void:
+	if state == State.FIGHTING and is_instance_valid(_enemy) and _enemy is Hero and (_enemy as Hero).is_guardian():
+		_enemy = null
+		path.clear()
+		state = State.WANDER
+		go_to(map.heart_cell + Vector2i(randi_range(-2, 2), randi_range(-2, 2)))
+
+
 func _flee() -> void:
 	fleeing = true
 	_enemy = null

@@ -279,6 +279,12 @@ func take_damage(amount: float, source: Unit = null) -> void:
 		die()
 
 
+## Vrai si les unités du camp adverse ne doivent pas s'en prendre d'elles-mêmes à
+## celle-ci (hero.gd : le Colosse, tant que le maître n'a pas ordonné l'assaut).
+func ignored_as_enemy() -> bool:
+	return false
+
+
 ## Appelée quand une unité ennemie nous frappe (les créatures Rancunières et les
 ## héros s'en souviennent, voir creature.gd et hero.gd).
 func _on_damaged(_source: Unit, _amount: float) -> void:
@@ -320,6 +326,8 @@ func find_nearest_enemy(radius: float) -> Unit:
 		var distance := position.distance_to(unit.position)
 		if unit.stealthy and not keen_nose and distance > Rules.STEALTH_RADIUS:
 			continue # Trop discrète pour être repérée d'ici.
+		if unit.ignored_as_enemy():
+			continue # Le Colosse endormi : on ne l'attaque que sur ordre du maître.
 		if distance <= best_distance:
 			best = unit
 			best_distance = distance
@@ -374,7 +382,7 @@ func _apply_hit_abilities(target: Unit) -> void:
 		var enemy_group := _group_name(Team.HEROES if team == Team.DUNGEON else Team.DUNGEON)
 		for node in get_tree().get_nodes_in_group(enemy_group):
 			var other := node as Unit
-			if other != null and other != target and other.is_targetable() \
+			if other != null and other != target and other.is_targetable() and not other.ignored_as_enemy() \
 					and other.position.distance_to(target.position) <= splash_radius:
 				other.take_damage(attack_damage * SPLASH_FACTOR, self)
 		map.add_effect(target.position, splash_radius, Color(1.0, 0.5, 0.1, 0.6))

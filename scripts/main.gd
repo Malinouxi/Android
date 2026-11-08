@@ -200,6 +200,8 @@ func _ready() -> void:
 	map.secret_hinted.connect(_on_secret_hinted)
 	map.secret_revealed.connect(_on_secret_revealed)
 	map.lava_flowed.connect(_on_lava_flowed)
+	hud.assault_pressed.connect(_on_assault_pressed)
+	Creature.assault_target = null # (Variable partagée : on repart de zéro à chaque partie.)
 
 	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
@@ -616,8 +618,8 @@ func _on_secret_revealed(kind: String, center: Vector2i) -> void:
 			var colossus := _add_hero(Heroes.Type.COLOSSUS, center)
 			Sound.play("door_break", at)
 			Fx.flash_light(at, Color(1.0, 0.5, 0.2), 200.0, 0.8)
-			hud.show_message("Tes ouvriers ont réveillé le COLOSSE ENDORMI ! Il garde un trésor (%d or) et frappe tout ce qui approche. Vaincu, il te servira." %
-					Rules.COLOSSUS_HOARD, 7.0)
+			hud.show_message("Tes ouvriers ont découvert le COLOSSE ENDORMI ! Il garde un trésor (%d or). Tant qu'il dort, tes créatures l'ignorent : quand tu seras prêt, touche « Attaquer le Colosse ». Vaincu, il te servira." %
+					Rules.COLOSSUS_HOARD, 8.0)
 			colossus.queue_redraw()
 		"lava":
 			Sound.play("explosion", at)
@@ -650,6 +652,46 @@ func _on_secret_revealed(kind: String, center: Vector2i) -> void:
 				Fx.burst("magic", spectre.position, Color("80d8ff"))
 			Sound.play("horn", at, -6.0)
 			hud.show_message("%d spectres gardiens se réveillent et marchent sur ton cœur !" % Rules.RUIN_SPECTRES, 5.0)
+
+
+## Le Colosse des profondeurs encore en vie (ou null).
+func _guardian() -> Hero:
+	for node in heroes_root.get_children():
+		var hero := node as Hero
+		if hero != null and hero.is_guardian() and not hero.is_dead() and not hero.is_queued_for_deletion():
+			return hero
+	return null
+
+
+func _refresh_assault_button() -> void:
+	var guardian := _guardian()
+	if guardian == null:
+		Creature.assault_target = null
+		hud.set_assault_button("")
+	elif Creature.assault_target == guardian:
+		hud.set_assault_button("Rappeler les troupes", true)
+	else:
+		hud.set_assault_button("Attaquer le Colosse")
+
+
+## Le bouton d'assaut : toutes tes créatures disponibles marchent sur le Colosse
+## (il se réveille) ; un second appui les rappelle.
+func _on_assault_pressed() -> void:
+	var guardian := _guardian()
+	if guardian == null:
+		return
+	if Creature.assault_target == guardian:
+		Creature.assault_target = null
+		for node in creatures_root.get_children():
+			(node as Creature).call_back()
+		hud.show_message("Tes créatures se replient. Le Colosse se rendormira bientôt.", 4.0)
+	else:
+		Creature.assault_target = guardian
+		guardian.wake_up()
+		camera.center_on(guardian.position)
+		Sound.play("horn")
+		hud.show_message("À l'assaut du Colosse ! Toutes tes créatures disponibles marchent sur sa caverne.", 5.0)
+	_refresh_assault_button()
 
 
 ## La lave coule sur une case : les unités qui s'y trouvent sont brûlées et
@@ -732,6 +774,11 @@ func _add_hero(type: int, cell: Vector2i) -> Hero:
 	hero.setup_hero(map, cell, type)
 	if hero.is_guardian():
 		map.guarded[cell] = true # Ses abords sont interdits aux ouvriers tant qu'il vit.
+		hero.guardian_woke.connect(func(_h: Hero) -> void:
+			if Creature.assault_target != _h:
+				hud.show_message("Le Colosse s'est réveillé ! Éloigne tes créatures, ou touche « Attaquer le Colosse ».", 5.0))
+		hero.guardian_slept.connect(func(_h: Hero) -> void:
+			hud.show_message("Le Colosse se rendort dans sa caverne.", 3.0))
 	hero.died.connect(_on_hero_died)
 	hero.captured.connect(_on_hero_captured)
 	hero.fell.connect(func(_hero: Hero) -> void:
@@ -1112,6 +1159,9 @@ func _load_game(data: Dictionary) -> bool:
 			map.guarded.erase(hero.home_cell)
 			hero.home_cell = SaveGame.array_to_cell(values["home"])
 			map.guarded[hero.home_cell] = true
+			hero.awake = bool(values.get("awake", false))
+			if values.get("assault", false):
+				Creature.assault_target = hero
 		hero.hp = float(values["hp"])
 		hero.loot = int(values.get("loot", 0))
 
@@ -1270,6 +1320,7 @@ func _refresh_hud() -> void:
 		research_text += "\nAtelier : %s %d %%" % [Defenses.display_name(workshop_target),
 				100.0 * workshop_points / Defenses.cost(workshop_target)]
 	hud.set_research(research_text)
+	_refresh_assault_button()
 	_refresh_tools()
 
 

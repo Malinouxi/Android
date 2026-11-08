@@ -21,6 +21,8 @@ signal menu_pressed
 signal next_level_pressed
 signal codex_pressed
 signal tool_selected(tool: int)
+## Le bouton d'assaut contre le Colosse des profondeurs (sous l'objectif).
+signal assault_pressed
 
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
@@ -47,6 +49,7 @@ var _summon_button: Button
 var _mana_label: Label
 var _research_label: Label
 var _goal_label: Label
+var _assault_button: Button
 var _tool_name_label: Label
 var _hand_label: Label
 var _log_box: VBoxContainer
@@ -305,6 +308,22 @@ func _build_goal_panel() -> void:
 	_research_label.custom_minimum_size = Vector2(250, 0)
 	_research_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_research_label)
+	# L'assaut contre le Colosse : visible seulement quand un Colosse est réveillé... ou endormi.
+	_assault_button = Button.new()
+	_assault_button.custom_minimum_size = Vector2(250, 56)
+	_assault_button.add_theme_font_size_override("font_size", 20)
+	_assault_button.visible = false
+	_assault_button.pressed.connect(func() -> void:
+		Sound.play("click")
+		assault_pressed.emit())
+	column.add_child(_assault_button)
+
+
+## Montre (ou cache, text = "") le bouton d'assaut, avec son texte.
+func set_assault_button(text: String, attacking := false) -> void:
+	_assault_button.visible = text != ""
+	_assault_button.text = text
+	_assault_button.add_theme_color_override("font_color", Color("ffb74d") if attacking else Color("ff6b6b"))
 
 
 ## La colonne de gauche : les catégories d'outils, en grandes icônes.

@@ -23,6 +23,7 @@ const CHANGELOG := [
 		"Le Colosse endormi : un gardien neutre qui veille sur un trésor. Il ne quitte pas sa caverne, mais frappe fort. Vaincu, il se soumet et te sert.",
 		"Le lac de lave : la lave se déverse dans tes couloirs (elle brûle tout ce qui s'y trouve et peut couper un passage), puis se fige en filons d'or volcanique 3 fois plus riches.",
 		"La ruine oubliée : son savoir perdu te donne 2 découvertes d'un coup... mais elle libère des spectres qui marchent sur ton cœur.",
+		"Le Colosse DORT tant que tu ne l'attaques pas : tes créatures passent devant sa caverne sans le déranger. Quand tu es prêt, le bouton « Attaquer le Colosse » (sous l'objectif) envoie toutes tes créatures ; « Rappeler les troupes » arrête l'assaut.",
 	]},
 	{"version": "2.2", "changes": [
 		"Traits de caractère : chaque créature arrive avec 1 ou 2 traits (Avare, Peureuse, Bagarreuse, Rancunière, Pieuse, Gourmande, Insomniaque, Studieuse, Paresseuse, Coquette, Solitaire, Robuste). Ils sont sur sa fiche et dans le codex.",
@@ -211,6 +212,10 @@ const DEEP_SECRETS := 3
 const DEEP_SECRET_MIN_DISTANCE := 15
 ## Le Colosse endormi garde un tas d'or de cette taille.
 const COLOSSUS_HOARD := 800
+## Il DORT tant que tu ne l'attaques pas (bouton « Attaquer le Colosse », un sort ou un
+## piège) : tes créatures passent à côté sans le voir. Réveillé, s'il ne voit plus
+## personne pendant tant de secondes, il se rendort.
+const GUARDIAN_CALM_TIME := 8.0
 ## Il ne s'éloigne pas de sa caverne de plus de tant de pixels (une case = 32) ...
 const GUARDIAN_RADIUS := 128.0
 ## ... et, sans ennemi, il regagne tant de vie par seconde.

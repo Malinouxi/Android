@@ -21,6 +21,8 @@ signal menu_pressed
 signal next_level_pressed
 signal codex_pressed
 signal tool_selected(tool: int)
+## Le bouton d'assaut contre le Colosse des profondeurs (sous l'objectif).
+signal assault_pressed
 
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
@@ -47,6 +49,7 @@ var _summon_button: Button
 var _mana_label: Label
 var _research_label: Label
 var _goal_label: Label
+var _assault_button: Button
 var _tool_name_label: Label
 var _hand_label: Label
 var _log_box: VBoxContainer
@@ -136,7 +139,10 @@ func _process(delta: float) -> void:
 # Les cadres : pierre volcanique, liseré de braise
 # ---------------------------------------------------------------------------
 
-func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBoxFlat:
+func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBox:
+	var hd := Ui.hd_frame("panel", 9) # Le cadre HD de Blender (tools/blender/hud.py).
+	if hd != null:
+		return hd
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0.06, 0.04, 0.04, alpha)
 	box.border_color = border.darkened(0.25)
@@ -167,7 +173,13 @@ func _counter(icon_name: String, label: Label, min_width := 0.0) -> PanelContain
 	style.set_content_margin_all(4)
 	style.content_margin_left = 6
 	style.content_margin_right = 12
-	slot.add_theme_stylebox_override("panel", style)
+	var hd := Ui.hd_frame("slot") # Le creux HD de Blender, s'il existe.
+	if hd != null:
+		hd.content_margin_left = 8
+		hd.content_margin_right = 10
+		hd.content_margin_top = 4
+		hd.content_margin_bottom = 4
+	slot.add_theme_stylebox_override("panel", hd if hd != null else style)
 	slot.custom_minimum_size.x = min_width
 	slot.add_child(_with_icon(hd(icon_name), label, 44))
 	return slot
@@ -305,19 +317,35 @@ func _build_goal_panel() -> void:
 	_research_label.custom_minimum_size = Vector2(250, 0)
 	_research_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_research_label)
+	# L'assaut contre le Colosse : visible seulement quand un Colosse est réveillé... ou endormi.
+	_assault_button = Button.new()
+	_assault_button.custom_minimum_size = Vector2(250, 56)
+	_assault_button.add_theme_font_size_override("font_size", 20)
+	_assault_button.visible = false
+	_assault_button.pressed.connect(func() -> void:
+		Sound.play("click")
+		assault_pressed.emit())
+	column.add_child(_assault_button)
+
+
+## Montre (ou cache, text = "") le bouton d'assaut, avec son texte.
+func set_assault_button(text: String, attacking := false) -> void:
+	_assault_button.visible = text != ""
+	_assault_button.text = text
+	_assault_button.add_theme_color_override("font_color", Color("ffb74d") if attacking else Color("ff6b6b"))
 
 
 ## La colonne de gauche : les catégories d'outils, en grandes icônes.
 ## Le portrait animé du Seigneur, dans son médaillon, à cheval sur la barre du haut.
 func _build_portrait() -> void:
 	portrait = LordPortrait.new()
-	portrait.position = Vector2(6, 2)
+	portrait.position = Vector2(6, 14) # Les cornes du cadre HD dépassent au-dessus.
 	_root.add_child(portrait)
 
 
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
-	_category_panel.position = Vector2(8, LordPortrait.SIZE + 8) # Sous le médaillon.
+	_category_panel.position = Vector2(8, LordPortrait.SIZE + 30) # Sous le médaillon (et son crâne).
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	_category_panel.add_child(column)
@@ -469,6 +497,8 @@ func _refresh_unit_panel() -> void:
 	var details := "Vie %d / %d   Humeur %d %%\n" % [_selected.hp, _selected.max_hp, _selected.happiness]
 	if not _selected.is_undead():
 		details += "Faim %d %%   Énergie %d %%\n" % [_selected.hunger, _selected.energy]
+	if not _selected.traits.is_empty():
+		details += "Traits : %s\n" % Traits.names(_selected.traits)
 	details += "Tâche : %s\nSalaire : %d or" % [_selected.activity_text(), _selected.salary()]
 	_unit_details.text = details
 
@@ -688,8 +718,11 @@ func set_summon_cost(cost: int) -> void:
 ## Les sortes de messages du journal : mots-clés -> couleur et petite pastille.
 ## Le premier groupe dont un mot apparaît dans le message gagne.
 const MESSAGE_KINDS := [
+	# Les combos de pièges d'abord (leur texte parle aussi de héros).
+	{"words": ["combo"], "color": Color("b388ff"), "mark": "*"},
 	{"words": ["attaqu", "héros", "vague", "champion", "voleuse", "moine", "pillé", "enfui", "enfoncé",
-			"détruit", "mort au combat", "tué"], "color": Color("ff5a5a"), "mark": "!"},
+			"détruit", "mort au combat", "tué", "retraite", "échapp", "reviennent", "vengeance"],
+			"color": Color("ff5a5a"), "mark": "!"},
 	{"words": ["pas assez", "impossible", "plein", "aucun", "aucune", "touche ", "construis", "dépose",
 			"attend", "sans lit", "mécontent", "quitte"], "color": Color("ffa94d"), "mark": "?"},
 	{"words": ["découvert", "découverte", "recherche", "fabriqu", "atelier", "bibliothèque"],

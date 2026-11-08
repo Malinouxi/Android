@@ -511,6 +511,26 @@ static func prop(kind: String) -> Node3D:
 			for i in 7:
 				box(root, Vector3(0.07, 0.2, 0.18), Vector3(-0.27 + i * 0.09, 0.2 + shelf * 0.27, -0.2),
 						Color(colors[(i + shelf * 2) % colors.size()]))
+	elif kind == "ruin_column":
+		# Une colonne brisée d'une ruine oubliée, avec un bloc tombé à ses pieds.
+		var old_stone := Color("8a8478")
+		box(root, Vector3(0.36, 0.08, 0.36), Vector3(0, 0.04, 0), old_stone.darkened(0.2))
+		cylinder(root, 0.12, 0.13, 0.7, Vector3(0, 0.43, 0), old_stone)
+		var broken := box(root, Vector3(0.22, 0.12, 0.2), Vector3(0.05, 0.84, 0), old_stone.lightened(0.1))
+		broken.rotation.z = 0.35
+		var fallen := cylinder(root, 0.11, 0.11, 0.36, Vector3(0.24, 0.1, 0.2), old_stone.darkened(0.1))
+		fallen.rotation.z = PI / 2
+		fallen.rotation.y = 0.6
+	elif kind == "ruin_lectern":
+		# Le pupitre de pierre d'une ruine, et son grimoire qui luit (violet).
+		var old_stone := Color("8a8478")
+		box(root, Vector3(0.4, 0.08, 0.4), Vector3(0, 0.04, 0), old_stone.darkened(0.2))
+		box(root, Vector3(0.16, 0.5, 0.16), Vector3(0, 0.33, 0), old_stone)
+		var top := box(root, Vector3(0.42, 0.06, 0.32), Vector3(0, 0.6, 0), old_stone.lightened(0.1))
+		top.rotation.x = -0.35
+		var book := box(root, Vector3(0.3, 0.05, 0.22), Vector3(0, 0.66, 0.01), Color("9c6bff"), true)
+		book.rotation.x = -0.35
+		anim["glow"] = book
 	elif kind == "anvil":
 		box(root, Vector3(0.24, 0.2, 0.24), Vector3(0, 0.1, 0), Color("795548"))
 		box(root, Vector3(0.18, 0.12, 0.14), Vector3(0, 0.26, 0), Color("546e7a"))

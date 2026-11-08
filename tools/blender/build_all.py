@@ -21,6 +21,7 @@ import cast  # noqa: E402
 import demon  # noqa: E402
 import humanoid  # noqa: E402
 import knight  # noqa: E402
+import lord  # noqa: E402
 import lowpoly  # noqa: E402
 import rooms  # noqa: E402
 
@@ -28,12 +29,13 @@ MODELS = os.path.join(os.path.dirname(os.path.dirname(HERE)), "assets", "models"
 
 
 def run():
-    for module in (lowpoly, humanoid, cast, beasts, demon, knight, rooms):
+    for module in (lowpoly, humanoid, cast, beasts, demon, knight, lord, rooms):
         importlib.reload(module)
     os.makedirs(MODELS, exist_ok=True)
     path = lambda name: os.path.join(MODELS, name + ".glb")  # noqa: E731
     demon.build(path("demon"))
     knight.build(path("knight"))
+    lord.build(path("lord"))  # Le visage du médaillon du HUD.
     for name in cast.CHARACTERS:
         cast.build(name, path(name))
     for name in beasts.BUILDERS:

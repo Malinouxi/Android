@@ -94,6 +94,25 @@ static func number(map_position: Vector2, value: float, color := Color.WHITE) ->
 	tween.chain().tween_callback(label.queue_free)
 
 
+## Un petit texte qui s'envole et s'efface (le nom d'un combo de pièges...).
+static func text(map_position: Vector2, value: String, color := Color.WHITE) -> void:
+	if not is_ready():
+		return
+	var label := Label.new()
+	label.text = value
+	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color.BLACK)
+	label.add_theme_constant_override("outline_size", 6)
+	layer.add_child(label)
+	label.position = to_screen(map_position) + Vector2(-label.get_combined_minimum_size().x / 2, -64)
+	var tween := label.create_tween()
+	tween.set_parallel()
+	tween.tween_property(label, "position:y", label.position.y - 36.0, 1.2)
+	tween.tween_property(label, "modulate:a", 0.0, 0.6).set_delay(0.8)
+	tween.chain().tween_callback(label.queue_free)
+
+
 ## Un personnage qui meurt : sa dernière image bascule sur le côté, tombe et s'efface.
 static func death_fall(map_position: Vector2, texture: Texture2D, sprite_scale: float, facing_left: bool,
 		tint: Color) -> void:

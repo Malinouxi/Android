@@ -55,6 +55,8 @@ const GEM_TINT := Color(0.55, 0.75, 1.0)
 ## Le feu des braseros : rouge comme ton cœur, violet pour le maître rival.
 const HEART_FIRE := Color(1.0, 0.22, 0.12)
 const RIVAL_FIRE := Color(0.7, 0.3, 1.0)
+const LAVA_GLOW := Color(1.0, 0.38, 0.08)  ## La lueur de la lave.
+const RUIN_GLOW := Color(0.55, 0.4, 1.0)   ## La lueur du grimoire d'une ruine.
 var _brazier_lights := {} ## case -> OmniLight3D
 ## Les salles dont l'objet occupe plusieurs cases (un seul modèle par objet).
 const MULTI_CELL_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
@@ -343,11 +345,25 @@ func _make_unit(unit: Unit) -> Dictionary:
 		mood_bar.mesh = _quad_mesh(Vector2(BAR_WIDTH, 0.04))
 		mood_bar.position.y = 0.08
 		bars.add_child(mood_bar)
+	# Au-dessus des héros : le nom d'un vétéran, « fuit ! » pendant une retraite.
+	var title: Label3D = null
+	if unit is Hero:
+		title = Label3D.new()
+		title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		title.no_depth_test = true
+		title.fixed_size = false
+		title.pixel_size = 0.004
+		title.font_size = 48
+		title.outline_size = 12
+		title.outline_modulate = Color(0, 0, 0, 0.9)
+		title.position.y = bars.position.y + 0.22
+		title.visible = false
+		holder.add_child(title)
 	var parts: Array[MeshInstance3D] = []
 	_collect_parts(model, parts)
 	return {"holder": holder, "model": model, "rig": model.get_meta("rig"), "ring": ring, "sack": sack,
 			"bars": bars, "hp": hp_bar, "mood": mood_bar, "parts": parts, "flash": false,
-			"last": unit.position, "phase": randf() * TAU}
+			"last": unit.position, "phase": randf() * TAU, "title": title}
 
 
 func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
@@ -379,6 +395,8 @@ func _fall_and_vanish(data: Dictionary) -> void:
 	var model: Node3D = data["model"]
 	data["bars"].visible = false
 	data["ring"].visible = false
+	if data["title"] != null:
+		data["title"].visible = false
 	var tween := holder.create_tween()
 	tween.tween_property(model, "rotation:x", -PI / 2, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_interval(0.4)
@@ -419,6 +437,13 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		for part: MeshInstance3D in data["parts"]:
 			part.material_overlay = _flash_material if flashing else null
 	data["ring"].visible = unit.is_hasted()
+	var title: Label3D = data["title"]
+	if title != null:
+		var text: String = hero.overhead_text()
+		title.visible = text != ""
+		if title.visible:
+			title.text = text
+			title.modulate = Color("ffd54a") if hero.is_veteran() else Color.WHITE
 	var gold := int(unit.get("carried_gold") if unit.get("carried_gold") != null else 0)
 	gold += int(unit.get("loot") if unit.get("loot") != null else 0)
 	data["sack"].visible = gold > 0
@@ -522,6 +547,26 @@ func _rebuild() -> void:
 			add_child(chunk)
 			_chunks.append(chunk)
 	_rebuild_props()
+
+
+## Le matériau de la lave : il brille tout seul (émission), même dans le noir.
+func _lava_tool(tools: Dictionary) -> SurfaceTool:
+	if not tools.has("lava"):
+		if not _materials.has("lava"):
+			var material := StandardMaterial3D.new()
+			material.albedo_texture = Art.FLOOR[0]
+			material.albedo_color = Color(1.0, 0.45, 0.12)
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+			material.emission_enabled = true
+			material.emission = Color(1.0, 0.32, 0.05)
+			material.emission_energy_multiplier = 1.6
+			material.emission_texture = Art.FLOOR[0]
+			material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			_materials["lava"] = material
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		tools["lava"] = [st, _materials["lava"]]
+	return tools["lava"][0]
 
 
 ## Le SurfaceTool d'un matériau (une image, une teinte, transparente ou non).
@@ -664,6 +709,10 @@ func _box(st: SurfaceTool, center: Vector3, right: Vector3, normal: Vector3, siz
 func _add_floor(tools: Dictionary, cell: Vector2i) -> void:
 	var texture: Texture2D
 	var tint := Color.WHITE
+	if map.is_lava(cell):
+		# La lave (un secret des profondeurs) : lumineuse, même dans le noir.
+		_flat(_lava_tool(tools), cell, 0.0)
+		return
 	if map.rooms.has(cell):
 		# Les salles ont un sol de dalles, à peine teinté de leur couleur.
 		texture = FLOOR_STONE
@@ -744,6 +793,8 @@ func _cell_signature(cell: Vector2i) -> String:
 				parts.append("brazier")
 	if map.rival_braziers.has(cell):
 		parts.append("brazier_rival")
+	if map.ruins.has(cell):
+		parts.append("ruin_" + String(map.ruins[cell])) # Colonne brisée ou pupitre au grimoire.
 	if map.loose_gold.has(cell):
 		parts.append("gold_%d" % clampi(int(map.loose_gold[cell]) / 40, 0, 4))
 	if map.construction.has(cell):
@@ -796,6 +847,10 @@ func _rebuild_props() -> void:
 				wanted_braziers[cell] = HEART_FIRE
 			if sig.contains("candelabra"):
 				wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
+			if map.is_lava(cell) and posmod(x + y * 2, 3) == 0:
+				wanted_braziers[cell] = LAVA_GLOW # La lave éclaire la caverne (une lumière sur trois cases).
+			if sig.contains("ruin_lectern"):
+				wanted_braziers[cell] = RUIN_GLOW
 			var old: Dictionary = _cell_props.get(cell, {})
 			if old.get("sig", "") == sig:
 				continue
@@ -1005,6 +1060,11 @@ func _build_environment() -> void:
 	add_child(sun)
 
 
+## La lueur d'une entrée des héros (la seconde s'ouvre en cours de partie).
+func add_entrance_light(cell: Vector2i) -> void:
+	_light(to_3d(map.cell_to_world(cell), 1.2), Color(0.8, 0.85, 1.0), 4.0, 1.0)
+
+
 func _light(at: Vector3, color: Color, light_range: float, energy: float) -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.position = at
@@ -1073,3 +1133,5 @@ func _build_heart_and_portal() -> void:
 	add_child(portal)
 	_light(portal.position, Color(0.7, 0.4, 1.0), 5.0, 1.6)
 	_light(to_3d(map.cell_to_world(map.entrance_cell), 1.2), Color(0.8, 0.85, 1.0), 4.0, 1.0)
+	for gate in map.extra_entrances:
+		add_entrance_light(gate)

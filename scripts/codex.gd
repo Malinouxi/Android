@@ -185,9 +185,11 @@ func _spell_img(type: int) -> String:
 func _build_articles() -> Array:
 	var articles: Array = CodexContent.ARTICLES.duplicate()
 	articles.append({"category": "Catalogues", "title": "Créatures", "text": _creatures_table()})
+	articles.append({"category": "Catalogues", "title": "Traits des créatures", "text": _traits_table()})
 	articles.append({"category": "Catalogues", "title": "Héros", "text": _heroes_table()})
 	articles.append({"category": "Catalogues", "title": "Salles", "text": _rooms_table()})
 	articles.append({"category": "Catalogues", "title": "Défenses", "text": _defenses_table()})
+	articles.append({"category": "Catalogues", "title": "Combos de pièges", "text": _combos_table()})
 	articles.append({"category": "Catalogues", "title": "Sorts", "text": _spells_table()})
 	articles.append({"category": "Catalogues", "title": "Recherche", "text": _research_table()})
 	articles.append({"category": "Règles", "title": "Nouveautés", "text": _changelog()})
@@ -234,6 +236,8 @@ func _abilities(info: Dictionary) -> String:
 		parts.append("garde le %s" % Rooms.display_name(info["guard"]))
 	if info.has("war_cry"):
 		parts.append("cri de guerre")
+	if info.get("guardian", false):
+		parts.append("garde sa caverne")
 	if info["range"] > 50.0:
 		parts.append("à distance")
 	return ", ".join(parts) if not parts.is_empty() else "-"
@@ -257,6 +261,8 @@ func _creatures_table() -> String:
 			var per := ("%d par %s" % [roundi(each), Rooms.display_name(info["limit_room"])]) if each >= 1.0 \
 					else ("1 pour %d %s" % [roundi(1.0 / each), Rooms.display_name(info["limit_room"])])
 			requires.append("max %s (%d en tout)" % [per, info["limit_max"]])
+		if info.get("ancient", false):
+			requires.append("vaincre le Colosse endormi")
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
 				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"
@@ -269,8 +275,35 @@ func _heroes_table() -> String:
 		var wave: String = "rival" if info.get("rival", false) else str(info["first_wave"])
 		if info.get("boss", false):
 			wave = "1 vague sur %d" % Heroes.CHAMPION_EVERY
+		elif info.get("no_capture", false):
+			wave = "profondeurs"
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(wave) + _cell(roundi(info["hp"])) \
 				+ _cell(roundi(info["damage"])) + _cell(_abilities(info))
+	return text + "[/table]"
+
+
+func _traits_table() -> String:
+	var text := "Chaque créature arrive avec 1 trait de caractère (une fois sur deux, 2). Touche-la avec l'outil Creuser pour voir les siens.\n\n"
+	text += "[table=2]" + _header(["Trait", "Effet"])
+	for id: String in Traits.INFO:
+		text += _cell("[color=#ffd54a]%s[/color]" % Traits.INFO[id]["name"]) + _cell(Traits.INFO[id]["text"])
+	return text + "[/table]"
+
+
+## Les combos SECRETS : un indice tant qu'on ne les a pas déclenchés.
+func _combos_table() -> String:
+	var text := "Certaines défenses se renforcent quand on les combine. Découvertes : %d / %d.\n\n" % [
+			Combos.discovered_count(), Combos.INFO.size()]
+	text += "[table=3]" + _header(["", "Combo", "Effet"])
+	for id: String in Combos.INFO:
+		var info: Dictionary = Combos.INFO[id]
+		if Combos.is_discovered(id):
+			var images := ""
+			for path: String in info["images"]:
+				images += _img(path, TABLE_IMAGE_SIZE)
+			text += _cell(images) + _cell("[color=#ffd54a]%s[/color]" % info["name"]) + _cell(info["text"])
+		else:
+			text += _cell("?") + _cell("???") + _cell("[i]Indice : %s[/i]" % info["hint"])
 	return text + "[/table]"
 
 

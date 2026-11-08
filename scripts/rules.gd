@@ -14,10 +14,30 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.1"
+const VERSION := "2.4"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.4", "changes": [
+		"Escouades : les grandes vagues se divisent en 2 ou 3 groupes. Le gros de la troupe prend le chemin le plus court, les flanqueurs en cherchent un autre, les sapeurs (surtout les Nains) percent un tunnel tout droit vers le cœur.",
+		"Objectifs : une vague sur deux (dès la vague 3) a un but annoncé : piller le Trésor, libérer les prisonniers, saccager la Bibliothèque, chasser les ouvriers ou abattre ta meilleure créature.",
+		"Tactiques : chaque escouade se regroupe à l'entrée avant d'avancer ; si la moitié tombe, les survivants battent en retraite ensemble ; Clercs, Archers et Magiciennes restent à distance ; les héros fragiles évitent tes créatures redoutables.",
+		"Seconde entrée : à la vague 5, un éboulement ouvre une nouvelle entrée grise ailleurs sur la carte. Les escouades se répartissent entre les deux.",
+		"Éclaireur : avant certaines vagues, un éclaireur visite ton donjon. S'il ressort vivant, la vague suivante connaît tes pièges et les évite.",
+	]},
+	{"version": "2.3", "changes": [
+		"Les profondeurs : chaque carte cache 3 secrets loin du cœur. Creuser à côté donne un indice ; creuser une case qui les touche les réveille.",
+		"Le Colosse endormi : un gardien neutre qui veille sur un trésor. Il ne quitte pas sa caverne, mais frappe fort. Vaincu, il se soumet et te sert.",
+		"Le lac de lave : la lave se déverse dans tes couloirs (elle brûle tout ce qui s'y trouve et peut couper un passage), puis se fige en filons d'or volcanique 3 fois plus riches.",
+		"La ruine oubliée : son savoir perdu te donne 2 découvertes d'un coup... mais elle libère des spectres qui marchent sur ton cœur.",
+		"Le Colosse DORT tant que tu ne l'attaques pas : tes créatures passent devant sa caverne sans le déranger. Quand tu es prêt, le bouton « Attaquer le Colosse » (sous l'objectif) envoie toutes tes créatures ; « Rappeler les troupes » arrête l'assaut.",
+	]},
+	{"version": "2.2", "changes": [
+		"Traits de caractère : chaque créature arrive avec 1 ou 2 traits (Avare, Peureuse, Bagarreuse, Rancunière, Pieuse, Gourmande, Insomniaque, Studieuse, Paresseuse, Coquette, Solitaire, Robuste). Ils sont sur sa fiche et dans le codex.",
+		"Les héros battent en retraite : sous 25 % de vie, ils fuient vers l'entrée grise. Rattrape-les !",
+		"Les vétérans : un héros qui s'échappe (ou une Voleuse qui s'enfuit) revient 1 ou 2 vagues plus tard avec un nom, plus fort. Il évite les pièges qui l'ont blessé (et ils lui font moins mal), et en veut à l'espèce qui l'a le plus abîmé.",
+		"Combos de pièges secrets (6) : Rune de feu, Réaction en chaîne, Pointes ardentes, Empalement, Détonation, Porte hérissée. Le codex donne un indice pour ceux que tu n'as pas encore découverts.",
+	]},
 	{"version": "2.1", "changes": [
 		"Les salles se construisent d'un seul bloc, à leur taille : Bibliothèque 2 x 3, Entraînement 2 x 4, Temple 2 x 3, Atelier 2 x 2, Prison 2 x 2 (4 cellules), Trésor 1 x 2. Le prix est celui de la salle entière.",
 		"Les ouvriers montent des échafaudages sur les grands chantiers, et l'objet sort de terre petit à petit.",
@@ -191,6 +211,122 @@ const STEALTH_RADIUS := 40.0
 const MISSION_AGGRO_RADIUS := 40.0
 ## Secondes qu'il faut au Moine pour ouvrir une cellule de Prison.
 const UNLOCK_TIME := 3.0
+
+# --- Les profondeurs (voir dungeon_map.gd, « Les profondeurs ») ------------------
+## Nombre de secrets par carte (un de chaque sorte : Colosse, lave, ruine) ...
+const DEEP_SECRETS := 3
+## ... à au moins tant de cases (en marchant) du cœur.
+const DEEP_SECRET_MIN_DISTANCE := 15
+## Le Colosse endormi garde un tas d'or de cette taille.
+const COLOSSUS_HOARD := 800
+## Il DORT tant que tu ne l'attaques pas (bouton « Attaquer le Colosse », un sort ou un
+## piège) : tes créatures passent à côté sans le voir. Réveillé, s'il ne voit plus
+## personne pendant tant de secondes, il se rendort.
+const GUARDIAN_CALM_TIME := 8.0
+## Il ne s'éloigne pas de sa caverne de plus de tant de pixels (une case = 32) ...
+const GUARDIAN_RADIUS := 128.0
+## ... et, sans ennemi, il regagne tant de vie par seconde.
+const GUARDIAN_REGEN := 8.0
+## La lave coule sur au plus tant de cases de couloir, une toutes les LAVA_FLOW_INTERVAL s ...
+const LAVA_FLOW_CELLS := 6
+const LAVA_FLOW_INTERVAL := 0.7
+## ... blesse et brûle les unités qu'elle touche ...
+const LAVA_DAMAGE := 60.0
+const LAVA_BURN_TIME := 4.0
+const LAVA_BURN_DPS := 10.0
+## ... puis se fige au bout de tant de secondes en or volcanique, tant de fois plus riche.
+const LAVA_COOL_TIME := 120.0
+const VOLCANIC_GOLD := 3.0
+## La ruine oubliée : tant de découvertes d'un coup (ou tant d'or si tout est découvert) ...
+const RUIN_DISCOVERIES := 2
+const RUIN_FALLBACK_GOLD := 800
+## ... et tant de spectres qui se réveillent.
+const RUIN_SPECTRES := 3
+
+# --- Tactiques des héros (voir main.gd, « Vagues », et hero.gd) -------------------
+## Une vague de tant de héros ou plus se divise en 2 escouades, puis en 3.
+const TWO_SQUADS_FROM := 4
+const THREE_SQUADS_FROM := 7
+## Secondes entre l'arrivée de deux escouades.
+const SQUAD_GAP := 6.0
+## Une escouade attend ses retardataires à l'entrée, puis encore tant de secondes.
+const REGROUP_TIME := 2.0
+## Les flanqueurs évitent le chemin de l'escouade principale (coût multiplié).
+const FLANK_AVOID_WEIGHT := 6.0
+## Pour un sapeur, creuser une case coûte autant que marcher sur tant de cases.
+const SAPPER_DIG_WEIGHT := 1.5
+## Une escouade d'au moins tant de héros bat en retraite quand la moitié est tombée.
+const SQUAD_RETREAT_MIN_SIZE := 3
+## Un héros « fragile » (moins de tant de PV) évite les abords (tant de cases) de tes
+## créatures redoutables (Démon, Colosse ancien, ou niveau STRONG_LEVEL et plus).
+const FRAGILE_HP := 120.0
+const STRONG_AVOID_RADIUS := 2
+const STRONG_AVOID_WEIGHT := 5.0
+const STRONG_LEVEL := 4
+## Les héros à distance (et le Clerc) reculent si une créature s'approche à moins de tant de pixels.
+const KITE_DISTANCE := 44.0
+## Objectifs : dès la vague OBJECTIVE_FIRST_WAVE, une vague sur OBJECTIVE_EVERY en a un.
+const OBJECTIVE_FIRST_WAVE := 3
+const OBJECTIVE_EVERY := 2
+## Les pillards emportent tant d'or chacun.
+const RAID_LOOT := 120
+## Points de vie d'une salle saccagée, par case.
+const ROOM_HP_PER_CELL := 60.0
+## Seconde entrée : un éboulement l'ouvre à cette vague (un niveau peut changer ce
+## chiffre avec « second_entrance_wave » ; 0 = jamais).
+const SECOND_ENTRANCE_WAVE := 5
+## L'éclaireur : dès la vague SCOUT_FIRST_WAVE, une vague sur SCOUT_EVERY, il arrive
+## SCOUT_LEAD secondes avant elle. Il rebrousse chemin à SCOUT_DEPTH cases du cœur,
+## ou au bout de SCOUT_TIME secondes, et repère les pièges à SCOUT_SIGHT cases.
+const SCOUT_FIRST_WAVE := 3
+const SCOUT_EVERY := 3
+const SCOUT_LEAD := 45.0
+const SCOUT_DEPTH := 6
+const SCOUT_TIME := 40.0
+const SCOUT_SIGHT := 3
+
+# --- Retraite des héros et vétérans (voir hero.gd et nemeses.gd) -------------------
+## Un héros sous cette part de sa vie bat en retraite vers l'entrée (sauf le
+## Champion et les troupes du rival).
+const HERO_FLEE_BELOW := 0.25
+## La peur donne des ailes : vitesse multipliée pendant la fuite.
+const HERO_FLEE_SPEED := 1.15
+## Un héros échappé revient entre NEMESIS_RETURN_MIN et NEMESIS_RETURN_MAX vagues plus tard...
+const NEMESIS_RETURN_MIN := 1
+const NEMESIS_RETURN_MAX := 2
+## ... au plus NEMESIS_PER_WAVE par vague.
+const NEMESIS_PER_WAVE := 2
+## Par rang de vétéran (1 à 3) : +30 % de vie, +20 % de dégâts, +50 % de rançon.
+const NEMESIS_HP_BONUS := 0.3
+const NEMESIS_DAMAGE_BONUS := 0.2
+const NEMESIS_REWARD_BONUS := 0.5
+## Rancune : dégâts multipliés contre l'espèce qui l'a le plus abîmé.
+const NEMESIS_GRUDGE_DAMAGE := 1.3
+## Un piège dont il se souvient ne lui fait que cette part des dégâts...
+const NEMESIS_TRAP_DAMAGE := 0.5
+## ... et il l'évite : la case « coûte » autant que tant de cases de marche.
+const NEMESIS_TRAP_AVOID := 8.0
+
+# --- Combos de pièges (voir combos.gd) --------------------------------------------
+## Distance (en cases) entre un Brasero et une Rune ou des Pointes pour le combo.
+const COMBO_BRAZIER_RADIUS := 2
+## Rune de feu : rayon de l'explosion multiplié, puis le sol brûle.
+const FIRE_RUNE_RADIUS := 1.5
+const FIRE_TIME := 6.0            ## Secondes pendant lesquelles le sol brûle.
+const FIRE_BURN_TIME := 2.0       ## Un héros dans les flammes brûle encore tant de secondes...
+const FIRE_BURN_DPS := 12.0       ## ... en perdant tant de vie par seconde.
+## Réaction en chaîne : chaque Rune suivante fait tant de fois plus de dégâts.
+const CHAIN_DAMAGE := 1.25
+## Pointes ardentes : dégâts multipliés, brûlure de tant de secondes et de dégâts par seconde.
+const HOT_SPIKES_DAMAGE := 1.5
+const HOT_SPIKES_BURN_TIME := 3.0
+const HOT_SPIKES_BURN_DPS := 6.0
+## Empalement : dégâts des Pointes multipliés sur un héros ralenti.
+const IMPALE_DAMAGE := 2.0
+## Détonation : dégâts de la Rune multipliés quand l'Éclair la fait exploser.
+const DETONATION_DAMAGE := 1.5
+## Porte hérissée : temps de réarmement des Pointes collées à une Porte multiplié.
+const DOOR_SPIKES_REARM := 0.5
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

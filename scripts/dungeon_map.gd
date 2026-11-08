@@ -25,6 +25,16 @@ signal door_destroyed(cell: Vector2i)
 signal redrawn
 ## Un ouvrier a cassé une roche qui cachait un trésor (amount pièces posées par terre).
 signal treasure_found(cell: Vector2i, amount: int)
+## Les SECRETS DES PROFONDEURS (voir la partie « Les profondeurs » plus bas) :
+## on creuse près d'un secret (un indice), puis on le réveille.
+signal secret_hinted(kind: String, cell: Vector2i)
+signal secret_revealed(kind: String, center: Vector2i)
+## Les héros ont détruit une salle (objectif « saccager »).
+signal room_wrecked(room_type: int, cell: Vector2i)
+## La lave vient de couler sur cette case (main.gd brûle et repousse les unités).
+signal lava_flowed(cell: Vector2i)
+## Un combo de pièges vient de se déclencher (voir combos.gd ; main.gd l'annonce).
+signal combo_triggered(id: String, world_position: Vector2)
 
 ## Les différents types de tuiles.
 enum Tile {
@@ -37,6 +47,7 @@ enum Tile {
 	ENTRANCE, ## L'entrée des héros.
 	RIVAL_HEART, ## Le cœur du maître rival (certains niveaux de la campagne).
 	GEM,   ## Gemme : inépuisable, chaque coup de pioche rapporte de l'or (voir Rules).
+	LAVA,  ## Lave (un secret des profondeurs) : infranchissable, elle se fige en or volcanique.
 }
 
 const TILE_SIZE := 32 ## Taille d'une case, en pixels.
@@ -107,6 +118,13 @@ var beds: Dictionary = {}
 var portal_cell: Vector2i
 ## Position de l'entrée des héros.
 var entrance_cell: Vector2i
+## Les entrées ouvertes en cours de partie (voir open_hidden_entrance).
+var extra_entrances: Array[Vector2i] = []
+## Une seconde entrée, cachée sous la roche jusqu'à ce qu'un éboulement l'ouvre
+## (main.gd, à la vague Rules.SECOND_ENTRANCE_WAVE). (-1, -1) : aucune.
+var hidden_entrance := Vector2i(-1, -1)
+## Points de vie des salles attaquées par les héros : identifiant de bloc -> PV.
+var room_hp: Dictionary = {}
 
 ## Le maître rival (seulement dans certains niveaux).
 var has_rival := false
@@ -173,6 +191,20 @@ var _farm_timer := 0.0
 var _trap_timer := 0.0
 ## Explosions en cours d'affichage : [{ "position": Vector2, "radius", "time" }].
 var _effects: Array = []
+## Les secrets des profondeurs : [{"kind": "colossus" / "lava" / "ruin", "center": Vector2i,
+## "hinted": bool, "revealed": bool}].
+var secrets: Array = []
+## La lave : case -> secondes avant qu'elle se fige en or volcanique.
+var lava: Dictionary = {}
+## Les cases où la lave doit encore couler (dans l'ordre), et le temps avant la prochaine.
+var _lava_queue: Array[Vector2i] = []
+var _lava_flow_timer := 0.0
+## Les filons d'OR VOLCANIQUE (de la lave figée), plus riches : case -> true.
+var volcanic: Dictionary = {}
+## Les vestiges d'une ruine oubliée : case -> "column" ou "lectern".
+var ruins: Dictionary = {}
+## Le sol qui brûle (combo Rune de feu) : [{ "position": Vector2, "radius", "time", "flicker" }].
+var fires: Array = []
 
 
 func _ready() -> void:
@@ -182,6 +214,7 @@ func _ready() -> void:
 
 ## Les champignons poussent avec le temps.
 func _process(delta: float) -> void:
+	_update_lava(delta)
 	_update_traps(delta)
 	_update_effects(delta)
 	_update_farms(delta)
@@ -270,6 +303,10 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	entrance_cell = _place_gate(rng, Tile.ENTRANCE, avoid)
 	avoid.append(entrance_cell)
 	_place_gems(rng, avoid)
+	_place_secrets(rng, avoid)
+	extra_entrances.clear()
+	hidden_entrance = _find_gate_cell(rng, avoid, 12)
+	room_hp.clear()
 
 	damage.clear()
 	marked.clear()
@@ -286,6 +323,11 @@ func generate(seed_value: int, with_rival := false, rival_hp := 1200.0) -> void:
 	work_spots.clear()
 	prisoners.clear()
 	_effects.clear()
+	lava.clear()
+	_lava_queue.clear()
+	volcanic.clear()
+	ruins.clear()
+	guarded.clear()
 	_setup_pathfinding()
 	_redraw_all()
 
@@ -316,23 +358,72 @@ func _place_gems(rng: RandomNumberGenerator, avoid: Array[Vector2i]) -> void:
 
 
 func _place_gate(rng: RandomNumberGenerator, tile: int, avoid: Array[Vector2i]) -> Vector2i:
-	var gate := Vector2i(3, 3)
+	var gate := _find_gate_cell(rng, avoid, 12)
+	if gate == Vector2i(-1, -1):
+		gate = Vector2i(3, 3)
+	_open_gate(gate, tile)
+	return gate
+
+
+## Une case pour une « porte », à 12 à 22 cases du cœur et à au moins min_gap
+## cases de celles de avoid. (-1, -1) si on n'en trouve pas.
+func _find_gate_cell(rng: RandomNumberGenerator, avoid: Array[Vector2i], min_gap: int) -> Vector2i:
 	for _attempt in 200:
 		var cell := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
 		var distance := _manhattan(cell, heart_cell)
 		var far_enough := true
 		for other in avoid:
-			if _manhattan(cell, other) < 12:
+			if _manhattan(cell, other) < min_gap:
 				far_enough = false
 		if far_enough and distance >= 12 and distance <= 22:
-			gate = cell
-			break
+			return cell
+	return Vector2i(-1, -1)
+
+
+## Creuse la clairière d'une porte et la relie (par de la terre) au cœur.
+func _open_gate(gate: Vector2i, tile: int) -> void:
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			_set_tile(gate + Vector2i(dx, dy), Tile.FLOOR)
 	_set_tile(gate, tile)
-
 	_carve_to_heart(gate)
+
+
+## Toutes les entrées des héros.
+func entrances() -> Array[Vector2i]:
+	var result: Array[Vector2i] = [entrance_cell]
+	result.append_array(extra_entrances)
+	return result
+
+
+## L'entrée la plus proche d'une case (pour les fuyards).
+func nearest_entrance(cell: Vector2i) -> Vector2i:
+	var best := entrance_cell
+	for other in extra_entrances:
+		if _manhattan(cell, other) < _manhattan(cell, best):
+			best = other
+	return best
+
+
+## Un éboulement ouvre la seconde entrée. Renvoie sa case, ou (-1, -1) s'il n'y en a pas.
+func open_hidden_entrance() -> Vector2i:
+	var gate := hidden_entrance
+	if gate == Vector2i(-1, -1):
+		return gate
+	hidden_entrance = Vector2i(-1, -1)
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var cell := gate + Vector2i(dx, dy)
+			var tile := get_tile(cell)
+			if tile in [Tile.HEART, Tile.PORTAL, Tile.ENTRANCE, Tile.RIVAL_HEART, Tile.LAVA, Tile.GEM]:
+				continue
+			marked.erase(cell)
+			damage.erase(cell)
+			rooms.erase(cell)
+	_open_gate(gate, Tile.ENTRANCE)
+	extra_entrances.append(gate)
+	_setup_pathfinding()
+	_redraw_all()
 	return gate
 
 
@@ -388,7 +479,7 @@ func _setup_pathfinding() -> void:
 			astar.set_point_solid(cell, not is_walkable(cell))
 			var tile := get_tile(cell)
 			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
-					or tile == Tile.GEM)
+					or tile == Tile.GEM or tile == Tile.LAVA)
 			if is_diggable(cell):
 				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
 	for cell: Vector2i in defenses:
@@ -419,6 +510,8 @@ func to_save() -> Dictionary:
 		"heart": SaveGame.cell_to_array(heart_cell),
 		"portal": SaveGame.cell_to_array(portal_cell),
 		"entrance": SaveGame.cell_to_array(entrance_cell),
+		"extra_entrances": _cells_to_array_list_ordered(extra_entrances),
+		"hidden_entrance": SaveGame.cell_to_array(hidden_entrance),
 		"heart_hp": heart_hp,
 		"heart_gold": heart_gold,
 		"damage": _cells_to_list(damage),
@@ -440,6 +533,11 @@ func to_save() -> Dictionary:
 		"decorations": _decorations_to_list(),
 		"candelabras": _candelabras_to_list(),
 		"rival_braziers": _cells_to_array_list(rival_braziers),
+		"secrets": _secrets_to_list(),
+		"lava": _cells_to_list(lava),
+		"lava_queue": _cells_to_array_list_ordered(_lava_queue),
+		"volcanic": _cells_to_array_list(volcanic),
+		"ruins": _ruins_to_list(),
 	}
 
 
@@ -453,6 +551,11 @@ func load_save(data: Dictionary) -> bool:
 	heart_cell = SaveGame.array_to_cell(data["heart"])
 	portal_cell = SaveGame.array_to_cell(data["portal"])
 	entrance_cell = SaveGame.array_to_cell(data["entrance"])
+	extra_entrances.clear()
+	for values in data.get("extra_entrances", []):
+		extra_entrances.append(SaveGame.array_to_cell(values))
+	hidden_entrance = SaveGame.array_to_cell(data.get("hidden_entrance", [-1, -1]))
+	room_hp.clear()
 	heart_hp = float(data["heart_hp"])
 	heart_gold = int(data["heart_gold"])
 	damage = _list_to_cells(data["damage"])
@@ -516,6 +619,23 @@ func load_save(data: Dictionary) -> bool:
 				if get_tile(Vector2i(x, y)) == Tile.FLOOR:
 					claimed[Vector2i(x, y)] = true
 		claimed[heart_cell] = true
+	guarded.clear() # (Les Colosses rechargés le remplissent à nouveau, voir main.gd.)
+	secrets.clear()
+	for values in data.get("secrets", []):
+		secrets.append({"kind": String(values[2]), "center": SaveGame.array_to_cell(values),
+				"hinted": bool(values[3]), "revealed": bool(values[4])})
+	lava.clear()
+	for values in data.get("lava", []):
+		lava[SaveGame.array_to_cell(values)] = float(values[2])
+	_lava_queue.clear()
+	for values in data.get("lava_queue", []):
+		_lava_queue.append(SaveGame.array_to_cell(values))
+	volcanic.clear()
+	for values in data.get("volcanic", []):
+		volcanic[SaveGame.array_to_cell(values)] = true
+	ruins.clear()
+	for values in data.get("ruins", []):
+		ruins[SaveGame.array_to_cell(values)] = String(values[2])
 	reserved.clear()
 	beds.clear() # Les créatures rechargées reprendront un lit.
 	work_spots.clear()
@@ -711,6 +831,8 @@ func dig(cell: Vector2i) -> Dictionary:
 		for direction in DIRECTIONS: # ... et les chandeliers aussi.
 			if candelabras.get(cell - direction) == direction:
 				candelabras.erase(cell - direction)
+		volcanic.erase(cell)
+		_check_secrets(cell)
 	_redraw_all()
 	return {"finished": finished, "gold": gold}
 
@@ -719,7 +841,10 @@ func dig(cell: Vector2i) -> Dictionary:
 func gold_per_hit(cell: Vector2i) -> int:
 	var depth := float(_manhattan(cell, heart_cell) - Rules.DEEP_GOLD_START) \
 			/ float(Rules.DEEP_GOLD_FULL - Rules.DEEP_GOLD_START)
-	return roundi(GOLD_PER_HIT * (1.0 + Rules.DEEP_GOLD_BONUS * clampf(depth, 0.0, 1.0)))
+	var gold := GOLD_PER_HIT * (1.0 + Rules.DEEP_GOLD_BONUS * clampf(depth, 0.0, 1.0))
+	if volcanic.has(cell):
+		gold *= Rules.VOLCANIC_GOLD # L'or volcanique (de la lave figée) est bien plus riche.
+	return roundi(gold)
 
 
 ## Cherche la case marquée la plus proche pour un ouvrier.
@@ -731,6 +856,8 @@ func find_dig_job(worker: Node, from_cell: Vector2i, allow_gold := true) -> Dict
 	for cell: Vector2i in marked:
 		if not allow_gold and (get_tile(cell) == Tile.GOLD or get_tile(cell) == Tile.GEM):
 			continue
+		if is_guarded(cell):
+			continue # Trop près du Colosse : les ouvriers n'osent pas.
 		if reserved.get(cell, worker) == worker:
 			candidates.append(cell)
 	# 2. On les trie de la plus proche à la plus lointaine (à vol d'oiseau).
@@ -781,7 +908,7 @@ func find_claim_job(worker: Node, from_cell: Vector2i) -> Dictionary:
 	for y in HEIGHT:
 		for x in WIDTH:
 			var cell := Vector2i(x, y)
-			if get_tile(cell) != Tile.FLOOR or claimed.has(cell):
+			if get_tile(cell) != Tile.FLOOR or claimed.has(cell) or is_guarded(cell):
 				continue
 			if reserved.get(cell, worker) != worker:
 				continue
@@ -1451,6 +1578,7 @@ func _update_traps(delta: float) -> void:
 			if defense["flash"] <= 0.0:
 				_redraw_all() # Les pointes rentrent.
 
+	_update_fires(delta)
 	_trap_timer -= delta
 	if _trap_timer > 0.0:
 		return
@@ -1465,28 +1593,121 @@ func _update_traps(delta: float) -> void:
 		match defense["type"]:
 			Defenses.Type.SPIKES:
 				if defense["cooldown"] <= 0.0:
-					defense["cooldown"] = info["rearm_time"]
-					defense["flash"] = 0.4
-					hero.take_damage(info["damage"])
-					Sound.play("spikes", cell_to_world(cell))
-					_redraw_all()
+					_spike(cell, defense, info, hero)
 			Defenses.Type.RUNE:
 				_explode(cell, info["damage"], info["radius"])
 
 
+## Les pointes sortent sous un héros, avec leurs combos (voir combos.gd).
+func _spike(cell: Vector2i, defense: Dictionary, info: Dictionary, hero: Unit) -> void:
+	var center := cell_to_world(cell)
+	var spike_damage: float = info["damage"]
+	var rearm: float = info["rearm_time"]
+	# Pointes ardentes : un brasero tout près chauffe le fer au rouge.
+	if near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS):
+		spike_damage *= Rules.HOT_SPIKES_DAMAGE
+		hero.apply_burn(Rules.HOT_SPIKES_BURN_TIME, Rules.HOT_SPIKES_BURN_DPS)
+		combo_triggered.emit("pointes_ardentes", center)
+	# Empalement : un héros ralenti (toile d'araignée) ne les évite pas.
+	if hero.is_slowed():
+		spike_damage *= Rules.IMPALE_DAMAGE
+		combo_triggered.emit("empalement", center)
+	# Porte hérissée : collées à une porte, elles se réarment plus vite.
+	if _next_to_door(cell):
+		rearm *= Rules.DOOR_SPIKES_REARM
+		combo_triggered.emit("porte_herissee", center)
+	defense["cooldown"] = rearm
+	defense["flash"] = 0.4
+	_trap_hits(hero, cell, spike_damage)
+	Sound.play("spikes", center)
+	_redraw_all()
+
+
+## Un piège touche un héros. Un vétéran qui le connaît prend moins de dégâts ;
+## les autres s'en souviendront s'ils s'échappent (voir hero.gd et nemeses.gd).
+func _trap_hits(unit: Unit, cell: Vector2i, trap_damage: float) -> void:
+	var hero := unit as Hero
+	if hero != null:
+		if hero.knows_trap(cell):
+			trap_damage *= Rules.NEMESIS_TRAP_DAMAGE
+		hero.remember_trap(cell)
+	unit.take_damage(trap_damage)
+
+
+func _next_to_door(cell: Vector2i) -> bool:
+	for direction in DIRECTIONS:
+		if has_door(cell + direction):
+			return true
+	return false
+
+
 ## La rune explose : tous les héros proches sont touchés, puis elle disparaît.
+## Combos : près d'un brasero, le sol s'embrase (Rune de feu) ; les autres runes
+## dans l'explosion sautent à leur tour (Réaction en chaîne).
 func _explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
 	var center := cell_to_world(cell)
 	remove_defense(cell)
+	var on_fire := near_brazier(cell, Rules.COMBO_BRAZIER_RADIUS)
+	if on_fire:
+		radius *= Rules.FIRE_RUNE_RADIUS
+		fires.append({"position": center, "radius": radius, "time": Rules.FIRE_TIME, "flicker": 0.0})
+		combo_triggered.emit("rune_feu", center)
 	add_effect(center, radius, Color(1.0, 0.55, 0.1, 0.8))
 	Sound.play("explosion", center)
 	Fx.burst("smoke", center)
-	Fx.flash_light(center, Color(1.0, 0.6, 0.2), 200.0, 0.5)
+	Fx.flash_light(center, Color(1.0, 0.6, 0.2), 260.0 if on_fire else 200.0, 0.5)
 	Fx.shake(8.0, 0.35)
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Unit
 		if hero.position.distance_to(center) <= radius:
-			hero.take_damage(explosion_damage)
+			_trap_hits(hero, cell, explosion_damage)
+	# Réaction en chaîne : les runes voisines sautent un instant plus tard.
+	for other: Vector2i in defenses.keys():
+		if defenses[other]["type"] == Defenses.Type.RUNE and cell_to_world(other).distance_to(center) <= radius:
+			var info: Dictionary = Defenses.INFO[Defenses.Type.RUNE]
+			get_tree().create_timer(0.2).timeout.connect(
+					_chain_explode.bind(other, explosion_damage * Rules.CHAIN_DAMAGE, info["radius"]))
+
+
+func _chain_explode(cell: Vector2i, explosion_damage: float, radius: float) -> void:
+	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.RUNE:
+		combo_triggered.emit("reaction_chaine", cell_to_world(cell))
+		_explode(cell, explosion_damage, radius)
+
+
+## Détonation : l'Éclair du maître fait sauter les runes dans sa zone.
+## Renvoie le nombre de runes qui explosent.
+func detonate_runes(center: Vector2, radius: float) -> int:
+	var count := 0
+	for cell: Vector2i in defenses.keys():
+		if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.RUNE \
+				and cell_to_world(cell).distance_to(center) <= radius + TILE_SIZE * 0.5:
+			var info: Dictionary = Defenses.INFO[Defenses.Type.RUNE]
+			combo_triggered.emit("detonation", cell_to_world(cell))
+			_explode(cell, info["damage"] * Rules.DETONATION_DAMAGE, info["radius"])
+			count += 1
+	return count
+
+
+## Le sol qui brûle : les héros qui y passent prennent feu.
+func _update_fires(delta: float) -> void:
+	if fires.is_empty():
+		return
+	for fire: Dictionary in fires:
+		fire["time"] -= delta
+		fire["flicker"] -= delta
+		if fire["flicker"] <= 0.0:
+			fire["flicker"] = 0.3
+			var center: Vector2 = fire["position"]
+			var radius: float = fire["radius"]
+			add_effect(center, radius, Color(1.0, 0.35, 0.05, 0.45))
+			Fx.burst("sparks", center + Vector2(randf_range(-radius, radius), randf_range(-radius, radius)) * 0.6,
+					Color("ff7a1a"))
+			for node in get_tree().get_nodes_in_group("heroes"):
+				var hero := node as Unit
+				if hero.position.distance_to(center) <= radius:
+					hero.apply_burn(Rules.FIRE_BURN_TIME, Rules.FIRE_BURN_DPS)
+	fires = fires.filter(func(f: Dictionary) -> bool: return f["time"] > 0.0)
 
 
 ## Affiche un cercle de couleur qui grandit et s'efface (explosion, sort...).
@@ -1505,6 +1726,215 @@ func _update_effects(delta: float) -> void:
 
 
 # ---------------------------------------------------------------------------
+# Les profondeurs : secrets cachés loin du cœur
+# ---------------------------------------------------------------------------
+## Chaque carte cache Rules.DEEP_SECRETS secrets, loin du cœur (là où l'or est
+## déjà plus riche), dans un bloc de 3 x 3 cases de terre ou de roche :
+##   - "colossus" : le Colosse endormi, un gardien neutre qui veille sur un trésor ;
+##   - "lava" : une poche de lave qui se déverse dans tes couloirs, puis se fige
+##     en filons d'or volcanique ;
+##   - "ruin" : une ruine oubliée, pleine de savoir... et de spectres.
+## Creuser à moins de SECRET_HINT_RADIUS cases donne un indice (main.gd l'écrit) ;
+## creuser une case qui touche le bloc le réveille.
+
+const SECRET_KINDS := ["colossus", "lava", "ruin"]
+## Les cavernes gardées par un Colosse vivant (main.gd les tient à jour) : case -> true.
+## Les ouvriers n'y vont ni creuser, ni revendiquer, ni ramasser l'or.
+var guarded: Dictionary = {}
+
+
+func is_guarded(cell: Vector2i) -> bool:
+	for center: Vector2i in guarded:
+		if maxi(absi(cell.x - center.x), absi(cell.y - center.y)) * TILE_SIZE <= Rules.GUARDIAN_RADIUS:
+			return true
+	return false
+const SECRET_HINT_RADIUS := 4
+const SECRET_REVEAL_RADIUS := 2
+
+
+func _place_secrets(rng: RandomNumberGenerator, avoid: Array[Vector2i]) -> void:
+	secrets.clear()
+	var kinds: Array = SECRET_KINDS.duplicate()
+	# Un ordre mélangé, mais toujours le même pour une même carte (la graine).
+	for i in range(kinds.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap = kinds[i]
+		kinds[i] = kinds[j]
+		kinds[j] = swap
+	var tries := 0
+	while secrets.size() < mini(Rules.DEEP_SECRETS, kinds.size()) and tries < 600:
+		tries += 1
+		var center := Vector2i(rng.randi_range(3, WIDTH - 4), rng.randi_range(3, HEIGHT - 4))
+		if _manhattan(center, heart_cell) < Rules.DEEP_SECRET_MIN_DISTANCE:
+			continue
+		var ok := true
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var tile := get_tile(center + Vector2i(dx, dy))
+				if tile != Tile.EARTH and tile != Tile.ROCK and tile != Tile.GOLD:
+					ok = false
+		for other in avoid:
+			if _manhattan(center, other) < 6:
+				ok = false
+		for secret: Dictionary in secrets:
+			if _manhattan(center, secret["center"]) < 10:
+				ok = false
+		if has_rival and rival_heart_cell != Vector2i(-1, -1) and _manhattan(center, rival_heart_cell) < 8:
+			ok = false
+		if not ok:
+			continue
+		secrets.append({"kind": kinds[secrets.size()], "center": center, "hinted": false, "revealed": false})
+		avoid.append(center)
+
+
+## Une case vient d'être creusée : est-on près d'un secret ?
+func _check_secrets(cell: Vector2i) -> void:
+	for secret: Dictionary in secrets:
+		if secret["revealed"]:
+			continue
+		var center: Vector2i = secret["center"]
+		var distance := maxi(absi(cell.x - center.x), absi(cell.y - center.y))
+		if distance <= SECRET_REVEAL_RADIUS:
+			_reveal_secret(secret)
+		elif distance <= SECRET_HINT_RADIUS and not secret["hinted"]:
+			secret["hinted"] = true
+			secret_hinted.emit(secret["kind"], center)
+
+
+## Le secret se réveille : on ouvre sa caverne (ou on libère sa lave).
+func _reveal_secret(secret: Dictionary) -> void:
+	secret["revealed"] = true
+	secret["hinted"] = true
+	var center: Vector2i = secret["center"]
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var cell := center + Vector2i(dx, dy)
+			marked.erase(cell)
+			reserved.erase(cell)
+			damage.erase(cell)
+			if secret["kind"] == "lava":
+				_set_lava(cell)
+			else:
+				_set_tile(cell, Tile.FLOOR)
+				_refresh_pathing(cell)
+	match secret["kind"]:
+		"lava":
+			_queue_lava_flow(center)
+		"ruin":
+			ruins[center] = "lectern"
+			for corner in [Vector2i(-1, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1)]:
+				if randf() < 0.75:
+					ruins[center + corner] = "column"
+		"colossus":
+			drop_gold(center + Vector2i(1, 1), Rules.COLOSSUS_HOARD)
+	_redraw_all()
+	secret_revealed.emit(secret["kind"], center)
+
+
+## Met à jour les deux A* après un changement de tuile.
+func _refresh_pathing(cell: Vector2i) -> void:
+	astar.set_point_solid(cell, not is_walkable(cell))
+	var tile := get_tile(cell)
+	hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
+			or tile == Tile.GEM or tile == Tile.LAVA)
+	hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT if is_diggable(cell) else 1.0)
+
+
+func _set_lava(cell: Vector2i) -> void:
+	_set_tile(cell, Tile.LAVA)
+	lava[cell] = Rules.LAVA_COOL_TIME * randf_range(0.85, 1.15)
+	claimed.erase(cell)
+	loose_gold.erase(cell)
+	decorations.erase(cell)
+	_refresh_pathing(cell)
+
+
+## La lave cherche à couler dans le sol creusé voisin (les couloirs, pas les salles),
+## au plus Rules.LAVA_FLOW_CELLS cases, la plus proche d'abord.
+func _queue_lava_flow(center: Vector2i) -> void:
+	var seen := {center: true}
+	var frontier: Array[Vector2i] = [center]
+	var count := 0
+	while not frontier.is_empty() and count < Rules.LAVA_FLOW_CELLS:
+		var cell: Vector2i = frontier.pop_front()
+		for direction in DIRECTIONS:
+			var next: Vector2i = cell + direction
+			if seen.has(next):
+				continue
+			seen[next] = true
+			if get_tile(next) == Tile.LAVA:
+				frontier.append(next)
+			elif _lava_can_flow(next) and count < Rules.LAVA_FLOW_CELLS:
+				_lava_queue.append(next)
+				frontier.append(next)
+				count += 1
+	_lava_flow_timer = Rules.LAVA_FLOW_INTERVAL
+
+
+## La lave ne coule que sur du sol nu : ni salle, ni piège, ni chantier, ni portes.
+func _lava_can_flow(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.FLOOR and not rooms.has(cell) and not defenses.has(cell) \
+			and not construction.has(cell) and not is_next_to_heart(cell) \
+			and _manhattan(cell, portal_cell) > 1 and _manhattan(cell, nearest_entrance(cell)) > 1
+
+
+## La lave coule (une case à la fois), puis refroidit et se fige en or volcanique.
+func _update_lava(delta: float) -> void:
+	if not _lava_queue.is_empty():
+		_lava_flow_timer -= delta
+		if _lava_flow_timer <= 0.0:
+			_lava_flow_timer = Rules.LAVA_FLOW_INTERVAL
+			var cell: Vector2i = _lava_queue.pop_front()
+			if _lava_can_flow(cell):
+				_set_lava(cell)
+				Fx.burst("smoke", cell_to_world(cell), Color(0.3, 0.2, 0.2, 0.8))
+				Fx.flash_light(cell_to_world(cell), Color(1.0, 0.4, 0.1), 120.0, 0.4)
+				lava_flowed.emit(cell)
+				_redraw_all()
+	if lava.is_empty():
+		return
+	var cooled := false
+	for cell: Vector2i in lava.keys():
+		lava[cell] -= delta
+		if lava[cell] <= 0.0:
+			lava.erase(cell)
+			_set_tile(cell, Tile.GOLD)
+			volcanic[cell] = true
+			_refresh_pathing(cell)
+			Fx.burst("smoke", cell_to_world(cell), Color(0.4, 0.4, 0.45, 0.7))
+			cooled = true
+	if cooled:
+		_redraw_all()
+
+
+## Vrai si cette case est de la lave.
+func is_lava(cell: Vector2i) -> bool:
+	return get_tile(cell) == Tile.LAVA
+
+
+func _secrets_to_list() -> Array:
+	var result := []
+	for secret: Dictionary in secrets:
+		var center: Vector2i = secret["center"]
+		result.append([center.x, center.y, secret["kind"], secret["hinted"], secret["revealed"]])
+	return result
+
+
+func _ruins_to_list() -> Array:
+	var result := []
+	for cell: Vector2i in ruins:
+		result.append([cell.x, cell.y, ruins[cell]])
+	return result
+
+
+func _cells_to_array_list_ordered(cells: Array[Vector2i]) -> Array:
+	var result := []
+	for cell in cells:
+		result.append(SaveGame.cell_to_array(cell))
+	return result
+
+
+# ---------------------------------------------------------------------------
 # Cœur et héros
 # ---------------------------------------------------------------------------
 
@@ -1514,10 +1944,16 @@ func is_next_to_heart(cell: Vector2i) -> bool:
 
 ## Chemin d'un héros vers une case voisine du cœur. Il peut traverser de la
 ## terre (le héros devra la creuser), mais pas la roche.
-func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
+## avoid : des cases de pièges que ce héros (un vétéran) préfère éviter.
+## weights : d'autres cases à éviter (case -> multiplicateur de leur « coût ») :
+## le chemin de l'escouade principale pour les flanqueurs, les abords d'une créature
+## redoutable pour les héros fragiles... (voir hero.gd, _path_weights).
+func find_hero_path(from_cell: Vector2i, avoid: Array[Vector2i] = [], weights := {}) -> Array[Vector2i]:
 	var best: Array[Vector2i] = []
 	if hero_astar.is_point_solid(from_cell):
 		return best
+	var saved := _avoid_traps(avoid)
+	_apply_weights(weights, saved)
 	for direction in DIRECTIONS:
 		var goal := heart_cell + direction
 		if hero_astar.is_point_solid(goal):
@@ -1525,15 +1961,88 @@ func find_hero_path(from_cell: Vector2i) -> Array[Vector2i]:
 		var candidate := hero_astar.get_id_path(from_cell, goal)
 		if not candidate.is_empty() and (best.is_empty() or candidate.size() < best.size()):
 			best = candidate
+	_restore_weights(saved)
 	return best
 
 
 ## Chemin d'un héros vers n'importe quelle case, en creusant la terre au besoin
-## (le Moine s'en sert pour rejoindre la Prison). Vide si c'est impossible (roche).
-func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+## (le Moine s'en sert pour rejoindre la Prison, les fuyards pour rejoindre
+## l'entrée). Vide si c'est impossible (roche).
+func find_hero_path_to(from_cell: Vector2i, to_cell: Vector2i, avoid: Array[Vector2i] = [],
+		weights := {}) -> Array[Vector2i]:
 	if hero_astar.is_point_solid(from_cell) or hero_astar.is_point_solid(to_cell):
 		return []
-	return hero_astar.get_id_path(from_cell, to_cell)
+	var saved := _avoid_traps(avoid)
+	_apply_weights(weights, saved)
+	var result := hero_astar.get_id_path(from_cell, to_cell)
+	_restore_weights(saved)
+	return result
+
+
+## Un vétéran évite les pièges dont il se souvient : le temps de calculer son
+## chemin, ces cases « coûtent » plus cher. Renvoie les anciens poids.
+func _avoid_traps(avoid: Array[Vector2i]) -> Dictionary:
+	var saved := {}
+	for cell in avoid:
+		if not defenses.has(cell) or not is_inside(cell) or hero_astar.is_point_solid(cell):
+			continue
+		var type: int = defenses[cell]["type"]
+		if type != Defenses.Type.SPIKES and type != Defenses.Type.RUNE:
+			continue
+		saved[cell] = hero_astar.get_point_weight_scale(cell)
+		hero_astar.set_point_weight_scale(cell, saved[cell] * Rules.NEMESIS_TRAP_AVOID)
+	return saved
+
+
+## Multiplie le coût de cases quelconques (en gardant les anciens poids dans saved).
+func _apply_weights(weights: Dictionary, saved: Dictionary) -> void:
+	for cell: Vector2i in weights:
+		if not is_inside(cell) or hero_astar.is_point_solid(cell):
+			continue
+		if not saved.has(cell):
+			saved[cell] = hero_astar.get_point_weight_scale(cell)
+		hero_astar.set_point_weight_scale(cell, hero_astar.get_point_weight_scale(cell) * float(weights[cell]))
+
+
+## Le chemin d'un SAPEUR vers le cœur : pour lui, creuser coûte presque autant que
+## marcher. Il perce donc un tunnel tout droit au lieu de suivre tes couloirs.
+func find_sapper_path(from_cell: Vector2i) -> Array[Vector2i]:
+	var weights := {}
+	for y in HEIGHT:
+		for x in WIDTH:
+			var cell := Vector2i(x, y)
+			if is_diggable(cell):
+				weights[cell] = Rules.SAPPER_DIG_WEIGHT / HERO_DIG_WEIGHT
+	return find_hero_path(from_cell, [], weights)
+
+
+## Les héros frappent une salle (objectif « saccager ») : à 0 PV, elle est détruite.
+## Renvoie true si elle vient d'être détruite.
+func damage_room(cell: Vector2i, amount: float) -> bool:
+	var type := get_room(cell)
+	if type == Rooms.Type.NONE:
+		return false
+	var id := block_at(cell)
+	var key = id if id >= 0 else cell
+	if not room_hp.has(key):
+		var cells := _block_cells(id).size() if id >= 0 else 1
+		room_hp[key] = Rules.ROOM_HP_PER_CELL * cells
+	room_hp[key] -= amount
+	Fx.burst("dust", cell_to_world(cell), Color("8d6e63"))
+	if room_hp[key] > 0.0:
+		return false
+	room_hp.erase(key)
+	remove_room(cell)
+	Sound.play("door_break", cell_to_world(cell))
+	Fx.shake(4.0)
+	_redraw_all()
+	room_wrecked.emit(type, cell)
+	return true
+
+
+func _restore_weights(saved: Dictionary) -> void:
+	for cell: Vector2i in saved:
+		hero_astar.set_point_weight_scale(cell, saved[cell])
 
 
 func is_next_to_rival_heart(cell: Vector2i) -> bool:
@@ -1669,7 +2178,8 @@ func find_pickup_job(from_cell: Vector2i) -> Dictionary:
 		return {}
 	var candidates: Array[Vector2i] = []
 	for cell: Vector2i in loose_gold:
-		candidates.append(cell)
+		if not is_guarded(cell): # Le trésor du Colosse : il faut d'abord le vaincre.
+			candidates.append(cell)
 	var best := _find_nearest_reachable(candidates, from_cell)
 	if not best.is_empty():
 		best["type"] = "pickup"
@@ -1805,9 +2315,16 @@ func _draw() -> void:
 			elif rival_claimed.has(cell):
 				# Le territoire du rival : les mêmes dalles, teintées de bleu.
 				draw_texture_rect(Art.pick(Art.CLAIMED, cell), rect, false, RIVAL_TINT)
+			elif get_tile(cell) == Tile.LAVA:
+				# La lave : le sol, rougeoyant (un simple voile orange qui pulse).
+				draw_texture_rect(Art.pick(Art.FLOOR, cell), rect, false, Color(1.6, 0.5, 0.15))
+				draw_rect(rect, Color(1.0, 0.35, 0.05, 0.55))
 			else:
 				var floor_images: Array = Art.CLAIMED if claimed.has(cell) else Art.FLOOR
 				draw_texture_rect(Art.pick(floor_images, cell), rect, false)
+			if ruins.has(cell):
+				# Les vestiges d'une ruine : une dalle gravée violette.
+				draw_texture_rect(Art.RUNE, rect.grow(-4.0), false, Color(0.7, 0.5, 1.0, 0.8))
 			if decorations.has(cell) and decorations[cell]["kind"] == "rug":
 				draw_texture_rect(Art.DECORATIONS["rug"], rect.grow(-3.0), false)
 			if construction.has(cell) and construction[cell]["kind"] == "room":

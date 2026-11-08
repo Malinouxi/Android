@@ -334,6 +334,120 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - La musique est en OGG Vorbis (`assets/music/`, 2,3 Mo pour les 5 morceaux) ; les boucles se raccordent
   sans couture (l'écho de la fin retombe sur le début).
 
+**Étape 37 — Traits, vétérans et combos de pièges** (règles 2.2)
+
+*Traits de caractère* (`scripts/traits.gd`)
+- Chaque créature arrive avec **1 trait** (une fois sur deux, 2), affiché dans le message d'arrivée,
+  sur sa fiche et dans le codex. Les traits sont gardés dans la sauvegarde.
+
+  | Trait | Effet |
+  |-------|-------|
+  | Avare | salaire +30 %, se bat 30 % mieux près d'un Trésor |
+  | Peureuse | court 20 % plus vite, fuit le combat sous 35 % de vie et va se cacher dans son lit |
+  | Bagarreuse | +15 % de dégâts, repère les héros de plus loin, se battre la rend heureuse |
+  | Rancunière | +40 % de dégâts contre le dernier héros qui l'a blessée |
+  | Pieuse | prière deux fois plus efficace ; sans Temple, son humeur baisse |
+  | Gourmande | faim 40 % plus rapide, mais chaque repas la réjouit |
+  | Insomniaque | se fatigue 40 % moins vite, récupère deux fois moins vite |
+  | Studieuse / Paresseuse | travail +50 % / travail -50 % mais salaire -25 % |
+  | Coquette | décorations et braseros deux fois plus efficaces sur son humeur |
+  | Solitaire | +25 % de dégâts seule, la foule l'agace |
+  | Robuste | +20 % de vie |
+
+- Pour ajouter un trait : une entrée dans `Traits.INFO` avec ses effets (la liste est en tête du fichier).
+
+*Retraite des héros et vétérans* (`scripts/hero.gd`, `scripts/nemeses.gd`)
+- Sous **25 % de vie**, un héros **bat en retraite** vers l'entrée grise (« fuit ! » au-dessus de sa tête),
+  un peu plus vite, sans plus s'arrêter pour se battre. Le Champion et les troupes du rival ne fuient jamais.
+- S'il sort vivant (ou si une Voleuse s'enfuit avec son butin), il devient un **vétéran** : il reçoit un nom
+  (« Tristan le Chevalier ») et **revient une ou deux vagues plus tard** (2 vétérans par vague au plus).
+  Par rang (3 au maximum, un de plus à chaque évasion) : +30 % de vie, +20 % de dégâts, +50 % de rançon.
+- Il se **souvient des pièges qui l'ont blessé** : il les évite (ils « coûtent » plus cher dans son chemin)
+  et ils ne lui font que la moitié des dégâts. Il garde **rancune** à l'espèce qui l'a le plus abîmé :
+  +30 % de dégâts contre elle.
+- Abattu ou capturé, il ne revient plus. Les vétérans en attente sont dans la sauvegarde.
+- Réglages : `HERO_FLEE_BELOW`, `NEMESIS_*` dans `rules.gd`.
+
+*Combos de pièges* (`scripts/combos.gd`)
+- Six combinaisons **secrètes** ; le codex n'affiche qu'un indice tant qu'on ne les a pas déclenchées
+  (la découverte est gardée pour toutes les parties dans `user://combos.cfg`) :
+
+  | Combo | Comment | Effet |
+  |-------|---------|-------|
+  | Rune de feu | Rune à 2 cases au plus d'un Brasero | explosion 50 % plus large, le sol brûle 6 s |
+  | Réaction en chaîne | Runes proches | l'explosion fait sauter les autres runes, +25 % chacune |
+  | Pointes ardentes | Pointes à 2 cases au plus d'un Brasero | +50 % de dégâts, le héros prend feu 3 s |
+  | Empalement | Pointes + héros ralenti (Araignée) | dégâts doublés |
+  | Détonation | Éclair lancé sur une Rune | la rune explose aussitôt, 50 % plus fort |
+  | Porte hérissée | Pointes collées à une Porte | réarmement deux fois plus rapide |
+
+- Le nom du combo s'envole au-dessus du piège ; la première fois, le journal l'annonce.
+- Les héros peuvent maintenant **brûler** (`apply_burn` dans `unit.gd`).
+
+**Étape 38 — Les profondeurs** (règles 2.3)
+
+- Chaque carte cache **3 secrets** loin du cœur (au moins 15 cases), dans un bloc de 3 x 3 cases de terre
+  ou de roche : un de chaque sorte. Les cartes de la campagne ont toujours les mêmes (leur graine).
+- Creuser à 4 cases ou moins donne un **indice** dans le journal (on peut s'arrêter là) ; creuser une case
+  qui touche le bloc **réveille** le secret. Les héros qui creusent peuvent aussi le réveiller !
+
+  | Secret | Indice | Ce qui arrive |
+  |--------|--------|---------------|
+  | Colosse endormi | « Un souffle énorme résonne derrière la roche... » | Une caverne s'ouvre. Le Colosse (1100 PV, armure, coups de zone) garde 800 or. Il **dort** : tes créatures passent devant sans le voir. Le bouton **Attaquer le Colosse** (sous l'objectif) le réveille et envoie toutes tes créatures disponibles ; **Rappeler les troupes** arrête l'assaut. Réveillé (assaut, sort ou piège), il frappe ce qui approche (4 cases) sans quitter sa caverne, puis se rendort au bout de 8 s sans personne, et se soigne. Les ouvriers n'y vont pas tant qu'il vit. Vaincu, il se soumet : le **Colosse ancien** rejoint ton donjon (ni lit ni repas, salaire 60). |
+  | Lac de lave | « La roche est brûlante ici... » | La poche devient de la **lave**, qui coule dans les couloirs voisins (6 cases au plus, jamais dans les salles) : les unités touchées sont brûlées et repoussées, un passage peut être coupé. La lave est infranchissable et éclaire. Au bout de 2 minutes, elle se fige en **or volcanique** (3 fois plus riche). |
+  | Ruine oubliée | « Des murmures anciens filtrent à travers la terre... » | Colonnes brisées et grimoire lumineux. Son savoir donne **2 découvertes** d'un coup (800 or si tout est découvert)... et 3 **Spectres** se réveillent et marchent sur ton cœur. |
+
+- Code : la partie « Les profondeurs » de `dungeon_map.gd` (placement, indices, lave), et
+  `_on_secret_revealed` dans `main.gd`. Réglages : `DEEP_*`, `COLOSSUS_*`, `GUARDIAN_*`, `LAVA_*`,
+  `VOLCANIC_GOLD`, `RUIN_*` dans `rules.gd`. Le Colosse (`guardian`) et le Spectre sont dans `heroes.gd`,
+  le Colosse ancien dans `creatures.gd`. Le Colosse ne compte pas comme envahisseur : une vague peut être
+  repoussée pendant qu'il dort dans sa caverne.
+
+**Étape 39 — Des héros plus malins** (règles 2.4)
+
+- **Escouades** (`_form_squads` dans `main.gd`) : 4 héros ou plus -> 2 escouades, 7 ou plus -> 3.
+
+  | Rôle | Comportement |
+  |------|--------------|
+  | Gros de la troupe | le chemin le plus court vers le cœur (le Champion et les vétérans y vont) |
+  | Flanqueurs | évitent le chemin du gros de la troupe (coût x6) ; ils portent l'objectif de la vague |
+  | Sapeurs | les Nains d'abord ; creuser leur coûte presque autant que marcher : un tunnel tout droit |
+
+  Les escouades entrent l'une après l'autre (6 s d'écart) et chacune attend ses retardataires à l'entrée.
+- **Objectifs** (dès la vague 3, une vague sur deux, annoncés) : piller le Trésor (120 or chacun, puis
+  fuite), libérer les prisonniers, saccager la Bibliothèque (60 PV par case, la salle est détruite),
+  massacrer les ouvriers, abattre la meilleure créature. Sans cible possible, ils marchent sur le cœur.
+- **Tactiques** : retraite d'escouade quand la moitié est tombée (3 héros au moins) ; Archers,
+  Magiciennes et Clercs reculent si une créature est à moins de 44 pixels ; le Clerc suit ses compagnons ;
+  les héros fragiles (moins de 120 PV) évitent les abords des Démons, Colosses anciens et créatures de
+  niveau 4 et plus.
+- **Seconde entrée** : cachée dès la création de la carte, un éboulement l'ouvre 10 s avant la vague 5
+  (réglage `SECOND_ENTRANCE_WAVE`, ou `second_entrance_wave` dans un niveau ; 0 = jamais). Les fuyards
+  sortent par l'entrée la plus proche.
+- **Éclaireur** (dès la vague 3, une vague sur trois, 45 s avant elle) : il repère pièges et portes à
+  3 cases, rebrousse chemin à 6 cases du cœur ou après 40 s. Ressorti vivant, la vague suivante évite
+  ces pièges ; il ne devient pas vétéran.
+- Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
+  Réglages : partie « Tactiques des héros » de `rules.gd`.
+
+**Étape 40 — Le Seigneur modélisé dans Blender, médaillon et HUD en HD**
+- Le visage du médaillon est **modélisé dans Blender** (`tools/blender/lord.py` → `assets/models/lord.glb`,
+  ~1 000 faces) : même allure, plus agressif (arcade en V, grandes cornes annelées, babines retroussées
+  sur deux rangées de crocs, défenses, pupilles fendues, balafre, oreilles entaillées, gorgerin à pointes).
+- **Il reste branché** sur l'animation de `lord_portrait.gd` : ses pièces mobiles sont des pivots nommés
+  (`head`, `jaw`, `brow_*`, `lid_*`, `eye_*`, `pupil_*`, `lip_*`, `nostril_*`, `ear_*`, `tongue`, `smoke`).
+  Sans le `.glb`, on retrouve le visage construit en code.
+- **Nouvelles animations** : pupilles qui suivent le regard (fendues de colère, dilatées d'inquiétude),
+  babines qui se retroussent en grognant, naseaux qui respirent et se gonflent, oreilles qui frémissent,
+  se couchent (colère) ou se dressent (joie), langue fourchue qui sort quand il rit, tête qui avance
+  quand il rugit, fumée rougeoyante en colère. Au repos : rictus d'un côté, coup de langue sur les crocs.
+- **Médaillon et cadres HD rendus dans Blender** (`tools/blender/hud.py` → `assets/ui_hd/`) : médaillon
+  de pierre et fer riveté à cornes et crâne, cadre des panneaux, creux des compteurs, boutons (4 états),
+  bulle de parole. Rendus en double taille et affichés à moitié (`Ui.hd_frame`, « 9 zones ») : nets sur
+  téléphone. Sans les images, on retrouve les cadres dessinés. Le visage est découpé en rond dans
+  l'ouverture du médaillon, rendu lui aussi en double résolution.
+- Vérifier le portrait dans ses 4 humeurs : `godot --path . -s res://tools/portrait_test.gd`.
+
 **Étape 36 — La voix du Seigneur**
 - Le démon du médaillon **parle** : ses 13 répliques d'humeur et ses 13 conseils ont une voix grave et
   caverneuse (`assets/voice/`), et sa **mâchoire bouge au rythme** de la voix. La musique baisse un peu
@@ -556,7 +670,8 @@ tools/generate_sounds.py   Le script Python qui fabrique tous les sons (WAV)
 tools/generate_music.py    Le script Python qui compose la musique gothique (OGG)
 tools/generate_voice.py    Le script Python qui enregistre la voix du Seigneur (OGG)
 tools/gothic_synth.py      Les instruments simulés (orgue, chœur, cordes, cloches...) et la réverbération
-tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb)
+tools/blender/             Les scripts Blender des personnages low-poly (assets/models/*.glb),
+                           du Seigneur du médaillon (lord.py) et des cadres HD du HUD (hud.py)
 ```
 
 Les scripts se parlent par **signaux** (`gold_changed`, `tapped`, `summon_pressed`, `tool_selected`, `left_dungeon`, `died`, `heart_destroyed`) : chaque morceau

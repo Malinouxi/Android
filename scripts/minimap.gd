@@ -18,6 +18,7 @@ const COLORS := {
 	DungeonMap.Tile.PORTAL: Color("b040ff"),
 	DungeonMap.Tile.ENTRANCE: Color("cfd8dc"),
 	DungeonMap.Tile.RIVAL_HEART: Color("40a0ff"),
+	DungeonMap.Tile.LAVA: Color("ff5a10"),
 }
 const CLAIMED_COLOR := Color("8a3442")
 

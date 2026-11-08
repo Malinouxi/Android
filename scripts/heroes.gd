@@ -3,13 +3,17 @@ class_name Heroes
 ## Pour ajouter un héros : un nom dans Type et une entrée dans INFO.
 
 enum Type { ADVENTURER, THIEF, KNIGHT, CLERIC, ARCHER, RIVAL_KOBOLD, RIVAL_ORC, RIVAL_WARLOCK,
-		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK }
+		DWARF, MAGE, PALADIN, GIANT, CHAMPION, MONK, COLOSSUS, SPECTRE, SCOUT }
 
 ## "reward" : or gagné quand on le bat (rangé au Trésor s'il y a de la place).
 ## "first_wave" : numéro de la première vague où il peut apparaître.
 ## Capacités facultatives : les mêmes que les créatures (voir creatures.gd), plus
 ##   "dig_speed" (vitesse de creusage, 3.0 = 3 fois plus vite) et
 ##   "door_damage" (multiplie les dégâts infligés aux portes).
+## Et pour les habitants des profondeurs (jamais dans les vagues : "first_wave": 999) :
+##   "guardian" (ne quitte pas sa caverne, voir hero.gd), "fearless" (ne fuit jamais),
+##   "no_capture" (ne tombe pas assommé, ne finit pas au Cimetière),
+##   "tint" (couleur du modèle), "alpha" (transparence).
 const INFO := {
 	Type.ADVENTURER: {
 		"name": "Aventurier", "sprite": "adventurer", "color": Color("42a5f5"), "size": 8.0, "speed": 70.0,
@@ -94,6 +98,28 @@ const INFO := {
 		"name": "Moine libérateur", "sprite": "monk", "size": 8.0, "speed": 70.0,
 		"hp": 100.0, "damage": 6.0, "range": 26.0, "attack_interval": 1.2,
 		"reward": 50, "first_wave": 3, "liberator": true,
+	},
+	Type.COLOSSUS: {
+		# Le Colosse endormi : un gardien des profondeurs, neutre. Il ne marche pas sur
+		# ton cœur, il défend sa caverne et son trésor. Vaincu, il se soumet et te sert.
+		"name": "Colosse endormi", "sprite": "golem", "size": 15.0, "speed": 45.0,
+		"hp": 1100.0, "damage": 32.0, "range": 36.0, "attack_interval": 1.7,
+		"reward": 300, "first_wave": 999, "armor": 0.3, "splash": 40.0,
+		"guardian": true, "fearless": true, "no_capture": true, "tint": Color(1.25, 0.6, 0.35),
+	},
+	Type.SPECTRE: {
+		# Le Spectre : l'esprit d'une ruine oubliée, réveillé quand on la dérange.
+		"name": "Spectre", "sprite": "revenant", "size": 9.0, "speed": 85.0,
+		"hp": 120.0, "damage": 13.0, "range": 28.0, "attack_interval": 1.0,
+		"reward": 30, "first_wave": 999, "lifesteal": 0.2,
+		"fearless": true, "no_capture": true, "tint": Color(0.6, 0.8, 1.4), "alpha": 0.7,
+	},
+	Type.SCOUT: {
+		# L'Éclaireur : il arrive avant certaines vagues, repère tes pièges et repart.
+		# S'il ressort vivant, la vague suivante les connaît (voir main.gd).
+		"name": "Éclaireur", "sprite": "adventurer", "size": 7.0, "speed": 120.0,
+		"hp": 70.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.9,
+		"reward": 40, "first_wave": 999, "scout": true, "tint": Color(0.7, 1.0, 0.7),
 	},
 }
 ## Une vague sur CHAMPION_EVERY est menée par le Champion du royaume.

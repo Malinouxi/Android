@@ -3,7 +3,8 @@ class_name Creatures
 ## pour qu'elles viennent par le portail.
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
-enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT, CERBERUS }
+enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT, CERBERUS,
+		COLOSSUS }
 
 ## "requires" : nombre minimum de SALLES de chaque type pour attirer la créature
 ## (une salle = un bloc entier : un lit de Repaire, une Bibliothèque 2 x 3...).
@@ -97,6 +98,15 @@ const INFO := {
 		# Limite : un Cerbère par CERBERUS_TREASURY_ROOMS salles de Trésor, « limit_max » au plus.
 		"limit_room": Rooms.Type.TREASURY, "limit_each": 1.0 / Rules.CERBERUS_TREASURY_ROOMS,
 		"limit_max": Rules.MAX_CERBERUS,
+	},
+	Type.COLOSSUS: {
+		# Le Colosse ancien : le gardien des profondeurs, vaincu, s'est soumis.
+		# "graveyard" : il ne vient jamais par le portail ; "undead" : il ne dort ni ne
+		# mange (c'est un être de pierre et de magie). Unique : un seul par Colosse vaincu.
+		"name": "Colosse ancien", "sprite": "golem", "color": Color("d0632e"), "size": 14.0, "speed": 55.0,
+		"salary": 60, "requires": {}, "graveyard": true, "undead": true, "ancient": true,
+		"hp": 800.0, "damage": 30.0, "range": 34.0, "attack_interval": 1.5, "armor": 0.3, "splash": 40.0,
+		"tint": Color(1.25, 0.6, 0.35),
 	},
 }
 

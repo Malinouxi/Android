@@ -42,8 +42,8 @@ const CAMPAIGN := [
 	},
 	{
 		"id": 4, "name": "Le savoir est une arme", "seed": 4404,
-		"intro": "Construis une Bibliothèque et fais 5 découvertes.",
-		"goal": {"type": "research", "count": 5},
+		"intro": "Construis une Bibliothèque et fais 7 découvertes.",
+		"goal": {"type": "research", "count": 7},
 		"start_gold": 400, "first_wave": 240.0, "wave_interval": 140.0,
 	},
 	{

@@ -175,8 +175,7 @@ func _defense_img(type: int) -> String:
 
 
 func _spell_img(type: int) -> String:
-	var icon: String = ["heal", "bolt", "haste"][type]
-	return _img("res://assets/icons/%s.png" % icon, TABLE_IMAGE_SIZE)
+	return _img("res://assets/icons_hd/%s.png" % Spells.icon(type), TABLE_IMAGE_SIZE)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +236,14 @@ func _abilities(info: Dictionary) -> String:
 		parts.append("garde le %s" % Rooms.display_name(info["guard"]))
 	if info.has("war_cry"):
 		parts.append("cri de guerre")
+	if info.has("immune"):
+		var names := {"web": "Toile", "terror": "Terreur", "collapse": "Effondrement"}
+		var immune: Array[String] = []
+		for spell: String in info["immune"]:
+			immune.append(names.get(spell, spell))
+		parts.append("insensible : %s" % ", ".join(immune))
+	if info.get("exorcist", false):
+		parts.append("dissipe tes sorts")
 	if info.get("guardian", false):
 		parts.append("garde sa caverne")
 	if info["range"] > 50.0:
@@ -264,6 +271,8 @@ func _creatures_table() -> String:
 			requires.append("max %s (%d en tout)" % [per, info["limit_max"]])
 		if info.get("ancient", false):
 			requires.append("vaincre le Colosse endormi")
+		if info.get("renegade", false):
+			requires.append("sort Conversion sur un prisonnier")
 		text += _cell(_unit_img(info["sprite"])) + _cell(info["name"]) + _cell(", ".join(requires)) + _cell(info["salary"]) \
 				+ _cell(roundi(info["hp"])) + _cell(roundi(info["damage"])) + _cell(_abilities(info))
 	return text + "[/table]"
@@ -328,10 +337,14 @@ func _defenses_table() -> String:
 
 
 func _spells_table() -> String:
-	var text := "[table=3]" + _header(["", "Sort", "Mana"])
+	var text := "[table=4]" + _header(["", "Sort", "Mana", "Effet"])
 	for type: int in Spells.INFO:
-		text += _cell(_spell_img(type)) + _cell(Spells.display_name(type)) + _cell(Spells.mana_cost(type))
-	return text + "[/table]\n\nLa mana se recharge plus vite avec un grand territoire (%d au maximum)." % Spells.MAX_MANA
+		var help: String = Spells.INFO[type]["help"]
+		var room := Spells.required_room(type)
+		if room != Rooms.Type.NONE:
+			help += " [i](Il faut un %s.)[/i]" % Rooms.display_name(room)
+		text += _cell(_spell_img(type)) + _cell(Spells.display_name(type)) + _cell(Spells.mana_cost(type)) + _cell(help)
+	return text + "[/table]\n\nLa mana se recharge plus vite avec un grand territoire (%d au maximum). Dès la vague %d, les héros résistent de plus en plus à la magie (voir l'article « Les héros contre tes sorts »)." % [Spells.MAX_MANA, Rules.SPELL_RESIST_FROM_WAVE]
 
 
 func _research_table() -> String:

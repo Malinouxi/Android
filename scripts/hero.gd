@@ -116,6 +116,10 @@ var _objective_timer := 0.0
 var _scout_time := 0.0
 ## Dégâts reçus de chaque espèce de créature : Creatures.Type -> dégâts.
 var _damage_by_species: Dictionary = {}
+## Terreur (sort du maître) : il fuit vers l'entrée pendant ce temps, puis reprend sa route.
+var _terror_left := 0.0
+## L'Exorciste : temps avant sa prochaine dissipation.
+var _exorcise_timer := 2.0
 
 
 ## À appeler juste après Hero.new().
@@ -143,7 +147,8 @@ func setup_hero(dungeon_map: DungeonMap, cell: Vector2i, hero_type: int) -> void
 
 
 func to_save() -> Dictionary:
-	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp, "loot": loot}
+	var data := {"type": type, "cell": SaveGame.cell_to_array(current_cell()), "hp": hp, "loot": loot,
+		"resist": spell_resist}
 	if not nemesis.is_empty():
 		data["nemesis"] = nemesis
 	if fleeing:
@@ -314,6 +319,8 @@ func apply_nemesis(entry: Dictionary) -> void:
 	max_hp = info["hp"] * (1.0 + Rules.NEMESIS_HP_BONUS * rank())
 	hp = max_hp
 	attack_damage = info["damage"] * (1.0 + Rules.NEMESIS_DAMAGE_BONUS * rank())
+	# Il a déjà goûté à tes sorts : il y résiste mieux.
+	spell_resist = minf(0.75, spell_resist + Rules.SPELL_RESIST_PER_RANK * rank())
 	for values in nemesis.get("traps", []):
 		var cell := SaveGame.array_to_cell(values)
 		known_traps[cell] = true
@@ -448,11 +455,100 @@ func _guard(delta: float) -> void:
 		heal(Rules.GUARDIAN_REGEN * delta)
 
 
+# ---------------------------------------------------------------------------
+# Face aux sorts du maître (voir spells.gd)
+# ---------------------------------------------------------------------------
+
+## Insensible à ce sort ? ("immune" dans heroes.gd ; ceux qui ne fuient jamais
+## ne craignent pas la Terreur.)
+func is_immune(spell: String) -> bool:
+	var info := Heroes.info(type)
+	if spell in info.get("immune", []):
+		return true
+	return spell == "terror" and not _can_flee()
+
+
+## Sa résistance à la magie, selon la vague où il arrive et son rang de vétéran.
+func set_spell_resist(wave: int) -> void:
+	var from_waves := maxf(0.0, wave - Rules.SPELL_RESIST_FROM_WAVE + 1) * Rules.SPELL_RESIST_PER_WAVE
+	spell_resist = minf(Rules.SPELL_RESIST_MAX, from_waves) + Rules.SPELL_RESIST_PER_RANK * rank()
+	spell_resist = minf(spell_resist, 0.75)
+
+
+## Terreur : il court vers l'entrée pendant duration secondes. Renvoie false s'il y
+## est insensible.
+func frighten(duration: float) -> bool:
+	if is_immune("terror") or fleeing or is_guardian():
+		return false
+	_terror_left = maxf(_terror_left, resisted(duration))
+	_target = null
+	_mission_cell = NO_CELL
+	_unlock_left = -1.0
+	path.clear()
+	return true
+
+
+func is_terrified() -> bool:
+	return _terror_left > 0.0
+
+
+## Les envoûtements du maître le quittent (Exorciste, Clerc).
+func dispel() -> bool:
+	var had := super()
+	if _terror_left > 0.0:
+		had = true
+		_terror_left = 0.0
+		path.clear()
+		_mission_cell = NO_CELL
+	return had
+
+
+## Terrifié : il court vers l'entrée la plus proche et y attend que ça passe.
+func _run_in_terror(delta: float) -> void:
+	_terror_left -= delta
+	if _terror_left <= 0.0:
+		path.clear()
+		_mission_cell = NO_CELL
+		return
+	var exit := map.nearest_entrance(current_cell())
+	if current_cell() == exit:
+		path.clear()
+		return
+	if path.is_empty() or _mission_cell != exit:
+		_mission_cell = exit
+		follow_path(map.find_hero_path_to(current_cell(), exit, _avoided_traps(), _path_weights()))
+		if path.is_empty():
+			return
+	_walk_or_dig(delta)
+
+
+## L'Exorciste dissipe les sorts autour de lui : il libère ses alliés, retire leurs
+## sorts à tes unités (Hâte, Sanctuaire, Fouet, Possession) et éteint les flammes.
+func _exorcise(delta: float) -> void:
+	_exorcise_timer -= delta
+	if _exorcise_timer > 0.0:
+		return
+	_exorcise_timer = Rules.EXORCIST_INTERVAL
+	var dispelled := map.extinguish_fires(position, Rules.EXORCIST_RADIUS)
+	for group in ["heroes", "dungeon"]:
+		for node in get_tree().get_nodes_in_group(group):
+			var unit := node as Unit
+			if unit != null and unit.position.distance_to(position) <= Rules.EXORCIST_RADIUS and unit.dispel():
+				dispelled = true
+				Fx.burst("sparks", unit.position, Color("e1f5fe"))
+	if dispelled:
+		play_attack()
+		map.add_effect(position, Rules.EXORCIST_RADIUS, Color(0.85, 0.95, 1.0, 0.45))
+		Fx.flash_light(position, Color(0.8, 0.9, 1.0), 150.0, 0.5)
+		Sound.play("zap", position, -6.0)
+
+
 ## Gravement blessé : il bat en retraite vers l'entrée grise.
 func start_fleeing(announce := true) -> void:
 	if fleeing:
 		return
 	fleeing = true
+	_terror_left = 0.0
 	_target = null
 	_unlock_left = -1.0
 	_prisoner_target = null
@@ -522,6 +618,10 @@ func _process(delta: float) -> void:
 		_cleric_heal(delta)
 	elif type == Heroes.Type.CHAMPION:
 		_war_cry(delta)
+	elif type == Heroes.Type.EXORCIST:
+		_exorcise(delta)
+	if stealthy:
+		self_modulate.a = 0.55 if is_stealthy() else 1.0 # L'Œil du maître la démasque.
 
 	if is_guardian():
 		_guard(delta)
@@ -535,6 +635,12 @@ func _process(delta: float) -> void:
 	# Gravement blessé : il bat en retraite (et ne s'arrête plus pour se battre).
 	if not fleeing and _can_flee() and hp < max_hp * Rules.HERO_FLEE_BELOW:
 		start_fleeing()
+
+	# Terrifié (sort du maître) : il ne pense qu'à s'enfuir.
+	if _terror_left > 0.0 and not fleeing:
+		_run_in_terror(delta)
+		queue_redraw()
+		return
 
 	# Trois fois par seconde, on regarde s'il y a un ennemi à proximité.
 	_think_timer -= delta
@@ -966,9 +1072,13 @@ func _cleric_heal(delta: float) -> void:
 	var healed := false
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var ally := node as Unit
-		if ally != null and ally.hp < ally.max_hp \
-				and ally.position.distance_to(position) <= Heroes.CLERIC_HEAL_RADIUS:
+		if ally == null or ally.position.distance_to(position) > Heroes.CLERIC_HEAL_RADIUS:
+			continue
+		if ally.hp < ally.max_hp:
 			ally.heal(Heroes.CLERIC_HEAL_AMOUNT)
+			healed = true
+		# Il libère aussi ses alliés de la Toile et de la Terreur du maître.
+		if (ally.is_webbed() or (ally is Hero and (ally as Hero).is_terrified())) and ally.dispel():
 			healed = true
 	if healed:
 		map.add_effect(position, Heroes.CLERIC_HEAL_RADIUS, Color(1.0, 1.0, 0.6, 0.35))
@@ -998,7 +1108,7 @@ func _attack_door(cell: Vector2i) -> void:
 	_attack_cooldown = attack_interval
 	show_strike(map.cell_to_world(cell))
 	# Certains héros (le Géant) cassent les portes bien plus vite.
-	map.damage_door(cell, attack_damage * Heroes.info(type).get("door_damage", 1.0))
+	map.damage_door(cell, attack_damage * Heroes.info(type).get("door_damage", 1.0), self)
 
 
 func _march(delta: float) -> void:
@@ -1086,8 +1196,15 @@ func overhead_text() -> String:
 	if knocked_out or carrier != null or is_captured():
 		return ""
 	var text := String(nemesis["name"]) if is_veteran() else ""
+	var status := ""
 	if fleeing:
-		text = (text + " fuit !") if text != "" else "fuit !"
+		status = "fuit !"
+	elif _terror_left > 0.0:
+		status = "terrifié !"
+	elif is_webbed():
+		status = "englué"
+	if status != "":
+		text = (text + " " + status) if text != "" else status
 	return text
 
 

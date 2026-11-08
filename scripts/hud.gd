@@ -27,7 +27,10 @@ signal assault_pressed
 ## Ce que fait un toucher sur la carte.
 enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		LIBRARY, WORKSHOP, TRAINING, SPELL_HEAL, SPELL_LIGHTNING, SPELL_HASTE, PRISON, TEMPLE,
-		ALTAR, SACRIFICE, GRAVEYARD, BRAZIER }
+		ALTAR, SACRIFICE, GRAVEYARD, BRAZIER,
+		SPELL_WEB, SPELL_FIRESTORM, SPELL_TERROR, SPELL_COLLAPSE, SPELL_POSSESSION,
+		SPELL_WHIP, SPELL_FEAST, SPELL_EYE, SPELL_SUMMON, SPELL_TRANSMUTE,
+		SPELL_RAISE, SPELL_CONVERT, SPELL_SANCTUARY, SPELL_RECALL }
 
 var _top_panel: PanelContainer
 ## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
@@ -93,6 +96,11 @@ const TOOL_ICON_NAMES := {
 	Tool.GRAVEYARD: "tomb", Tool.SPIKES: "spikes", Tool.RUNE: "rune", Tool.DOOR: "door",
 	Tool.ALTAR: "sacrifice_altar", Tool.SPELL_HEAL: "heal", Tool.SPELL_LIGHTNING: "bolt",
 	Tool.SPELL_HASTE: "haste", Tool.BRAZIER: "brazier",
+	Tool.SPELL_WEB: "web", Tool.SPELL_FIRESTORM: "firestorm", Tool.SPELL_TERROR: "terror",
+	Tool.SPELL_COLLAPSE: "collapse", Tool.SPELL_POSSESSION: "possession", Tool.SPELL_WHIP: "whip",
+	Tool.SPELL_FEAST: "feast", Tool.SPELL_EYE: "eye", Tool.SPELL_SUMMON: "summon",
+	Tool.SPELL_TRANSMUTE: "transmute", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "convert",
+	Tool.SPELL_SANCTUARY: "sanctuary", Tool.SPELL_RECALL: "recall",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
@@ -100,7 +108,12 @@ const TABS := {
 	"Salles": ["chest", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
 			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
 	"Défenses": ["spikes", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
-	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE]],
+	# Les sorts de combat...
+	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
+			Tool.SPELL_FIRESTORM, Tool.SPELL_TERROR, Tool.SPELL_COLLAPSE, Tool.SPELL_POSSESSION]],
+	# ... et les pouvoirs du maître sur son donjon.
+	"Pouvoirs": ["mana", [Tool.SPELL_WHIP, Tool.SPELL_FEAST, Tool.SPELL_EYE, Tool.SPELL_SUMMON,
+			Tool.SPELL_TRANSMUTE, Tool.SPELL_RAISE, Tool.SPELL_CONVERT, Tool.SPELL_SANCTUARY, Tool.SPELL_RECALL]],
 }
 ## Vitesses de jeu proposées par le bouton « Vitesse ».
 const SPEEDS := [1.0, 2.0, 3.0]
@@ -358,7 +371,7 @@ func _build_portrait() -> void:
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
 	_category_panel.position = Vector2(8, LordPortrait.SIZE + 18) # Sous le médaillon (et son crâne).
-	# En grille de 2 x 2 : des boutons assez hauts pour des icônes lisibles.
+	# En grille de 2 colonnes : des boutons assez hauts pour des icônes lisibles.
 	var column := GridContainer.new()
 	column.columns = 2
 	column.add_theme_constant_override("h_separation", 4)

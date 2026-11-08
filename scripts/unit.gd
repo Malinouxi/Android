@@ -65,6 +65,24 @@ var _burn_dps := 0.0
 var _burn_tick := 0.0
 const BURN_TICK := 0.5
 
+# --- Les sorts du maître (voir spells.gd) ---------------------------------------
+## Résistance à la magie (les héros, voir hero.gd) : dégâts des sorts et durée des
+## envoûtements réduits d'autant (0.3 = -30 %).
+var spell_resist := 0.0
+## Toile du maître : englué (ralenti, et les Runes le retiennent : combo « Rune engluée »).
+var _web_left := 0.0
+## Sanctuaire : dégâts reçus réduits de _ward_amount pendant _ward_left secondes.
+var _ward_left := 0.0
+var _ward_amount := 0.0
+## Fouet : travaille plus vite pendant _whip_left secondes.
+var _whip_left := 0.0
+var _whip_factor := 1.0
+## Œil du maître : une unité discrète démasquée se voit de loin pendant ce temps.
+var _unmasked_left := 0.0
+## Une unité TEMPORAIRE (ouvrier invoqué, Revenant relevé) disparaît au bout de
+## lifetime secondes (-1 : pour toujours).
+var lifetime := -1.0
+
 
 ## Quand l'unité entre dans la scène, on la range dans un « groupe » selon son camp.
 ## Ainsi chacun peut retrouver ses ennemis avec get_nodes_in_group().
@@ -191,6 +209,15 @@ func update_effects(delta: float) -> void:
 	_haste_left = maxf(0.0, _haste_left - delta)
 	_attack_animation_left = maxf(0.0, _attack_animation_left - delta)
 	_slow_left = maxf(0.0, _slow_left - delta)
+	_web_left = maxf(0.0, _web_left - delta)
+	_ward_left = maxf(0.0, _ward_left - delta)
+	_whip_left = maxf(0.0, _whip_left - delta)
+	_unmasked_left = maxf(0.0, _unmasked_left - delta)
+	if lifetime > 0.0:
+		lifetime -= delta
+		if lifetime <= 0.0:
+			vanish()
+			return
 	if regen > 0.0:
 		heal(regen * delta)
 	if _burn_left > 0.0:
@@ -224,6 +251,97 @@ func apply_slow(duration: float) -> void:
 
 func is_slowed() -> bool:
 	return _slow_left > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Les sorts du maître
+# ---------------------------------------------------------------------------
+
+## La durée d'un envoûtement, raccourcie par la résistance à la magie.
+func resisted(duration: float) -> float:
+	return duration * (1.0 - spell_resist)
+
+
+## Les sorts auxquels cette unité est insensible (les héros, voir heroes.gd).
+func is_immune(_spell: String) -> bool:
+	return false
+
+
+## Toile du maître : englué et ralenti. Renvoie false s'il y est insensible.
+func apply_web(duration: float) -> bool:
+	if is_immune("web"):
+		return false
+	_web_left = maxf(_web_left, resisted(duration))
+	apply_slow(_web_left)
+	return true
+
+
+func is_webbed() -> bool:
+	return _web_left > 0.0
+
+
+## Sanctuaire : dégâts reçus réduits de amount (0.4 = -40 %).
+func apply_ward(duration: float, amount: float) -> void:
+	_ward_left = maxf(_ward_left, duration)
+	_ward_amount = amount
+
+
+func is_warded() -> bool:
+	return _ward_left > 0.0
+
+
+## Fouet : le travail va factor fois plus vite.
+func apply_whip(duration: float, factor: float) -> void:
+	_whip_left = maxf(_whip_left, duration)
+	_whip_factor = factor
+
+
+func is_whipped() -> bool:
+	return _whip_left > 0.0
+
+
+## Le travail (creuser, construire, étudier...) va d'autant plus vite.
+func work_factor() -> float:
+	return _whip_factor if _whip_left > 0.0 else 1.0
+
+
+## Œil du maître : une unité discrète est repérée de loin pendant duration secondes.
+func unmask(duration: float) -> void:
+	_unmasked_left = maxf(_unmasked_left, duration)
+
+
+## Vraiment discrète en ce moment (pas démasquée par l'Œil du maître).
+func is_stealthy() -> bool:
+	return stealthy and _unmasked_left <= 0.0
+
+
+## L'Exorciste DISSIPE la magie : il retire les sorts du maître (bons ou mauvais pour
+## l'unité). Renvoie true s'il y avait quelque chose à dissiper.
+func dispel() -> bool:
+	var had := _haste_left > 0.0 or _web_left > 0.0 or _ward_left > 0.0 or _whip_left > 0.0
+	if team == Team.DUNGEON:
+		_haste_left = 0.0
+		_ward_left = 0.0
+		_whip_left = 0.0
+	else:
+		if _web_left > 0.0:
+			_slow_left = 0.0
+		_web_left = 0.0
+	return had
+
+
+## Une unité temporaire dont le temps est écoulé : elle s'efface (les classes filles
+## libèrent d'abord ce qu'elles tenaient).
+func vanish() -> void:
+	Fx.burst("smoke", position, Color(0.6, 1.0, 0.6, 0.6))
+	remove_from_group(_group_name(team))
+	queue_free()
+
+
+## Le chemin passe par une case qui vient de se boucher (Effondrement) : on oublie le
+## chemin (les classes filles abandonnent aussi leur tâche).
+func on_path_blocked() -> void:
+	path.clear()
 
 
 ## Met le feu à l'unité : dps dégâts par seconde pendant duration secondes.
@@ -267,6 +385,8 @@ func take_damage(amount: float, source: Unit = null) -> void:
 	if is_dead():
 		return
 	var damage_taken := amount * (1.0 - armor)
+	if _ward_left > 0.0:
+		damage_taken *= 1.0 - _ward_amount # Sanctuaire.
 	hp -= damage_taken
 	if source != null:
 		_on_damaged(source, damage_taken)
@@ -324,7 +444,7 @@ func find_nearest_enemy(radius: float) -> Unit:
 		if unit == null or unit.is_dead():
 			continue
 		var distance := position.distance_to(unit.position)
-		if unit.stealthy and not keen_nose and distance > Rules.STEALTH_RADIUS:
+		if unit.is_stealthy() and not keen_nose and distance > Rules.STEALTH_RADIUS:
 			continue # Trop discrète pour être repérée d'ici.
 		if unit.ignored_as_enemy():
 			continue # Le Colosse endormi : on ne l'attaque que sur ordre du maître.

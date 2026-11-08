@@ -120,6 +120,8 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   | Éclair | 40 | 70 dégâts aux héros touchés (à découvrir) |
   | Hâte | 25 | Une de tes unités court 80 % plus vite pendant 15 s (à découvrir) |
 
+  (14 autres sorts sont arrivés depuis : voir l'étape 42.)
+
 *Bibliothèque et Atelier*
 - Quand elles n'ont ni faim ni sommeil, les créatures **travaillent** : elles étudient à la **Bibliothèque**
   (les Sorciers 3 fois plus vite), fabriquent à l'**Atelier** (les Orques sont les meilleurs) ou s'entraînent.
@@ -429,6 +431,41 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   ces pièges ; il ne devient pas vétéran.
 - Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
   Réglages : partie « Tactiques des héros » de `rules.gd`.
+
+**Étape 42 — 14 nouveaux sorts, et des héros qui s'y habituent** (règles 2.5)
+
+- **Deux onglets de sorts** dans la colonne de gauche : **Sorts** (combat) et **Pouvoirs** (ton donjon).
+  Tous se découvrent à la Bibliothèque, mêlés aux salles et aux pièges (`research.gd`). Le catalogue
+  est `spells.gd` ; les effets sont dans `_cast_spell` (`main.gd`).
+
+  | Sort | Mana | Effet |
+  |------|------|-------|
+  | Toile | 35 | Les héros de la zone sont englués (2 fois plus lents) 8 s |
+  | Brasier | 45 | Le sol de la zone brûle 6 s |
+  | Terreur | 50 | Les héros de la zone fuient vers l'entrée 6 s, puis reviennent |
+  | Effondrement | 60 | Un couloir redevient de la terre ; ce qui s'y trouve prend 120 dégâts |
+  | Possession | 55 | 15 s : la créature frappe +50 %, attaque le héros ou va sur la case que tu touches (ordres gratuits) |
+  | Fouet | 20 | Une créature ou un ouvrier travaille 2 fois plus vite 30 s (-8 d'humeur pour une créature) |
+  | Festin | 60 | Toutes les créatures n'ont plus faim, +15 d'humeur |
+  | Œil du maître | 30 | Montre la prochaine vague, démasque les Voleuses 20 s, révèle les secrets proches |
+  | Invocation | 40 | Un ouvrier fantôme pendant 60 s (4 au plus) |
+  | Transmutation | 50 | 150 or au Trésor |
+  | Relever les morts | 50 | Les tombes pleines du Cimetière se relèvent ; sinon un Revenant pour 45 s |
+  | Conversion | 70 | Un prisonnier rejoint ton donjon (Renégat, ou créature de son espèce pour le rival) |
+  | Sanctuaire | 45 | Touche le Temple : tes unités proches prennent 40 % de dégâts en moins 20 s |
+  | Rappel | 40 | Toutes tes créatures apparaissent autour du cœur |
+
+- **Montée en difficulté** : dès la vague 4, +4 % de résistance aux sorts par vague (40 % au plus),
+  +10 % par rang de vétéran ; dégâts des sorts et durée des envoûtements réduits d'autant.
+  Immunités (`"immune"` dans `heroes.gd`) : Paladin et Moine (Terreur), Magicienne et Géant (Toile),
+  Nain (Effondrement, 25 % des dégâts). Le Clerc libère ses alliés en soignant.
+  **L'Exorciste** (nouveau héros, dès la vague 5, au moins un par vague dès la 8) dissipe la magie
+  toutes les 5 s autour de lui. Réglages : partie « Magie » de `rules.gd`.
+- **4 nouveaux combos secrets** : Porte électrifiée (Éclair + Porte), Rune engluée (Toile + Rune),
+  Brasier runique (Brasier + Rune), Traînée de feu (Hâte + Démon).
+- **14 nouvelles icônes** modélisées dans Blender (`tools/blender/icons.py`).
+- Les unités invoquées pour un temps (ouvrier fantôme, Revenant relevé) ne sont pas sauvegardées.
+  Les vieilles sauvegardes gardent leurs découvertes (`Research.OLD_ORDER`).
 
 **Étape 41 — HUD « caverne » et icônes 3D, le tout fait dans Blender**
 - **Les 30 icônes** (outils, salles, défenses, sorts, compteurs) sont **modélisées en 3D** dans Blender

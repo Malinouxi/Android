@@ -4,7 +4,7 @@ class_name Creatures
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
 enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT, CERBERUS,
-		COLOSSUS }
+		COLOSSUS, RENEGADE }
 
 ## "requires" : nombre minimum de SALLES de chaque type pour attirer la créature
 ## (une salle = un bloc entier : un lit de Repaire, une Bibliothèque 2 x 3...).
@@ -107,6 +107,14 @@ const INFO := {
 		"salary": 60, "requires": {}, "graveyard": true, "undead": true, "ancient": true,
 		"hp": 800.0, "damage": 30.0, "range": 34.0, "attack_interval": 1.5, "armor": 0.3, "splash": 40.0,
 		"tint": Color(1.25, 0.6, 0.35),
+	},
+	Type.RENEGADE: {
+		# Le Renégat : un prisonnier qui a renié son roi (sort Conversion). Il garde
+		# l'allure du héros qu'il était, mais porte tes couleurs. Il lui faut un lit.
+		# "graveyard" : il ne vient jamais par le portail.
+		"name": "Renégat", "sprite": "adventurer", "color": Color("8d6e63"), "size": 8.0, "speed": 75.0,
+		"salary": 20, "requires": {}, "graveyard": true, "renegade": true,
+		"hp": 120.0, "damage": 11.0, "range": 28.0, "attack_interval": 1.0, "tint": Color(1.2, 0.75, 0.75),
 	},
 }
 

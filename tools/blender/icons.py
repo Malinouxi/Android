@@ -781,6 +781,211 @@ def demon(m):
     return scene
 
 
+# --- Les nouveaux sorts (spells.gd) ---------------------------------------------
+
+def web(m):
+    silk = mat("silk", "f5f5ff", rough=0.3, emission=1.6)
+    center = (0.0, 0.0, 0.22)
+    spokes = 8
+    for k in range(spokes):
+        a = math.radians(k * 360 / spokes + 10)
+        tube(silk, [center, (math.cos(a) * 0.82, 0, center[2] + math.sin(a) * 0.8)], [0.045, 0.035])
+    for r in (0.22, 0.42, 0.62, 0.8):
+        pts = []
+        for k in range(spokes + 1):
+            a = math.radians(k * 360 / spokes + 10)
+            sag = 0.88 if k % 2 else 1.0
+            pts.append((math.cos(a) * r * sag, -0.01, center[2] + math.sin(a) * r * sag))
+        tube(silk, pts, [0.032] * len(pts), resolution=6)
+    # Une araignée au centre, et une goutte de rosée magique.
+    ball(m["dark"], (0.18, -0.08, 0.38), 0.13, scale=(1, 0.8, 1.1))
+    ball(m["dark"], (0.18, -0.12, 0.2), 0.09)
+    for side in (-1, 1):
+        for k in range(3):
+            tube(m["dark"], [(0.18, -0.1, 0.32 - k * 0.06), (0.18 + side * 0.18, -0.12, 0.38 - k * 0.08),
+                             (0.18 + side * 0.28, -0.12, 0.22 - k * 0.1)], [0.025, 0.02, 0.0])
+    ball(m["eye"], (0.14, -0.2, 0.22), 0.025)
+    ball(m["eye"], (0.22, -0.2, 0.22), 0.025)
+    ball(m["glow_purple"], (-0.45, -0.05, -0.1), 0.06)
+
+
+def firestorm(m):
+    ball(m["ember"], (0, 0.05, -0.5), 0.8, scale=(1, 0.5, 0.12))
+    flames = [(0, 0.0, 1.05, 0.34, "fire_red"), (-0.45, 0.05, 0.75, 0.25, "fire_red"),
+              (0.45, 0.05, 0.8, 0.26, "fire_red"), (-0.22, -0.12, 0.6, 0.2, "fire"),
+              (0.25, -0.12, 0.65, 0.2, "fire"), (-0.68, -0.05, 0.45, 0.16, "fire"),
+              (0.7, -0.05, 0.42, 0.15, "fire"), (0.0, -0.22, 0.45, 0.16, "fire_core")]
+    for x, y, h, r, mt in flames:
+        cone(m[mt], (x, y, -0.48 + h / 2), r, h, vertices=10)
+    for x, z in [(-0.5, 0.55), (0.35, 0.8), (0.65, 0.4), (-0.15, 0.95)]:
+        ball(m["glow_orange"], (x, -0.25, z), 0.04)
+
+
+def terror(m):
+    ghost = mat("ghost", "b39ddb", rough=0.4, emission=0.9, alpha=0.85)
+    ball(ghost, (0, 0, 0.42), 0.5, scale=(0.9, 0.75, 1.0))
+    lathe(ghost, [(-0.55, 0.0), (-0.45, 0.25), (-0.2, 0.38), (0.15, 0.44), (0.4, 0.42)], (0, 0, 0))
+    for x in (-0.3, -0.1, 0.1, 0.3):
+        cone(ghost, (x, 0, -0.6), 0.1, 0.22, rot=(math.radians(180), 0, 0), vertices=8)
+    for x in (-0.18, 0.18):
+        ball(m["dark"], (x, -0.33, 0.55), 0.11, scale=(0.9, 0.5, 1.3), rot=(0, x * 1.2, 0))
+        ball(m["glow_purple"], (x, -0.4, 0.53), 0.03)
+    ball(m["dark"], (0, -0.33, 0.18), 0.13, scale=(0.8, 0.5, 1.5))
+    for side in (-1, 1):
+        tube(ghost, [(side * 0.38, -0.05, 0.25), (side * 0.7, -0.1, 0.45), (side * 0.85, -0.12, 0.75)],
+             [0.1, 0.07, 0.02])
+
+
+def collapse(m):
+    box(m["stone_dark"], (0, 0.1, 0.95), (1.7, 0.4, 0.18), bevel=0.04)
+    for x, z in [(-0.6, 0.82), (0.1, 0.8), (0.55, 0.83)]:
+        cone(m["stone_dark"], (x, 0.0, z - 0.08), 0.08, 0.2, rot=(math.radians(180), 0, 0), vertices=6)
+    rocks = [(-0.35, 0.45, 0.22), (0.3, 0.2, 0.18), (-0.05, -0.05, 0.14), (0.6, 0.55, 0.11),
+             (-0.65, 0.1, 0.12), (-0.3, -0.45, 0.25), (0.25, -0.5, 0.28), (0.7, -0.52, 0.16),
+             (-0.7, -0.5, 0.15)]
+    for k, (x, z, r) in enumerate(rocks):
+        ball(m["stone_light"] if k % 3 == 0 else m["stone"], (x, -0.05, z), r, subdiv=1, flat=True,
+             rot=(k * 0.7, k * 1.3, k * 0.4))
+    dust = mat("dust", "bcaaa4", rough=1.0, alpha=0.5)
+    for x, z in [(-0.5, -0.3), (0.5, -0.35), (0.0, -0.3)]:
+        ball(dust, (x, 0.15, z), 0.22, scale=(1.4, 0.6, 0.7))
+
+
+def possession(m):
+    box(m["wood"], (0, 0, 0.95), (1.2, 0.12, 0.12), bevel=0.03)
+    box(m["wood"], (0, 0, 0.95), (0.12, 0.7, 0.12), bevel=0.03)
+    string = mat("string", "fff3e0", rough=0.6, emission=0.3)
+    soul = mat("soul", "ff1744", rough=0.1, emission=2.5, coat=1.0)
+    ball(soul, (0, -0.05, -0.05), 0.32, subdiv=2, flat=True)
+    ball(m["dark"], (0, -0.3, -0.03), 0.1, scale=(0.5, 0.4, 1.2))
+    for x in (-0.55, 0.0, 0.55):
+        tube(string, [(x, 0, 0.9), ((x * 0.4), -0.05, 0.3), (x * 0.3, -0.05, 0.22)], [0.012, 0.012, 0.012])
+    for x, z in [(-0.5, -0.4), (0.55, -0.3), (0.35, 0.35)]:
+        ball(m["glow_orange"], (x, -0.2, z), 0.035)
+
+
+def whip(m):
+    cyl(m["leather"], (-0.45, 0, -0.35), 0.09, 0.6, rot=(0, math.radians(-35), 0), bevel=0.02)
+    ring(m["gold"], (-0.62, 0, -0.6), 0.1, 0.03, rot=(0, math.radians(-35) + math.pi / 2, 0))
+    ring(m["gold"], (-0.28, 0, -0.1), 0.1, 0.03, rot=(0, math.radians(-35) + math.pi / 2, 0))
+    lash = mat("lash", "6d4c41", rough=0.5)
+    tube(lash, [(-0.25, 0, -0.08), (0.1, -0.05, 0.5), (0.6, -0.05, 0.85), (0.85, -0.05, 0.4),
+                (0.55, -0.05, 0.1), (0.75, -0.05, -0.25)], [0.07, 0.06, 0.05, 0.035, 0.02, 0.0])
+    for x, z in [(0.85, -0.3), (0.7, -0.4), (0.92, -0.15)]:
+        ball(m["glow_orange"], (x, -0.15, z), 0.035)
+
+
+def _drumstick(m, x, angle):
+    stick = group((x, 0, -0.05), rotation_y=angle)
+    meat = mat("meat", "a0522d", rough=0.45, coat=0.5)
+    ball(meat, (0, 0, 0.32), 0.3, scale=(0.85, 0.8, 1.2), parent=stick)
+    cyl(m["bone"], (0, 0, -0.25), 0.07, 0.5, bevel=0.02, parent=stick)
+    for dx in (-0.07, 0.07):
+        ball(m["bone"], (dx, 0, -0.52), 0.08, parent=stick)
+
+
+def feast(m):
+    _drumstick(m, -0.42, math.radians(-30))
+    _drumstick(m, 0.42, math.radians(30))
+    cap = mat("cap", "c62828", rough=0.5)
+    ball(cap, (0, -0.3, -0.35), 0.22, scale=(1, 1, 0.55))
+    cyl(m["cloth_beige"], (0, -0.3, -0.5), 0.08, 0.2, bevel=0.02)
+    for x, z in [(-0.06, -0.28), (0.08, -0.32)]:
+        ball(m["white"], (x, -0.5, z), 0.035)
+
+
+def eye(m):
+    ball(m["white"], (0, 0, 0.2), 0.6, scale=(1.25, 0.5, 0.75))
+    iris = mat("iris", "ff8f00", rough=0.15, emission=2.2, coat=1.0)
+    ball(iris, (0, -0.2, 0.2), 0.36, scale=(1, 0.35, 1))
+    ball(m["dark"], (0, -0.32, 0.2), 0.13, scale=(0.3, 0.3, 2.2))
+    lid = m["skin_red"]
+    tube(lid, [(-0.82, -0.05, 0.2), (0, -0.25, 0.68), (0.82, -0.05, 0.2)], [0.06, 0.09, 0.06])
+    tube(lid, [(-0.82, -0.05, 0.2), (0, -0.22, -0.22), (0.82, -0.05, 0.2)], [0.06, 0.08, 0.06])
+    for k in range(5):
+        a = math.radians(30 + k * 30)
+        tube(m["dark"], [(math.cos(a) * 0.55, -0.2, 0.2 + math.sin(a) * 0.5),
+                         (math.cos(a) * 0.72, -0.2, 0.2 + math.sin(a) * 0.68)], [0.025, 0.0])
+
+
+def summon(m):
+    ghost = dict(m)
+    ghost["imp"] = mat("ghost_imp", "69f0ae", rough=0.4, emission=1.0, alpha=0.75)
+    ghost["imp_dark"] = mat("ghost_imp_dark", "1b5e20", rough=0.5, emission=0.4, alpha=0.8)
+    ghost["iron"] = mat("ghost_iron", "a5d6a7", metal=0.6, rough=0.4, alpha=0.8)
+    worker(ghost)
+    for k in range(3):
+        a = math.radians(200 + k * 50)
+        ball(m["glow_green"], (math.cos(a) * 0.8, -0.2, -0.35 + k * 0.05), 0.05)
+
+
+def transmute(m):
+    blue = mat("drop_2979ff", "2979ff", rough=0.05, emission=0.8, coat=1.0)
+    drop = [(-0.58, 0.0), (-0.55, 0.16), (-0.42, 0.3), (-0.2, 0.35), (0.05, 0.3), (0.3, 0.2), (0.55, 0.1),
+            (0.8, 0.0)]
+    lathe(blue, drop, (-0.5, 0, 0.3))
+    arrow = [(-0.25, 0.04), (0.1, 0.04), (0.1, 0.13), (0.3, 0.0), (0.1, -0.13), (0.1, -0.04), (-0.25, -0.04)]
+    plate(m["glow_orange"], [(x, z + 0.25) for x, z in arrow], 0.08, bevel=0.015)
+    coin = group((0.5, -0.05, 0.15))
+    coin.rotation_euler = (math.radians(80), 0.25, 0)
+    cyl(m["gold"], (0, 0, 0), 0.38, 0.09, bevel=0.025, parent=coin)
+    ring(m["gold"], (0, 0, 0.05), 0.28, 0.025, parent=coin)
+    for k in range(3):
+        cyl(m["gold"], (0.5 + (k % 2) * 0.03, 0.1, -0.55 + k * 0.08), 0.28, 0.07, bevel=0.02)
+
+
+def raise_dead(m):
+    ball(m["earth"], (0, 0.05, -0.45), 0.75, scale=(1, 0.6, 0.35))
+    bone = m["bone"]
+    tube(bone, [(0.05, 0, -0.5), (0.02, 0, -0.1), (0.0, 0, 0.15)], [0.09, 0.08, 0.07])
+    box(bone, (0, -0.02, 0.28), (0.34, 0.12, 0.26), bevel=0.05)
+    for k, x in enumerate((-0.13, -0.04, 0.05, 0.14)):
+        h = (0.38, 0.46, 0.44, 0.34)[k]
+        tube(bone, [(x, -0.02, 0.4), (x * 1.2, -0.05, 0.4 + h * 0.55), (x * 1.3, -0.1, 0.4 + h)],
+             [0.035, 0.03, 0.022])
+    tube(bone, [(0.17, -0.02, 0.25), (0.32, -0.05, 0.38), (0.38, -0.1, 0.5)], [0.035, 0.03, 0.022])
+    for x, z in [(-0.5, -0.1), (0.5, 0.1), (-0.3, 0.55), (0.35, 0.7)]:
+        ball(m["glow_green"], (x, -0.25, z), 0.045)
+
+
+def convert(m):
+    for side in (-1, 1):
+        link = group((side * 0.38, 0, 0.18 - side * 0.12))
+        link.rotation_euler = (0, side * 0.6, 0)
+        ring(m["steel"], (0, 0, 0), 0.28, 0.08, rot=(math.radians(90), 0, 0), parent=link)
+        ring(m["steel"], (side * 0.42, 0, 0), 0.22, 0.07, rot=(0, math.radians(90), 0), parent=link)
+    for x, z in [(0, 0.15), (-0.08, 0.35), (0.1, -0.05), (0.02, 0.6)]:
+        ball(m["glow_purple"], (x, -0.25, z), 0.05)
+    ball(m["glow_purple"], (0, -0.1, 0.18), 0.12)
+
+
+def sanctuary(m):
+    shield = [(-0.55, 0.85), (0.55, 0.85), (0.6, 0.3), (0.45, -0.15), (0.0, -0.55), (-0.45, -0.15), (-0.6, 0.3)]
+    plate(mat("shield", "5e35b1", rough=0.35, metal=0.3, emission=0.3), shield, 0.18, bevel=0.05)
+    plate(m["gold"], [(x * 0.82, 0.2 + (z - 0.2) * 0.82) for x, z in shield], 0.2, y=0.0, bevel=0.02)
+    plate(mat("shield_inner", "7e57c2", rough=0.35, emission=0.5),
+          [(x * 0.7, 0.2 + (z - 0.2) * 0.7) for x, z in shield], 0.24, bevel=0.02)
+    star = []
+    for k in range(10):
+        a = math.radians(90 + k * 36)
+        r = 0.3 if k % 2 == 0 else 0.13
+        star.append((math.cos(a) * r, 0.25 + math.sin(a) * r))
+    plate(mat("star", "fff59d", emission=3.0), star, 0.3, bevel=0.01)
+
+
+def recall(m):
+    red = mat("recall", "ff1744", emission=2.0)
+    pts = []
+    for k in range(40):
+        t = k / 39.0
+        a = t * math.pi * 3.2
+        r = 0.78 * (1.0 - t) + 0.08
+        pts.append((math.cos(a) * r, -0.02, 0.2 + math.sin(a) * r * 0.85))
+    tube(red, pts, [0.06 * (1.0 - k / 39.0) + 0.015 for k in range(40)], resolution=4)
+    ball(mat("heart_gem", "d50000", rough=0.05, emission=0.9, coat=1.0), (0, -0.05, 0.2), 0.2,
+         scale=(0.85, 0.7, 1.15), subdiv=1, flat=True)
+
+
 ICONS = {
     "pickaxe": pickaxe, "hand": hand, "hammer": hammer, "dagger": dagger,
     "chest": chest, "bed": bed, "mushroom": mushroom, "bookshelf": bookshelf, "anvil": anvil,
@@ -788,6 +993,9 @@ ICONS = {
     "spikes": spikes, "rune": rune, "door": door, "sacrifice_altar": sacrifice_altar, "brazier": brazier,
     "heal": heal, "bolt": bolt, "haste": haste, "mana": mana, "blood": blood, "gold": gold,
     "skull": skull, "demon": demon, "worker": worker, "heart": heart, "hourglass": hourglass, "pause": pause,
+    "web": web, "firestorm": firestorm, "terror": terror, "collapse": collapse, "possession": possession,
+    "whip": whip, "feast": feast, "eye": eye, "summon": summon, "transmute": transmute, "raise": raise_dead,
+    "convert": convert, "sanctuary": sanctuary, "recall": recall,
 }
 
 

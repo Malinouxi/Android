@@ -1,11 +1,12 @@
 class_name Combos
-## LES COMBOS DE PIÈGES : des défenses (ou un sort, ou une créature) qui se
+## LES COMBOS DE PIÈGES : des défenses (ou des sorts, ou une créature) qui se
 ## renforcent quand on les combine. Ils sont SECRETS : le codex n'en montre
 ## qu'un indice tant que tu ne les as pas déclenchés une première fois.
 ## Les combos découverts sont gardés dans user://combos.cfg, pour toutes les parties.
 ##
-## Où ils sont déclenchés : dungeon_map.gd (_update_traps, _explode) et main.gd
-## (_cast_spell, pour la Détonation). Les chiffres sont dans rules.gd (« Combos »).
+## Où ils sont déclenchés : dungeon_map.gd (_update_traps, _explode, damage_door,
+## ignite_runes), main.gd (_cast_spell, pour la Détonation) et creature.gd (Traînée
+## de feu). Les chiffres sont dans rules.gd (« Combos »).
 
 const INFO := {
 	"rune_feu": {"name": "Rune de feu", "images": ["res://assets/props/rune.png", "res://assets/icons_hd/brazier.png"],
@@ -26,6 +27,18 @@ const INFO := {
 	"porte_herissee": {"name": "Porte hérissée", "images": ["res://assets/props/spikes_up.png", "res://assets/props/door.png"],
 		"hint": "Celui qui frappe une porte regarde-t-il où il met les pieds ?",
 		"text": "Des Pointes collées à une Porte se réarment deux fois plus vite."},
+	"porte_electrifiee": {"name": "Porte électrifiée", "images": ["res://assets/icons/bolt.png", "res://assets/props/door.png"],
+		"hint": "Le bois mouillé conduit bien la foudre...",
+		"text": "Un Éclair lancé sur une Porte la charge pendant 20 s : chaque héros qui la frappe prend une décharge de 12 dégâts."},
+	"rune_engluee": {"name": "Rune engluée", "images": ["res://assets/icons_hd/web.png", "res://assets/props/rune.png"],
+		"hint": "Un héros collé au sol ne s'écarte pas de ce qui va exploser.",
+		"text": "Un héros pris dans la Toile du maître qui déclenche une Rune prend 60 % de dégâts en plus."},
+	"brasier_runique": {"name": "Brasier runique", "images": ["res://assets/icons_hd/firestorm.png", "res://assets/props/rune.png"],
+		"hint": "Les runes craignent le feu... même celui du maître.",
+		"text": "Le sort Brasier fait exploser les Runes de sa zone en Runes de feu : explosion plus large, et le sol brûle."},
+	"trainee_de_feu": {"name": "Traînée de feu", "images": ["res://assets/icons/haste.png", "res://assets/icons_hd/demon.png"],
+		"hint": "Un démon pressé laisse des traces brûlantes.",
+		"text": "Un Démon sous Hâte enflamme le sol derrière lui : les héros qui le suivent prennent feu."},
 }
 
 const SAVE_PATH := "user://combos.cfg"

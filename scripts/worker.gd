@@ -63,19 +63,23 @@ func is_full() -> bool:
 ## « delta » = temps écoulé depuis l'image précédente, en secondes.
 func _process(delta: float) -> void:
 	update_effects(delta)
+	if is_queued_for_deletion():
+		return # Un ouvrier invoqué vient de s'effacer (voir vanish).
+	# Le Fouet du maître : il creuse, construit et revendique plus vite.
+	var work_delta := delta * work_factor()
 	match state:
 		State.IDLE:
 			_process_idle(delta)
 		State.MOVING:
 			_process_moving(delta)
 		State.DIGGING:
-			_process_digging(delta)
+			_process_digging(work_delta)
 		State.CLAIMING:
-			_process_claiming(delta)
+			_process_claiming(work_delta)
 		State.BUILDING:
-			_process_building(delta)
+			_process_building(work_delta)
 		State.DECORATING:
-			_process_decorating(delta)
+			_process_decorating(work_delta)
 	queue_redraw()
 
 
@@ -287,6 +291,26 @@ func die() -> void:
 	super()
 
 
+## Un ouvrier invoqué (sort Invocation) dont le temps est écoulé : il lâche son or
+## (les autres le rapporteront) et s'efface.
+func vanish() -> void:
+	if carried_gold > 0:
+		map.drop_gold(current_cell(), carried_gold)
+		carried_gold = 0
+	map.release_jobs(self)
+	super()
+
+
+## Un ouvrier invoqué : il disparaîtra (lifetime, voir unit.gd).
+func is_summoned() -> bool:
+	return lifetime > 0.0
+
+
+## Effondrement : son chemin est coupé, il abandonne sa tâche et en cherchera une autre.
+func on_path_blocked() -> void:
+	_stop_job()
+
+
 func _stop_job() -> void:
 	map.release_jobs(self)
 	job = {}
@@ -300,6 +324,8 @@ func sprite_info() -> Array:
 
 func _draw() -> void:
 	draw_sprite("worker", 0.85)
+	if is_whipped(): # Le Fouet : des gouttes de sueur.
+		draw_circle(Vector2(-7, -16), 2.0, Color("80d8ff"))
 	# Un petit sac doré quand il transporte de l'or.
 	if carried_gold > 0:
 		draw_circle(Vector2(8, 6), 4.0, Color("ffd54a"))

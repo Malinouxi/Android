@@ -7,11 +7,15 @@ extends Node
 ##
 ## Le thème « Seigneur des Profondeurs » : pierre volcanique, liserés de braise, or.
 ## Polices (licence libre OFL, voir assets/fonts/) :
-##   - Alegreya pour les textes (lisible, avec de beaux accents) ;
-##   - Cinzel pour les titres (des capitales gravées dans la pierre).
+##   - Grenze pour les textes : un dessin médiéval, en gras, qui reste lisible ;
+##   - Grenze Gotisch pour les titres et les répliques du Seigneur : une gothique
+##     « à pointes », très grasse (Black).
+## Ce sont des polices « variables » : un seul fichier, toutes les graisses (wght).
 
-const FONT := preload("res://assets/fonts/Alegreya.ttf")
-const TITLE_FONT := preload("res://assets/fonts/Cinzel.ttf")
+const FONT := preload("res://assets/fonts/Grenze.ttf")
+const TITLE_FONT := preload("res://assets/fonts/GrenzeGotisch.ttf")
+const FONT_WEIGHT := 700        ## Graisse des textes (Bold).
+const TITLE_WEIGHT := 900       ## Graisse des titres (Black).
 const EMBER := Color("c2410c")   ## Le liseré de braise des cadres.
 const BLOOD := Color("8b1a1a")
 
@@ -22,12 +26,14 @@ const STONE_LIGHT := Color("3d2f2b")
 const STONE_DARK := Color("140f0e")
 const WOOD := Color("7a2e1c")
 
-## Les cadres HD (pierre, fer riveté, braise), modélisés et rendus dans Blender par
+## Les cadres HD « caverne » (roche, fissures de lave, cristaux), rendus dans Blender par
 ## tools/blender/hud.py. Les images sont deux fois trop grandes : on les affiche à
 ## moitié de leur taille, pour qu'elles restent nettes sur un écran de téléphone.
 const HD_UI := "res://assets/ui_hd/%s.png"
 ## Les marges « 9 zones » de chaque cadre, en pixels de l'image (MARGINS de hud.py).
-const HD_MARGINS := {"panel": 36, "slot": 22, "button": 24, "bubble": 26}
+const HD_MARGINS := {"panel": 64, "slot": 32, "button": 32, "bubble": 32}
+## Les cadres dont les bords se RÉPÈTENT (motif de roches périodique) au lieu de s'étirer.
+const HD_TILED := ["panel", "slot", "bubble", "button"]
 
 var _hd_textures := {}
 
@@ -40,14 +46,14 @@ func build_theme() -> Theme:
 	# Une version un peu plus grasse de la police, plus lisible sur un petit écran.
 	var font := FontVariation.new()
 	font.base_font = FONT
-	font.variation_opentype = {"wght": 560}
+	font.variation_opentype = {"wght": FONT_WEIGHT}
 
 	var theme := Theme.new()
 	theme.default_font = font
 	theme.default_font_size = 24
 
 	# Les panneaux : pierre volcanique, liseré de braise (le cadre HD de Blender s'il existe).
-	theme.set_stylebox("panel", "PanelContainer", _or(hd_frame("panel", 12),
+	theme.set_stylebox("panel", "PanelContainer", _or(hd_frame("panel", 22),
 			_box(Color(0.07, 0.05, 0.05, 0.94), EMBER.darkened(0.3), 3, 10)))
 
 	# Les boutons : des dalles de pierre avec un bord inférieur plus épais (effet de relief).
@@ -89,7 +95,11 @@ func hd_frame(frame_name: String, content_margin := -1.0) -> StyleBoxTexture:
 		return null
 	var box := StyleBoxTexture.new()
 	box.texture = texture
-	box.set_texture_margin_all(HD_MARGINS.get(frame_name.get_slice("_", 0), 16) / 2.0)
+	var kind := frame_name.get_slice("_", 0)
+	box.set_texture_margin_all(HD_MARGINS.get(kind, 16) / 2.0)
+	if kind in HD_TILED:
+		box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
 	if content_margin >= 0.0:
 		box.set_content_margin_all(content_margin)
 	return box
@@ -114,8 +124,8 @@ func _or(preferred: StyleBox, fallback: StyleBox) -> StyleBox:
 
 
 ## Le style d'un bouton important (bordure dorée), par exemple « Continuer ».
-func primary_button_style() -> StyleBoxFlat:
-	return _box(Color("4e3b2a"), GOLD, 2, 6, 4, true)
+func primary_button_style() -> StyleBox:
+	return _or(hd_frame("button_pressed", 8), _box(Color("4e3b2a"), GOLD, 2, 6, 4, true))
 
 
 func _box(background: Color, border: Color, border_width: int, margin: int, bottom := -1,
@@ -138,9 +148,9 @@ func _box(background: Color, border: Color, border_width: int, margin: int, bott
 	return box
 
 
-## La police des titres (Cinzel), un peu grasse.
+## La police des titres (Grenze Gotisch), très grasse.
 func title_font() -> FontVariation:
 	var font := FontVariation.new()
 	font.base_font = TITLE_FONT
-	font.variation_opentype = {"wght": 700}
+	font.variation_opentype = {"wght": TITLE_WEIGHT}
 	return font

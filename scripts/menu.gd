@@ -204,7 +204,7 @@ func _build_ui() -> void:
 	if not save.is_empty():
 		column.add_child(_make_label("Dernière sauvegarde : %s" % save.get("summary", {}).get("date", "?"),
 				14, Color("a1887f"), 4))
-	column.add_child(_make_label("Fait avec Godot  -  Polices Cinzel et Alegreya (OFL)", 13, Color("8d7f74"), 4))
+	column.add_child(_make_label("Fait avec Godot  -  Polices Grenze et Grenze Gotisch (OFL)", 13, Color("8d7f74"), 4))
 
 	_settings_overlay = _make_settings_overlay()
 	root.add_child(_settings_overlay)
@@ -269,7 +269,10 @@ func _on_new_game_pressed() -> void:
 
 
 ## Un cadre de pierre sombre, au liseré rouge sang.
-func _stone_style(background: Color, border: int) -> StyleBoxFlat:
+func _stone_style(background: Color, border: int) -> StyleBox:
+	var hd := Ui.hd_frame("panel", 22) # Le cadre « caverne » de Blender, s'il existe.
+	if hd != null:
+		return hd
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = Color("7a1f14")

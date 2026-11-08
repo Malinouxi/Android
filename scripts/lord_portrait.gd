@@ -20,7 +20,7 @@ signal advice_requested
 
 enum Mood { IDLE, ANGRY, HAPPY, WORRIED }
 
-const SIZE := 132.0          ## Taille du médaillon, en pixels.
+const SIZE := 148.0          ## Taille du médaillon, en pixels.
 const MODEL := "res://assets/models/lord.glb"
 ## Le cadre HD : son bord extérieur et l'ouverture du visage, en fractions de la
 ## demi-largeur de l'image (OUTER et INNER de tools/blender/hud.py).
@@ -287,7 +287,8 @@ func _build_bubble() -> void:
 	_bubble.position = Vector2(SIZE - 6.0, SIZE * 0.62)
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble_label = Label.new()
-	_bubble_label.add_theme_font_size_override("font_size", 20)
+	_bubble_label.add_theme_font_override("font", Ui.title_font()) # Une voix gothique.
+	_bubble_label.add_theme_font_size_override("font_size", 22)
 	_bubble_label.add_theme_color_override("font_color", Color("ffcc80"))
 	_bubble_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_bubble_label.custom_minimum_size.x = 240

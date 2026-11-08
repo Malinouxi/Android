@@ -51,14 +51,15 @@ func _ready() -> void:
 	column.add_child(header)
 	var title := Label.new()
 	title.text = "Codex des règles  (version %s)" % Rules.VERSION
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_override("font", Ui.title_font())
+	title.add_theme_font_size_override("font_size", 38)
 	title.add_theme_color_override("font_color", Ui.GOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	var close := Button.new()
 	close.text = "Fermer"
 	close.custom_minimum_size = Vector2(150, 50)
-	close.add_theme_font_size_override("font_size", 22)
+	close.add_theme_font_size_override("font_size", 26)
 	close.pressed.connect(func() -> void:
 		Sound.play("click")
 		closed.emit()
@@ -88,7 +89,7 @@ func _ready() -> void:
 			var category_label := Label.new()
 			category_label.text = current_category
 			category_label.add_theme_color_override("font_color", Color("a1887f"))
-			category_label.add_theme_font_size_override("font_size", 16)
+			category_label.add_theme_font_size_override("font_size", 20)
 			list.add_child(category_label)
 		var button := Button.new()
 		button.text = article["title"]
@@ -96,7 +97,7 @@ func _ready() -> void:
 		button.button_group = group
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.custom_minimum_size = Vector2(0, 44)
-		button.add_theme_font_size_override("font_size", 18)
+		button.add_theme_font_size_override("font_size", 22)
 		# PASS : le bouton laisse aussi le glissement du doigt à la liste, qui peut
 		# alors défiler dans les deux sens (avec STOP, les boutons bloquaient tout).
 		button.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -119,8 +120,8 @@ func _ready() -> void:
 	_text.scroll_active = false
 	_text.mouse_filter = Control.MOUSE_FILTER_PASS
 	_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_text.add_theme_font_size_override("normal_font_size", 19)
-	_text.add_theme_font_size_override("bold_font_size", 19)
+	_text.add_theme_font_size_override("normal_font_size", 24)
+	_text.add_theme_font_size_override("bold_font_size", 24)
 	_text.add_theme_constant_override("table_h_separation", 18)
 	_text.add_theme_constant_override("table_v_separation", 6)
 	_text_scroll.add_child(_text)
@@ -134,7 +135,7 @@ func _show_article(index: int) -> void:
 		images += _img(path, IMAGE_SIZE) + "  "
 	if images != "":
 		images = "[center]%s[/center]\n" % images
-	_text.text = "[font_size=26][color=#ffd54a]%s[/color][/font_size]\n\n%s%s" % [
+	_text.text = "[font_size=32][color=#ffd54a]%s[/color][/font_size]\n\n%s%s" % [
 			article["title"], images, article["text"]]
 	_text_scroll.set_deferred("scroll_vertical", 0) # On revient en haut de l'article.
 

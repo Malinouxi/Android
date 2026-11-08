@@ -7,11 +7,15 @@ extends Node
 ##
 ## Le thème « Seigneur des Profondeurs » : pierre volcanique, liserés de braise, or.
 ## Polices (licence libre OFL, voir assets/fonts/) :
-##   - Alegreya pour les textes (lisible, avec de beaux accents) ;
-##   - Cinzel pour les titres (des capitales gravées dans la pierre).
+##   - Grenze pour les textes : un dessin médiéval, en gras, qui reste lisible ;
+##   - Grenze Gotisch pour les titres et les répliques du Seigneur : une gothique
+##     « à pointes », très grasse (Black).
+## Ce sont des polices « variables » : un seul fichier, toutes les graisses (wght).
 
-const FONT := preload("res://assets/fonts/Alegreya.ttf")
-const TITLE_FONT := preload("res://assets/fonts/Cinzel.ttf")
+const FONT := preload("res://assets/fonts/Grenze.ttf")
+const TITLE_FONT := preload("res://assets/fonts/GrenzeGotisch.ttf")
+const FONT_WEIGHT := 700        ## Graisse des textes (Bold).
+const TITLE_WEIGHT := 900       ## Graisse des titres (Black).
 const EMBER := Color("c2410c")   ## Le liseré de braise des cadres.
 const BLOOD := Color("8b1a1a")
 
@@ -42,14 +46,14 @@ func build_theme() -> Theme:
 	# Une version un peu plus grasse de la police, plus lisible sur un petit écran.
 	var font := FontVariation.new()
 	font.base_font = FONT
-	font.variation_opentype = {"wght": 560}
+	font.variation_opentype = {"wght": FONT_WEIGHT}
 
 	var theme := Theme.new()
 	theme.default_font = font
 	theme.default_font_size = 24
 
 	# Les panneaux : pierre volcanique, liseré de braise (le cadre HD de Blender s'il existe).
-	theme.set_stylebox("panel", "PanelContainer", _or(hd_frame("panel", 16),
+	theme.set_stylebox("panel", "PanelContainer", _or(hd_frame("panel", 22),
 			_box(Color(0.07, 0.05, 0.05, 0.94), EMBER.darkened(0.3), 3, 10)))
 
 	# Les boutons : des dalles de pierre avec un bord inférieur plus épais (effet de relief).
@@ -144,9 +148,9 @@ func _box(background: Color, border: Color, border_width: int, margin: int, bott
 	return box
 
 
-## La police des titres (Cinzel), un peu grasse.
+## La police des titres (Grenze Gotisch), très grasse.
 func title_font() -> FontVariation:
 	var font := FontVariation.new()
 	font.base_font = TITLE_FONT
-	font.variation_opentype = {"wght": 700}
+	font.variation_opentype = {"wght": TITLE_WEIGHT}
 	return font

@@ -51,7 +51,8 @@ func _ready() -> void:
 	column.add_child(header)
 	var title := Label.new()
 	title.text = "Codex des règles  (version %s)" % Rules.VERSION
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_override("font", Ui.title_font())
+	title.add_theme_font_size_override("font_size", 38)
 	title.add_theme_color_override("font_color", Ui.GOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)

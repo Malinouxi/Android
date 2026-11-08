@@ -444,6 +444,10 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - **Un peu plus grand** : barre du haut et boutons d'outils de 84 à 96 px, icônes des compteurs 54 px,
   médaillon de 148 px, catégories en grille 2 x 2 (icônes de 60 px).
 - **Codex plus lisible** : texte de 19 à 24, titres de 26 à 32, liste de 18 à 22.
+- **Nouvelles polices, plus grasses et gothiques** (licence OFL, `assets/fonts/`) : **Grenze** en gras (700)
+  pour les textes, **Grenze Gotisch** en Black (900) pour les titres, le titre du codex et les répliques
+  du Seigneur. Graisses réglables dans `ui.gd` (`FONT_WEIGHT`, `TITLE_WEIGHT`). Comparer les polices :
+  `godot --path . -s res://tools/font_test.gd`.
 
 **Étape 40 — Le Seigneur modélisé dans Blender, médaillon et HUD en HD**
 - Le visage du médaillon est **modélisé dans Blender** (`tools/blender/lord.py` → `assets/models/lord.glb`,

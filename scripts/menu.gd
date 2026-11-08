@@ -204,7 +204,7 @@ func _build_ui() -> void:
 	if not save.is_empty():
 		column.add_child(_make_label("Dernière sauvegarde : %s" % save.get("summary", {}).get("date", "?"),
 				14, Color("a1887f"), 4))
-	column.add_child(_make_label("Fait avec Godot  -  Polices Cinzel et Alegreya (OFL)", 13, Color("8d7f74"), 4))
+	column.add_child(_make_label("Fait avec Godot  -  Polices Grenze et Grenze Gotisch (OFL)", 13, Color("8d7f74"), 4))
 
 	_settings_overlay = _make_settings_overlay()
 	root.add_child(_settings_overlay)

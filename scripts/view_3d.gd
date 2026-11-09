@@ -72,6 +72,8 @@ var _shake_time := 0.0
 var _shake_strength := 0.0
 var _time := 0.0
 var _flash_material: StandardMaterial3D
+## Les effets des sorts, le sol qui brûle et le sang (voir fx_3d.gd).
+var fx3d: Fx3D
 
 
 ## À appeler juste après l'avoir ajoutée à la scène.
@@ -85,6 +87,9 @@ func setup(dungeon_map: DungeonMap, roots: Array[Node]) -> void:
 	_flash_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_build_environment()
 	_build_heart_and_portal()
+	fx3d = Fx3D.new()
+	fx3d.setup(map)
+	add_child(fx3d)
 	camera = Camera3D.new()
 	camera.fov = 50.0
 	add_child(camera)
@@ -171,16 +176,9 @@ func shake(strength: float, duration: float) -> void:
 
 
 ## Un éclair de lumière bref (explosion, sort).
+## (Au plus Fx3D.MAX_LIGHTS à la fois : voir fx_3d.gd.)
 func flash(map_position: Vector2, color: Color, radius: float, duration: float) -> void:
-	var light := OmniLight3D.new()
-	light.position = to_3d(map_position, 1.0)
-	light.light_color = color
-	light.omni_range = radius / TILE * 1.5
-	light.light_energy = 3.0
-	add_child(light)
-	var tween := light.create_tween()
-	tween.tween_property(light, "light_energy", 0.0, duration)
-	tween.tween_callback(light.queue_free)
+	fx3d.flash(to_3d(map_position, 1.0), color, radius / TILE * 1.5, duration)
 
 
 ## Une gerbe de particules en 3D (les réglages viennent de Fx.BURSTS).
@@ -590,6 +588,11 @@ func _material(key: String, texture: Texture2D, tint: Color, transparent: bool) 
 		else:
 			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		material.roughness = 1.0
+		# Les pavés du sol luisent un peu : les torches et les sorts s'y reflètent
+		# (un simple reflet spéculaire, gratuit sur téléphone ; coupé sans éclairage).
+		if Sound.lighting_enabled and (texture in COBBLES or texture == FLOOR_STONE):
+			material.roughness = 0.5
+			material.metallic_specular = 0.65
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if transparent:
 			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR

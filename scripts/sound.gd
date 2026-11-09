@@ -95,6 +95,8 @@ var sfx_enabled := true
 var lighting_enabled := true
 ## Vue 3D (sinon : la vue isométrique 2D d'origine).
 var view_3d_enabled := true
+## Du sang au sol et sur les murs pendant les combats.
+var blood_enabled := true
 ## Transformation carte -> écran (vue isométrique) pour placer les sons ; main.gd la règle.
 var world_transform := Transform2D.IDENTITY
 
@@ -304,11 +306,17 @@ func make_settings_buttons() -> Array[Button]:
 		_make_toggle("Effets sonores", func() -> bool: return sfx_enabled, set_sfx_enabled),
 		_make_toggle("Éclairage", func() -> bool: return lighting_enabled, set_lighting_enabled),
 		_make_toggle("Vue 3D", func() -> bool: return view_3d_enabled, set_view_3d_enabled),
+		_make_toggle("Sang", func() -> bool: return blood_enabled, set_blood_enabled),
 	]
 
 
 func set_view_3d_enabled(enabled: bool) -> void:
 	view_3d_enabled = enabled
+	_save_settings()
+
+
+func set_blood_enabled(enabled: bool) -> void:
+	blood_enabled = enabled
 	_save_settings()
 
 
@@ -339,6 +347,7 @@ func _load_settings() -> void:
 		sfx_enabled = config.get_value("audio", "sfx", true)
 		lighting_enabled = config.get_value("graphics", "lighting", true)
 		view_3d_enabled = config.get_value("graphics", "view_3d", true)
+		blood_enabled = config.get_value("graphics", "blood", true)
 
 
 func _save_settings() -> void:
@@ -347,4 +356,5 @@ func _save_settings() -> void:
 	config.set_value("audio", "sfx", sfx_enabled)
 	config.set_value("graphics", "lighting", lighting_enabled)
 	config.set_value("graphics", "view_3d", view_3d_enabled)
+	config.set_value("graphics", "blood", blood_enabled)
 	config.save(SETTINGS_PATH)

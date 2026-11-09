@@ -583,6 +583,7 @@ func _cast_spell(type: int, world_position: Vector2) -> void:
 		_fail("Aucune cible ici : %s" % _target_hint(type))
 		return
 	mana -= info["mana"]
+	Fx.spell(type, world_position) # Les effets 3D (modèles Blender).
 	Sound.play(info.get("sound", "zap"), world_position)
 	map.add_effect(world_position, info.get("radius", 24.0), info["color"])
 	var spell_color: Color = info["color"]
@@ -1568,6 +1569,7 @@ func _update_graves(delta: float) -> void:
 			_hint("Assez de Revenants : ce héros repose en paix, sa tombe se libère.")
 			continue
 		var revenant := _add_creature(Creatures.Type.REVENANT, cell)
+		Fx.raise_hand(revenant.position)
 		Sound.play("portal", revenant.position, -4.0)
 		Fx.burst("magic", revenant.position, Color("76ff03"))
 		Fx.burst("dust", revenant.position)

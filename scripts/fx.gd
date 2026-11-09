@@ -139,6 +139,10 @@ static func death_fall(map_position: Vector2, texture: Texture2D, sprite_scale: 
 ## Un éclair qui tombe du ciel sur un point de la carte : une ligne brisée au
 ## hasard (deux couches : un halo bleu et un cœur blanc), qui s'efface très vite.
 static func lightning(map_position: Vector2) -> void:
+	if view3d != null and is_instance_valid(view3d):
+		view3d.fx3d.bolt(map_position) # En 3D : la foudre modélisée dans Blender.
+		burst("sparks", map_position, Color("b3e5fc"))
+		return
 	if not is_ready():
 		return
 	var target := to_screen(map_position) + Vector2(0, -10)
@@ -159,6 +163,19 @@ static func lightning(map_position: Vector2) -> void:
 		tween.tween_property(line, "modulate:a", 0.0, 0.35).set_delay(0.08)
 		tween.tween_callback(line.queue_free)
 	burst("sparks", map_position, Color("b3e5fc"))
+
+
+## L'effet d'un sort du maître (en 3D : modèles Blender, voir fx_3d.gd ; en 2D,
+## les cercles et particules de main.gd suffisent).
+static func spell(type: int, map_position: Vector2) -> void:
+	if view3d != null and is_instance_valid(view3d):
+		view3d.fx3d.spell(type, map_position)
+
+
+## Une main squelettique sort de terre (en 3D seulement).
+static func raise_hand(map_position: Vector2) -> void:
+	if view3d != null and is_instance_valid(view3d):
+		view3d.fx3d.raise_hand(map_position)
 
 
 ## Fait trembler l'écran (strength en pixels).

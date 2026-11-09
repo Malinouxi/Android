@@ -14,10 +14,16 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.5"
+const VERSION := "2.6"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.6", "changes": [
+		"Vue 3D : les sorts ont leurs effets modélisés dans Blender : foudre qui tombe, toile au sol, flammes du Brasier, rochers de l'Effondrement, spectre de la Terreur, dôme du Sanctuaire, Œil du maître, main qui sort de terre, cercles magiques colorés.",
+		"Les envoûtements se voient sur les unités : toile sous les héros englués, dôme autour des unités protégées, cercle rouge sous la créature possédée.",
+		"Lumières : les sorts et les feux éclairent la scène (4 lumières passagères au plus, pour les téléphones) ; les pavés et le sang frais luisent à la lumière des torches. Tout cela se coupe avec « Éclairage : non ».",
+		"Du sang au sol et sur les murs là où l'on se bat. Il pâlit et disparaît au bout de 40 secondes (60 taches au plus). Les morts-vivants, les golems et les spectres ne saignent pas. Réglage « Sang : oui / non ».",
+	]},
 	{"version": "2.5", "changes": [
 		"14 nouveaux sorts, à découvrir à la Bibliothèque. Onglet Sorts (combat) : Toile, Brasier, Terreur, Effondrement, Possession. Nouvel onglet Pouvoirs (ton donjon) : Fouet, Festin, Œil du maître, Invocation, Transmutation, Relever les morts, Conversion, Sanctuaire, Rappel.",
 		"Relever les morts demande un Cimetière, Conversion une Prison, Sanctuaire un Temple.",
@@ -364,6 +370,17 @@ const EXORCIST_INTERVAL := 5.0
 ## ... et dès la vague EXORCIST_SURE_WAVE, chaque vague en compte au moins un.
 const EXORCIST_SURE_WAVE := 8
 ## Le Clerc, en soignant, libère aussi ses alliés de la Toile et de la Terreur.
+
+# --- Sang des combats (voir dungeon_map.gd, add_blood) ---------------------------
+## Une tache reste tant de secondes, et pâlit pendant les BLOOD_FADE dernières.
+const BLOOD_TIME := 40.0
+const BLOOD_FADE := 10.0
+## Chance de tacher pour un petit coup (un coup de 30 dégâts ou plus tache presque toujours).
+const BLOOD_MIN_CHANCE := 0.25
+## Chance d'éclabousser aussi un mur voisin.
+const BLOOD_WALL_CHANCE := 0.3
+## Au plus tant de taches à la fois (les plus anciennes s'effacent) : léger pour un téléphone.
+const MAX_BLOOD := 60
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

@@ -300,6 +300,11 @@ func describe() -> String:
 		salary(), "" if _has_bed() or is_undead() else ", SANS LIT !"]
 
 
+## Les morts-vivants et les êtres de pierre ne saignent pas.
+func bleeds() -> bool:
+	return not is_undead() and type != Creatures.Type.GOLEM
+
+
 ## Un mort-vivant (le Revenant) : pas de lit, pas de sommeil, pas de faim.
 func is_undead() -> bool:
 	return Creatures.info(type).get("undead", false)

@@ -432,6 +432,24 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
   Réglages : partie « Tactiques des héros » de `rules.gd`.
 
+**Étape 43 — Effets des sorts en 3D, lumières et sang** (règles 2.6)
+
+- **Effets des sorts modélisés dans Blender** (`tools/blender/spell_fx.py` → `assets/models/fx/`) :
+  `bolt` (foudre de l'Éclair), `web` (Toile), `flames` (Brasier et tout sol qui brûle), `rocks`
+  (Effondrement), `ghost` (Terreur), `dome` (Sanctuaire), `eye` (Œil du maître), `hand` (Relever les
+  morts, et chaque Revenant qui se relève), `rune_circle` (cercle magique teint de la couleur des autres
+  sorts). Affichés et animés par `scripts/fx_3d.gd` (appelé par `Fx.spell` depuis `_cast_spell`).
+- **Envoûtements visibles** : toile sous les héros englués, dôme autour des unités sous Sanctuaire,
+  cercle rouge qui tourne sous la créature possédée.
+- **Lumières et reflets, pensés pour un téléphone moyen de gamme** : matériaux émissifs (pas de calcul
+  d'éclairage pour briller), 4 lumières passagères au plus (`Fx3D.MAX_LIGHTS`, les plus anciennes
+  s'éteignent), 2 feux éclairés au plus, aucune ombre dynamique ; reflet spéculaire sur les pavés et
+  sur le sang frais (gratuit). « Éclairage : non » coupe lumières et reflets.
+- **Sang** (`add_blood` dans `dungeon_map.gd`) : chaque coup peut tacher le sol (et 3 fois sur 10 un
+  mur voisin) ; un gros coup tache plus souvent et plus grand. Taches pâlies puis effacées au bout de
+  40 s, 60 au plus, non sauvegardées. Golems, morts-vivants et spectres ne saignent pas. Textures :
+  `tools/blood_decals.py` → `assets/fx/`. Réglage **« Sang : oui / non »** (menu Réglages).
+
 **Étape 42 — 14 nouveaux sorts, et des héros qui s'y habituent** (règles 2.5)
 
 - **Deux onglets de sorts** dans la colonne de gauche : **Sorts** (combat) et **Pouvoirs** (ton donjon).

@@ -80,7 +80,7 @@ const MODEL_NAMES := {Type.LIBRARY: "library", Type.WORKSHOP: "workshop", Type.T
 
 ## L'icône HD des antres (assets/icons_hd/, faites dans Blender par tools/blender/icons.py).
 const ICONS := {Type.TAVERN: "mug", Type.INFIRMARY: "salve", Type.MINT: "coin_press", Type.TORTURE: "pincers",
-		Type.GUARDPOST: "watch_horn", Type.MANA_WELL: "mana_crystal", Type.CRYPT: "sarcophagus"}
+		Type.GUARDPOST: "watch_horn", Type.MANA_WELL: "mana_well", Type.CRYPT: "sarcophagus"}
 
 ## Or que peut contenir une case de trésor.
 const TREASURY_CAPACITY := 400

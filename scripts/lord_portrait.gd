@@ -4,8 +4,8 @@ extends Control
 ##
 ## Un visage de démon en 3D « low-poly » (facettes plates), modélisé dans Blender
 ## (tools/blender/lord.py -> assets/models/lord.glb), rendu en direct dans un petit
-## monde 3D à part (SubViewport), au centre d'un médaillon HD lui aussi fait dans
-## Blender (tools/blender/hud.py -> assets/ui_hd/medallion.png). Sans ces fichiers,
+## monde 3D à part (SubViewport), au centre d'un médaillon HD hérissé de cornes
+## (tools/hud_gothic.py -> assets/ui_hd/medallion.png). Sans ces fichiers,
 ## on retombe sur le visage construit en code (_build_face) et le cadre dessiné.
 ## Il réagit à ce qui se passe sur la carte (voir react, appelé par hud.gd pour
 ## chaque message du journal) : colère, joie, inquiétude ; au repos il cligne
@@ -23,7 +23,7 @@ enum Mood { IDLE, ANGRY, HAPPY, WORRIED }
 const SIZE := 148.0          ## Taille du médaillon, en pixels.
 const MODEL := "res://assets/models/lord.glb"
 ## Le cadre HD : son bord extérieur et l'ouverture du visage, en fractions de la
-## demi-largeur de l'image (OUTER et INNER de tools/blender/hud.py).
+## demi-largeur de l'image (outer et inner de tools/hud_gothic.py, render_medallion).
 const FRAME_OUTER := 0.955 / 1.25
 const FRAME_INNER := 0.708 / 1.25
 const MOOD_TIME := 3.5       ## Secondes pendant lesquelles une émotion dure.

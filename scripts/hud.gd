@@ -56,6 +56,7 @@ var _heart_bar: ProgressBar
 var _heart_label: Label
 var _wave_label: Label
 var _summon_button: Button
+var _summon_price: Label
 var _mana_label: Label
 var _research_label: Label
 var _goal_label: Label
@@ -117,7 +118,7 @@ const TOOL_ICON_NAMES := {
 	Tool.SPELL_TRANSMUTE: "transmute", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "convert",
 	Tool.SPELL_SANCTUARY: "sanctuary", Tool.SPELL_RECALL: "recall",
 	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "pincers",
-	Tool.GUARDPOST: "watch_horn", Tool.MANA_WELL: "mana_crystal", Tool.CRYPT: "sarcophagus",
+	Tool.GUARDPOST: "watch_horn", Tool.MANA_WELL: "mana_well", Tool.CRYPT: "sarcophagus",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
@@ -172,7 +173,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBox:
-	var hd := Ui.hd_frame("panel", 14) # Le cadre HD de Blender (tools/blender/hud.py).
+	var hd := Ui.hd_frame("panel", 14) # Le cadre HD (tools/hud_gothic.py).
 	if hd != null:
 		return hd
 	var box := StyleBoxFlat.new()
@@ -238,7 +239,7 @@ func _build_top_panel() -> void:
 	row.add_child(_treasury_label)
 	_mana_label = _make_label(26)
 	_mana_label.add_theme_color_override("font_color", Color("82b1ff"))
-	row.add_child(_counter("mana", _mana_label, 128))
+	row.add_child(_counter("mana_well", _mana_label, 128))
 	_creatures_label = _make_label(24)
 	row.add_child(_counter("skull", _creatures_label, 128))
 	_workers_label = _make_label(26)
@@ -275,11 +276,27 @@ func _build_top_panel() -> void:
 	times.add_child(_payday_label)
 	row.add_child(times)
 
+	# Un ouvrier de plus : sa grande icône, et le prix en petit dessous.
 	_summon_button = Button.new()
-	_summon_button.custom_minimum_size = Vector2(0, 60)
-	_summon_button.add_theme_font_size_override("font_size", 20)
-	_summon_button.icon = hd("worker")
-	_summon_button.expand_icon = true
+	_summon_button.custom_minimum_size = Vector2(76, 70)
+	var summon_box := VBoxContainer.new()
+	summon_box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	summon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_theme_constant_override("separation", -6)
+	summon_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	var summon_icon := TextureRect.new()
+	summon_icon.texture = hd("worker")
+	summon_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	summon_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	summon_icon.custom_minimum_size = Vector2(56, 46)
+	summon_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_child(summon_icon)
+	_summon_price = _make_label(14)
+	_summon_price.add_theme_color_override("font_color", Ui.GOLD)
+	_summon_price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_summon_price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_child(_summon_price)
+	_summon_button.add_child(summon_box)
 	_summon_button.pressed.connect(func() -> void:
 		Sound.play("click")
 		summon_pressed.emit())
@@ -429,6 +446,18 @@ func _build_bottom_bar() -> void:
 	_build_tool_section(row)
 	row.add_child(_divider())
 	_build_log_section(row)
+	# Le crâne cornu, à cheval sur le bord du bas (tools/hud_gothic.py).
+	var ornament := TextureRect.new()
+	ornament.texture = Ui.hd_texture("ornament_skull")
+	if ornament.texture != null:
+		ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ornament.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		ornament.offset_left = -32
+		ornament.offset_right = 32
+		ornament.offset_top = -50
+		ornament.offset_bottom = 14
+		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_root.add_child(ornament)
 
 
 ## Un séparateur vertical : une barre de fer entre deux parties de la barre du bas.
@@ -856,7 +885,7 @@ func _make_big_button(text: String, on_pressed: Signal) -> Button:
 
 
 func set_summon_cost(cost: int) -> void:
-	_summon_button.text = "+%d" % cost
+	_summon_price.text = "%d" % cost
 	_summon_button.tooltip_text = "Un ouvrier de plus (%d or)" % cost
 
 

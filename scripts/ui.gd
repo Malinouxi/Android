@@ -26,11 +26,11 @@ const STONE_LIGHT := Color("3d2f2b")
 const STONE_DARK := Color("140f0e")
 const WOOD := Color("7a2e1c")
 
-## Les cadres HD « caverne » (roche, fissures de lave, cristaux), rendus dans Blender par
-## tools/blender/hud.py. Les images sont deux fois trop grandes : on les affiche à
+## Les cadres HD « pierre et braise » (pierre fissurée, liseré rouge, cornes), calculés
+## par tools/hud_gothic.py. Les images sont deux fois trop grandes : on les affiche à
 ## moitié de leur taille, pour qu'elles restent nettes sur un écran de téléphone.
 const HD_UI := "res://assets/ui_hd/%s.png"
-## Les marges « 9 zones » de chaque cadre, en pixels de l'image (MARGINS de hud.py).
+## Les marges « 9 zones » de chaque cadre, en pixels de l'image (MARGINS de hud_gothic.py).
 const HD_MARGINS := {"panel": 64, "slot": 32, "button": 32, "bubble": 32}
 ## Les cadres dont les bords se RÉPÈTENT (motif de roches périodique) au lieu de s'étirer.
 const HD_TILED := ["panel", "slot", "bubble", "button"]

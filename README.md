@@ -322,8 +322,9 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   Ils marchent aussi avec le module Python `bpy` (`pip install bpy`) au lieu de Blender.
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
   `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
-- **Interface** : icônes (`tools/blender/icons.py` → `assets/icons_hd/`) et cadres « pierre et fer »
-  (`tools/blender/hud.py` → `assets/ui_hd/`), rendus dans Blender.
+- **Interface** : icônes (`tools/blender/icons.py` → `assets/icons_hd/`) ; cadres « pierre et braise »
+  (pierre fissurée, liseré rouge, cornes et crânes) : `python3 tools/hud_gothic.py` → `assets/ui_hd/`
+  (numpy, sans Blender). L'icône de la mana et du Puits de mana est `assets/icons_hd/mana_well.png`.
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
 - **Pixel art 32 × 32** (vue 2D, portraits, petites icônes) : `tools/art32.py`, lancé par
   `python3 tools/generate_art.py` (il faut Pillow et numpy) ; attention, il écrase les PNG de `assets/`.

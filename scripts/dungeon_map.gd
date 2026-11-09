@@ -172,6 +172,11 @@ const DECORATION_SIDES := [Vector2i.ZERO, Vector2i.UP, Vector2i.LEFT]
 const RUG_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LAIR, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
 		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]
 
+## La Crypte (règles 2.7) : les créatures mortes qui y reposent, dans l'ordre d'arrivée :
+## [{"type", "level", "traits", "sprite", "tint", "time"}] ("time" : secondes avant de
+## se relever ; voir main.gd, _update_crypt).
+var crypt_bodies: Array = []
+
 ## L'or tombé par terre (le sac d'une Voleuse abattue) : case -> or.
 ## Les ouvriers le ramassent et le rapportent au Trésor (voir worker.gd).
 var loose_gold: Dictionary = {}
@@ -549,6 +554,7 @@ func to_save() -> Dictionary:
 		"lava_queue": _cells_to_array_list_ordered(_lava_queue),
 		"volcanic": _cells_to_array_list(volcanic),
 		"ruins": _ruins_to_list(),
+		"crypt": crypt_bodies,
 	}
 
 
@@ -647,6 +653,7 @@ func load_save(data: Dictionary) -> bool:
 	ruins.clear()
 	for values in data.get("ruins", []):
 		ruins[SaveGame.array_to_cell(values)] = String(values[2])
+	crypt_bodies = Array(data.get("crypt", []))
 	reserved.clear()
 	beds.clear() # Les créatures rechargées reprendront un lit.
 	work_spots.clear()
@@ -1483,6 +1490,27 @@ func find_food_job(from_cell: Vector2i) -> Dictionary:
 		if food[cell] > 0:
 			candidates.append(cell)
 	return _find_nearest_reachable(candidates, from_cell)
+
+
+## Reste-t-il au moins un champignon dans une Champignonnière ?
+func has_food() -> bool:
+	for cell: Vector2i in food:
+		if food[cell] > 0:
+			return true
+	return false
+
+
+## La Taverne brasse une chope avec un champignon pris n'importe où (voir creature.gd).
+func take_any_food() -> bool:
+	for cell: Vector2i in food:
+		if food[cell] > 0:
+			return take_food(cell)
+	return false
+
+
+## Le nombre de places de la Crypte (Rules.CRYPT_SLOTS par Crypte finie).
+func crypt_capacity() -> int:
+	return count_rooms(Rooms.Type.CRYPT) * Rules.CRYPT_SLOTS
 
 
 ## Mange un champignon sur une case. Renvoie false s'il n'y en a plus.

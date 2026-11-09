@@ -59,8 +59,7 @@ const LAVA_GLOW := Color(1.0, 0.38, 0.08)  ## La lueur de la lave.
 const RUIN_GLOW := Color(0.55, 0.4, 1.0)   ## La lueur du grimoire d'une ruine.
 var _brazier_lights := {} ## case -> OmniLight3D
 ## Les salles dont l'objet occupe plusieurs cases (un seul modèle par objet).
-const MULTI_CELL_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
-		Rooms.Type.TRAINING, Rooms.Type.TEMPLE]        ## case marquée « à creuser » -> Sprite3D (une pioche)
+const MULTI_CELL_ROOMS := Rooms.MULTI_CELL        ## case marquée « à creuser » -> Sprite3D (une pioche)
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 var _effect_discs: Array[MeshInstance3D] = []
 var _heart: MeshInstance3D
@@ -357,11 +356,58 @@ func _make_unit(unit: Unit) -> Dictionary:
 		title.position.y = bars.position.y + 0.22
 		title.visible = false
 		holder.add_child(title)
+	var held := _make_held_props(unit, model.get_meta("rig"))
 	var parts: Array[MeshInstance3D] = []
 	_collect_parts(model, parts)
 	return {"holder": holder, "model": model, "rig": model.get_meta("rig"), "ring": ring, "sack": sack,
 			"bars": bars, "hp": hp_bar, "mood": mood_bar, "parts": parts, "flash": false,
-			"last": unit.position, "phase": randf() * TAU, "title": title}
+			"last": unit.position, "phase": randf() * TAU, "title": title, "held": held, "shown": ""}
+
+
+## Les objets qu'une créature tient pendant certaines activités (voir _animate) :
+## une chope (Taverne), un champignon (repas), un grimoire (Bibliothèque), un fouet
+## (Chambre de torture). Ils sont cachés le reste du temps.
+func _make_held_props(unit: Unit, rig: Dictionary) -> Dictionary:
+	var held := {}
+	var arms: Array = rig["arms"]
+	if not unit is Creature or arms.size() < 2 or rig["kind"] != "humanoid":
+		return held
+	var left: Node3D = arms[0]
+	var right: Node3D = arms[1]
+	var hand := Vector3(0.0, -0.31, 0.04)
+	# La chope de bière, mousse comprise.
+	var mug := Node3D.new()
+	left.add_child(mug)
+	mug.position = hand
+	VoxelModels.cylinder(mug, 0.04, 0.045, 0.09, Vector3(0, 0.02, 0.03), Color("8d5a2b"))
+	VoxelModels.cylinder(mug, 0.046, 0.046, 0.015, Vector3(0, -0.01, 0.03), Color("5c646b"))
+	VoxelModels.sphere(mug, 0.04, Vector3(0, 0.07, 0.03), Color("fff8e1"))
+	VoxelModels.box(mug, Vector3(0.015, 0.05, 0.03), Vector3(0.055, 0.02, 0.03), Color("6d4c41"))
+	held["drink"] = mug
+	# Un champignon à croquer.
+	var food := Node3D.new()
+	left.add_child(food)
+	food.position = hand
+	VoxelModels.cylinder(food, 0.015, 0.015, 0.06, Vector3(0, 0.0, 0.03), Color("efebe9"))
+	VoxelModels.sphere(food, 0.045, Vector3(0, 0.04, 0.03), Color("d32f2f"))
+	held["eat"] = food
+	# Un grimoire ouvert, tenu devant soi.
+	var book := Node3D.new()
+	left.add_child(book)
+	book.position = hand + Vector3(0.08, 0.0, 0.04)
+	VoxelModels.box(book, Vector3(0.18, 0.02, 0.13), Vector3.ZERO, Color("8e1b1b"))
+	VoxelModels.box(book, Vector3(0.16, 0.025, 0.11), Vector3(0, 0.005, 0), Color("efe6d8"))
+	held["study"] = book
+	# Le fouet du bourreau : un manche et une lanière qui pend.
+	var whip := Node3D.new()
+	right.add_child(whip)
+	whip.position = hand
+	VoxelModels.box(whip, Vector3(0.025, 0.12, 0.025), Vector3(0, 0, 0.04), Color("4e342e"))
+	VoxelModels.box(whip, Vector3(0.012, 0.32, 0.012), Vector3(0, -0.2, 0.05), Color("3e2723"))
+	held["torture"] = whip
+	for node: Node3D in held.values():
+		node.visible = false
+	return held
 
 
 func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
@@ -420,13 +466,29 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 	holder.position = to_3d(unit.position, height)
 	var moved: Vector2 = unit.position - data["last"]
 	data["last"] = unit.position
+	var pose := unit.pose()
+	# Endormie dans son lit ou couchée à l'Infirmerie : allongée, la tête vers le chevet.
+	var resting: bool = (pose == "sleep" or pose == "lie") and rig["kind"] == "humanoid" and not unit.is_walking()
 	if moved.length() > 0.05:
 		model.rotation.y = lerp_angle(model.rotation.y, atan2(moved.x, moved.y), 0.3)
-	model.rotation.x = -PI / 2 if lying else 0.0 # Assommé : couché sur le dos.
+	elif resting:
+		model.rotation.y = PI / 2
+	else:
+		# Au travail, elle se tourne vers l'objet de la salle (l'enclume, le comptoir...).
+		var focus := unit.focus_point()
+		if focus != Vector2.INF and focus.distance_to(unit.position) > 2.0:
+			var facing := atan2(focus.x - unit.position.x, focus.y - unit.position.y)
+			if pose == "guard":
+				facing += PI + sin(_time * 0.6 + data["phase"]) * 1.1 # Le guetteur scrute les couloirs.
+			model.rotation.y = lerp_angle(model.rotation.y, facing, 0.08)
+	model.rotation.x = -PI / 2 if lying or resting else 0.0 # Assommé ou couché : sur le dos.
+	model.position = Vector3.ZERO
 	if lying:
 		model.position.y = 0.15
-	else:
-		model.position.y = 0.0
+	elif resting:
+		# Sur le lit (ou la paillasse), le corps centré sur la couche.
+		var size := float(unit.sprite_info()[1])
+		model.position = Vector3(0.38 * size, 0.3 if pose == "sleep" else 0.1, 0.0)
 	_animate(unit, rig, data)
 	# Le flash blanc quand l'unité est touchée (unit.gd met modulate à 2,5).
 	var flashing := unit.modulate.r > 1.3
@@ -504,6 +566,157 @@ func _animate(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
 		rig["wings"][i].rotation.z = sin(_time * speed + data["phase"]) * 0.6 * side
 	if rig["tail"] != null:
 		rig["tail"].rotation.y = sin(_time * 4.0 + data["phase"]) * 0.4
+	_animate_pose(unit, rig, data)
+
+
+## Les poses des créatures selon leur activité (voir Creature.pose) : elles dorment
+## allongées, mangent, trinquent, forgent, prient à genoux, montent la garde,
+## méditent en lévitation... Le temps est décalé pour chaque créature (« phase »).
+func _animate_pose(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
+	var body: Node3D = rig["body"]
+	var arms: Array = rig["arms"]
+	var legs: Array = rig["legs"]
+	var head: Node3D = body.get_node_or_null("head")
+	var pose := "" if unit.is_walking() and unit.pose() != "tipsy" else unit.pose()
+	var t: float = _time + data["phase"]
+	# On repart de la pose normale (sauf ce que _animate vient de régler).
+	body.rotation = Vector3.ZERO
+	for arm: Node3D in arms:
+		arm.rotation.z = 0.0
+		arm.rotation.y = 0.0
+	if head != null:
+		head.rotation = Vector3.ZERO
+	# Les objets tenus : seulement pendant l'activité qui va avec.
+	var held: Dictionary = data["held"]
+	if data["shown"] != pose:
+		data["shown"] = pose
+		for key: String in held:
+			held[key].visible = key == pose
+	var humanoid: bool = rig["kind"] == "humanoid" and arms.size() >= 2
+	if not humanoid:
+		# Les bêtes : elles se tassent pour dormir, et c'est tout.
+		if pose == "sleep" or pose == "lie":
+			body.position.y -= 0.06
+			body.scale = Vector3(1.0, 0.85 + 0.03 * sin(t * 1.5), 1.0)
+		else:
+			body.scale = Vector3.ONE
+		return
+	if unit.attack_progress() > 0.0:
+		return # En plein coup : on ne touche à rien.
+	match pose:
+		"sleep", "lie":
+			# Bras le long du corps, souffle lent (l'allongement est réglé dans _show_unit).
+			for arm: Node3D in arms:
+				arm.rotation.x = 0.1
+			for leg: Node3D in legs:
+				leg.rotation.x = 0.0
+			body.position.y = 0.015 * sin(t * 1.2)
+			if head != null:
+				head.rotation.y = 0.3 * sin(t * 0.2) # Elle tourne la tête dans son sommeil.
+		"eat":
+			arms[0].rotation.x = -2.3 + 0.35 * maxf(0.0, sin(t * 7.0))
+			arms[1].rotation.x = -0.6
+			if head != null:
+				head.rotation.x = 0.08 * sin(t * 14.0) # Elle mâche.
+		"drink":
+			# Elle porte la chope à sa bouche, renverse la tête, puis la repose en se balançant.
+			var gulp := fmod(t, 3.2) < 1.8
+			arms[0].rotation.x = -2.6 if gulp else -1.2
+			arms[0].rotation.z = -0.25
+			arms[1].rotation.x = -0.3 + 0.15 * sin(t * 3.0)
+			if head != null:
+				head.rotation.x = -0.45 if gulp else 0.05
+			body.rotation.z = 0.06 * sin(t * 1.7)
+		"study":
+			arms[0].rotation.x = -1.1
+			arms[1].rotation.x = -1.0 + (0.5 if fmod(t, 4.0) < 0.3 else 0.0) # Elle tourne une page.
+			arms[0].rotation.z = 0.35
+			arms[1].rotation.z = -0.35
+			if head != null:
+				head.rotation.x = 0.35 + 0.05 * sin(t * 0.8)
+		"hammer", "coin":
+			# Lever lentement, frapper d'un coup sec (deux mains en alternance pour la monnaie).
+			var speed := 1.4 if pose == "hammer" else 2.2
+			var k := fmod(t * speed, 1.0)
+			var lift := k / 0.75 if k < 0.75 else 1.0 - (k - 0.75) / 0.25
+			arms[1].rotation.x = -0.3 - 2.3 * lift
+			if pose == "coin":
+				var k2 := fmod(t * speed + 0.5, 1.0)
+				arms[0].rotation.x = -0.3 - 1.4 * (k2 / 0.75 if k2 < 0.75 else 1.0 - (k2 - 0.75) / 0.25)
+			else:
+				arms[0].rotation.x = -0.7
+			body.rotation.x = 0.15 * lift
+		"train":
+			var k := fmod(t * 1.8, 1.0)
+			var swing := sin(k * PI)
+			arms[1].rotation.x = -2.4 * swing
+			arms[0].rotation.x = -0.8
+			body.position.z = 0.08 * swing
+			body.rotation.y = 0.3 * sin(t * 1.8 * PI)
+		"pray":
+			# À genoux, les bras levés vers l'autel, le front qui s'incline.
+			body.position.y = -0.13
+			for leg: Node3D in legs:
+				leg.rotation.x = 1.45
+			var raise := 0.5 + 0.5 * sin(t * 1.3)
+			arms[0].rotation.x = -2.0 - 0.7 * raise
+			arms[1].rotation.x = -2.0 - 0.7 * raise
+			arms[0].rotation.z = -0.3
+			arms[1].rotation.z = 0.3
+			body.rotation.x = 0.25 * (1.0 - raise)
+		"tend":
+			# La Goule penchée sur un blessé, les mains qui recousent.
+			body.rotation.x = 0.4
+			arms[0].rotation.x = -1.3 + 0.2 * sin(t * 6.0)
+			arms[1].rotation.x = -1.3 + 0.2 * sin(t * 6.0 + PI)
+			if head != null:
+				head.rotation.x = 0.3
+		"torture":
+			# Un grand coup de fouet toutes les 1,6 s.
+			var k := fmod(t / 1.6, 1.0)
+			var lash := (k / 0.7) if k < 0.7 else 1.0 - (k - 0.7) / 0.3
+			arms[1].rotation.x = -0.4 - 2.6 * lash
+			arms[1].rotation.z = 0.4 * lash
+			arms[0].rotation.x = -0.4
+			body.rotation.y = -0.3 * lash
+		"guard":
+			# Droite comme une lance, l'arme levée ; elle tourne la tête (et le corps, _show_unit).
+			arms[1].rotation.x = -0.9
+			arms[0].rotation.x = 0.05
+			for leg: Node3D in legs:
+				leg.rotation.x = 0.0
+			if head != null:
+				head.rotation.y = 0.5 * sin(t * 1.1)
+		"meditate":
+			# En lévitation au-dessus du puits, jambes croisées, paumes ouvertes.
+			body.position.y = 0.1 + 0.05 * sin(t * 1.6)
+			for i in legs.size():
+				legs[i].rotation.x = -1.4
+				legs[i].rotation.z = 0.5 * (1.0 if i == 0 else -1.0)
+			arms[0].rotation.z = -0.9 - 0.1 * sin(t * 1.6)
+			arms[1].rotation.z = 0.9 + 0.1 * sin(t * 1.6)
+			arms[0].rotation.x = -0.4
+			arms[1].rotation.x = -0.4
+			body.rotation.y = 0.3 * sin(t * 0.4)
+		"cast":
+			# Les bras levés au-dessus des sarcophages, qui ondulent.
+			arms[0].rotation.x = -2.5 + 0.35 * sin(t * 2.4)
+			arms[1].rotation.x = -2.5 + 0.35 * sin(t * 2.4 + PI)
+			arms[0].rotation.z = -0.4
+			arms[1].rotation.z = 0.4
+			body.position.y = 0.02 * sin(t * 4.0)
+			if head != null:
+				head.rotation.x = -0.25
+		"tipsy":
+			# Elle titube : le corps penche d'un côté puis de l'autre, la tête dodeline.
+			body.rotation.z = 0.18 * sin(t * 2.6)
+			body.rotation.x = 0.06 * sin(t * 1.3)
+			arms[0].rotation.z = -0.4 * absf(sin(t * 2.6))
+			if head != null:
+				head.rotation.z = 0.25 * sin(t * 1.7)
+	if pose != "meditate":
+		for leg: Node3D in legs:
+			leg.rotation.z = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -763,6 +976,13 @@ func _cell_signature(cell: Vector2i) -> String:
 						stored += int(map.stored_gold.get(cell + Vector2i(dx, dy), 0))
 				var fill := float(stored) / (Rooms.TREASURY_CAPACITY * size.x * size.y)
 				extra = 0 if stored <= 0 else mini(3, 1 + int(fill * 3.0))
+			elif room == Rooms.Type.CRYPT:
+				# Les sarcophages occupés (les morts sont rangés dans l'ordre des Cryptes).
+				var index := 0
+				for other: int in map.furniture:
+					if map.furniture[other]["room"] == Rooms.Type.CRYPT and other < furniture_id:
+						index += 1
+				extra = clampi(map.crypt_bodies.size() - index * Rules.CRYPT_SLOTS, 0, Rules.CRYPT_SLOTS)
 			parts.append("furn_%d_%d_%d_%d" % [room, size.x, size.y, extra])
 	elif furniture_id >= 0:
 		match room:
@@ -954,6 +1174,27 @@ func _add_furniture_light(model: Node3D, room: int, size: Vector2i) -> void:
 			energy = 1.0
 		Rooms.Type.TEMPLE:
 			color = Color(0.45, 1.0, 0.3)
+		Rooms.Type.TAVERN:
+			color = Color(1.0, 0.6, 0.25) # Le feu de la cheminée.
+			energy = 1.3
+		Rooms.Type.INFIRMARY:
+			color = Color(0.7, 1.0, 0.55) # Les onguents qui luisent.
+			energy = 1.0
+		Rooms.Type.MINT:
+			color = Color(1.0, 0.55, 0.15) # Le four à fondre l'or.
+			energy = 1.5
+		Rooms.Type.TORTURE:
+			color = Color(1.0, 0.25, 0.15) # Les braises rouges.
+			energy = 1.3
+		Rooms.Type.GUARDPOST:
+			color = Color(1.0, 0.65, 0.3)
+			energy = 1.1
+		Rooms.Type.MANA_WELL:
+			color = Color(0.3, 0.8, 1.0) # La mana bleue.
+			energy = 1.8
+		Rooms.Type.CRYPT:
+			color = Color(0.65, 0.45, 1.0) # Les cierges et les âmes violettes.
+			energy = 1.1
 		_:
 			return
 	var light := OmniLight3D.new()
@@ -989,7 +1230,7 @@ func _animate_prop(anim: Dictionary, t: float) -> void:
 		for i in anim["sways"].size():
 			anim["sways"][i].rotation.z = sin(t * 2.0 + i * 1.7) * 0.1
 	if anim.has("wisp"):
-		anim["wisp"].position.y = 0.3 + 0.12 * sin(t * 2.0)
+		anim["wisp"].position.y = anim.get("wisp_y", 0.3) + 0.12 * sin(t * 2.0)
 	if anim.has("glow"):
 		anim["glow"].scale.x = 1.0 + 0.1 * sin(t * 6.0)
 

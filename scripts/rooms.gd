@@ -16,6 +16,14 @@ enum Type {
 	PRISON,   ## Prison : les héros vaincus y sont capturés (et interrogés).
 	TEMPLE,   ## Temple : les créatures y prient (humeur, soin, mana).
 	GRAVEYARD, ## Cimetière : les héros morts y sont enterrés, puis se relèvent en Revenants.
+	# --- Les « antres » (règles 2.7) : de quoi rendre le donjon plus vivant. ---
+	TAVERN,    ## Taverne : la bière de champignons remonte l'humeur (et fait baisser le salaire).
+	INFIRMARY, ## Infirmerie : les blessés s'y couchent et guérissent vite.
+	MINT,      ## Hôtel des monnaies : intérêts sur l'or du Trésor, on y frappe des pièces.
+	TORTURE,   ## Chambre de torture : les prisonniers parlent (vague suivante) et changent de camp.
+	GUARDPOST, ## Poste de garde : les guetteurs démasquent Voleuses et éclaireurs, et sonnent l'alarme.
+	MANA_WELL, ## Puits de mana : plus de mana au maximum, on y médite.
+	CRYPT,     ## Crypte : tes créatures mortes y reposent, puis reviennent à la vie.
 }
 
 ## Chaque salle se construit D'UN SEUL BLOC, à sa taille (« footprint », largeur x
@@ -43,10 +51,36 @@ const INFO := {
 			"footprint": Vector2i(2, 3), "object": "autel, statue et braseros"},
 	Type.GRAVEYARD: {"name": "Cimetière", "cost": 70, "color": Color("2a3324"), "build_time": 7.0,
 			"footprint": Vector2i(1, 1), "object": "tombe"},
+	Type.TAVERN: {"name": "Taverne", "cost": 220, "color": Color("5d3a1a"), "build_time": 7.0,
+			"footprint": Vector2i(2, 2), "object": "comptoir, tonneaux et cheminée"},
+	Type.INFIRMARY: {"name": "Infirmerie", "cost": 240, "color": Color("3e4a3e"), "build_time": 8.0,
+			"footprint": Vector2i(2, 2), "object": "paillasses et chaudron d'onguents"},
+	Type.MINT: {"name": "Hôtel des monnaies", "cost": 400, "color": Color("6b5a1e"), "build_time": 10.0,
+			"footprint": Vector2i(2, 2), "object": "four à fondre et presse à pièces"},
+	Type.TORTURE: {"name": "Chambre de torture", "cost": 300, "color": Color("4a1c1c"), "build_time": 9.0,
+			"footprint": Vector2i(2, 2), "object": "chevalet, cage et brasero"},
+	Type.GUARDPOST: {"name": "Poste de garde", "cost": 150, "color": Color("4a4238"), "build_time": 7.0,
+			"footprint": Vector2i(1, 2), "object": "tour de guet et cor d'alarme"},
+	Type.MANA_WELL: {"name": "Puits de mana", "cost": 500, "color": Color("1f3550"), "build_time": 12.0,
+			"footprint": Vector2i(2, 2), "object": "puits et cristaux de mana"},
+	Type.CRYPT: {"name": "Crypte", "cost": 280, "color": Color("2b2733"), "build_time": 9.0,
+			"footprint": Vector2i(2, 2), "object": "2 sarcophages et cierges"},
 }
 
 ## Les salles où les créatures viennent travailler (voir creature.gd).
-const WORK_ROOMS := [Type.LIBRARY, Type.WORKSHOP, Type.TRAINING, Type.TEMPLE]
+const WORK_ROOMS := [Type.LIBRARY, Type.WORKSHOP, Type.TRAINING, Type.TEMPLE, Type.TAVERN, Type.INFIRMARY,
+		Type.MINT, Type.TORTURE, Type.GUARDPOST, Type.MANA_WELL, Type.CRYPT]
+## Les salles faites d'un seul objet de plusieurs cases (un seul modèle 3D par salle).
+const MULTI_CELL := [Type.TREASURY, Type.LIBRARY, Type.WORKSHOP, Type.TRAINING, Type.TEMPLE, Type.TAVERN,
+		Type.INFIRMARY, Type.MINT, Type.TORTURE, Type.GUARDPOST, Type.MANA_WELL, Type.CRYPT]
+## Le nom du modèle Blender de chaque salle (assets/models/rooms/<nom>.glb).
+const MODEL_NAMES := {Type.LIBRARY: "library", Type.WORKSHOP: "workshop", Type.TRAINING: "training",
+		Type.TEMPLE: "temple", Type.TAVERN: "tavern", Type.INFIRMARY: "infirmary", Type.MINT: "mint",
+		Type.TORTURE: "torture", Type.GUARDPOST: "guardpost", Type.MANA_WELL: "mana_well"}
+
+## L'icône HD des antres (assets/icons_hd/, faites dans Blender par tools/blender/icons.py).
+const ICONS := {Type.TAVERN: "mug", Type.INFIRMARY: "salve", Type.MINT: "coin_press", Type.TORTURE: "pincers",
+		Type.GUARDPOST: "watch_horn", Type.MANA_WELL: "mana_crystal", Type.CRYPT: "sarcophagus"}
 
 ## Or que peut contenir une case de trésor.
 const TREASURY_CAPACITY := 400

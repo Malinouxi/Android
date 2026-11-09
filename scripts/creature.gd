@@ -20,6 +20,10 @@ signal worked(room_type: int, amount: float)
 signal leveled_up(creature: Creature)
 ## Émis quand un Attrapeur dépose un prisonnier sur un autel (main.gd donne l'or).
 signal sacrificed(hero: Hero)
+## Émis quand un Diablotin fait les poches d'un héros (main.gd range l'or au Trésor).
+signal gold_stolen(amount: int, where: Vector2)
+## Émis quand un Nécromancien abat un héros : il se relève pour un temps (main.gd).
+signal raised_hero(where: Vector2, duration: float)
 
 ## main.gd met à jour ces deux valeurs : y a-t-il encore quelque chose à
 ## chercher ou à fabriquer ? (« static » : partagées par toutes les créatures.)
@@ -51,6 +55,13 @@ const WORK_NAMES := {
 	Rooms.Type.WORKSHOP: "fabrique des pièges",
 	Rooms.Type.TRAINING: "s'entraîne",
 	Rooms.Type.TEMPLE: "prie",
+	Rooms.Type.TAVERN: "boit une chope",
+	Rooms.Type.INFIRMARY: "soigne les blessés",
+	Rooms.Type.MINT: "frappe la monnaie",
+	Rooms.Type.TORTURE: "fait parler les prisonniers",
+	Rooms.Type.GUARDPOST: "monte la garde",
+	Rooms.Type.MANA_WELL: "médite",
+	Rooms.Type.CRYPT: "veille les morts",
 }
 
 const MAX_LEVEL := 5
@@ -116,6 +127,14 @@ var _command_cell := NO_CELL
 var _possession_bonus := 1.0
 ## Le Renégat (sort Conversion) garde l'allure du héros qu'il était.
 var sprite_override := ""
+## Taverne : secondes pendant lesquelles elle titube encore, et la remise sur sa
+## prochaine paie (une chope rend conciliant).
+var tipsy_left := 0.0
+var _pay_discount := false
+## Infirmerie : vrai quand elle y est couchée pour se soigner (sinon, elle y soigne).
+var _patient := false
+## La Goule : secondes avant de soigner de nouveau ses voisines.
+var _heal_timer := 0.0
 ## Traînée de feu (Démon sous Hâte) : distance parcourue depuis la dernière flamme.
 var _trail_distance := 0.0
 var _last_position := Vector2.ZERO
@@ -174,10 +193,17 @@ func _apply_level() -> void:
 
 
 ## Chaque coup porté rapporte autant d'expérience que de dégâts.
-func _on_hit_landed(_target: Unit, damage_dealt: float) -> void:
+func _on_hit_landed(target: Unit, damage_dealt: float) -> void:
 	gain_xp(damage_dealt)
 	# Bagarreuse : se battre la rend heureuse.
 	happiness = minf(100.0, happiness + Traits.value(traits, "fight_mood"))
+	var info := Creatures.info(type)
+	# Le Diablotin argentier fait les poches des héros (pas des troupes du rival).
+	if info.has("gold_hit") and target is Hero:
+		gold_stolen.emit(int(info["gold_hit"]), target.position)
+	# Le Nécromancien : le héros qu'il vient d'abattre se relève pour le servir.
+	if info.has("raise_on_kill") and target is Hero and target.is_dead():
+		raised_hero.emit(target.position, float(info["raise_on_kill"]))
 
 
 ## Les traits changent la force de ses coups selon la situation.
@@ -193,6 +219,10 @@ func damage_against(target: Unit) -> float:
 		damage *= alone_bonus # Solitaire : elle se bat mieux seule.
 	if possessed_left > 0.0:
 		damage *= _possession_bonus # Possédée : la rage du maître guide ses coups.
+	# Le Bourreau achève les héros affaiblis.
+	var execute: float = Creatures.info(type).get("execute", 0.0)
+	if execute > 0.0 and target.hp < target.max_hp * execute:
+		damage *= 2.0
 	return damage
 
 
@@ -255,13 +285,32 @@ func load_save(data: Dictionary) -> void:
 	happiness = float(data["happiness"])
 
 
+## La Crypte la ramène à la vie (voir main.gd, _update_crypt) : un niveau plus bas,
+## ses traits d'avant, et le trait « Revenue ».
+func revive(body: Dictionary) -> void:
+	level = maxi(1, int(body.get("level", 1)) - 1)
+	traits.clear()
+	for id in body.get("traits", []):
+		if Traits.INFO.has(str(id)) and str(id) != "revenue":
+			traits.append(str(id))
+	traits.append("revenue")
+	var sprite := str(body.get("sprite", ""))
+	if sprite != "":
+		sprite_override = sprite
+		self_modulate = Color.html(str(body.get("tint", "ffffff")))
+	_apply_level()
+	hp = max_hp
+	happiness = 80.0
+
+
 func display_name() -> String:
 	return Creatures.info(type)["name"]
 
 
 func salary() -> int:
 	var base: int = Creatures.info(type)["salary"]
-	return int(base * (1.0 + LEVEL_SALARY_BONUS * (level - 1)) * Traits.mult(traits, "salary"))
+	var discount := Rules.TIPSY_SALARY if _pay_discount else 1.0 # Une chope à la Taverne.
+	return int(base * (1.0 + LEVEL_SALARY_BONUS * (level - 1)) * Traits.mult(traits, "salary") * discount)
 
 
 func is_leaving() -> bool:
@@ -271,6 +320,7 @@ func is_leaving() -> bool:
 ## Appelée par main.gd au jour de paie.
 func receive_pay(paid: bool) -> void:
 	happiness = clampf(happiness + (15.0 if paid else -35.0), 0.0, 100.0)
+	_pay_discount = false
 
 
 ## Ce que fait la créature en ce moment (pour sa fiche, voir hud.gd).
@@ -280,11 +330,72 @@ func activity_text() -> String:
 	if fleeing and state != State.SLEEPING:
 		return "fuit, apeurée"
 	if state == State.WORKING:
-		return WORK_NAMES[_work_room]
+		return _work_name()
 	if state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
 		return "garde le %s" % Rooms.display_name(_guarded_room())
+	if state == State.WANDER and tipsy_left > 0.0:
+		return "titube, un peu éméchée"
 	return STATE_NAMES[state]
 
+
+## Le travail en cours, en toutes lettres.
+func _work_name() -> String:
+	if _work_room == Rooms.Type.INFIRMARY and _patient:
+		return "se fait soigner"
+	return WORK_NAMES[_work_room]
+
+
+## La POSE à jouer en 3D selon ce qu'elle fait (voir view_3d.gd, _animate) :
+## "sleep", "eat", "study", "hammer", "train", "pray", "drink", "lie", "tend",
+## "coin", "torture", "guard", "meditate", "cast", "tipsy", ou "" (normal).
+func pose() -> String:
+	if possessed_left > 0.0:
+		return ""
+	match state:
+		State.SLEEPING:
+			return "sleep"
+		State.EATING:
+			return "eat"
+		State.WORKING:
+			match _work_room:
+				Rooms.Type.LIBRARY:
+					return "study"
+				Rooms.Type.WORKSHOP:
+					return "hammer"
+				Rooms.Type.TRAINING:
+					return "train"
+				Rooms.Type.TEMPLE:
+					return "pray"
+				Rooms.Type.TAVERN:
+					return "drink"
+				Rooms.Type.INFIRMARY:
+					return "lie" if _patient else "tend"
+				Rooms.Type.MINT:
+					return "coin"
+				Rooms.Type.TORTURE:
+					return "torture"
+				Rooms.Type.GUARDPOST:
+					return "guard"
+				Rooms.Type.MANA_WELL:
+					return "meditate"
+				Rooms.Type.CRYPT:
+					return "cast"
+	if tipsy_left > 0.0 and state != State.FIGHTING:
+		return "tipsy"
+	return ""
+
+
+## Le point (en pixels) vers lequel elle se tourne pendant son travail : le milieu
+## de l'objet de la salle (l'enclume, le comptoir, le puits...). Vector2.INF sinon.
+func focus_point() -> Vector2:
+	if state != State.WORKING or not map.cell_furniture.has(_work_cell):
+		return Vector2.INF
+	var item: Dictionary = map.furniture.get(map.cell_furniture[_work_cell], {})
+	if item.is_empty():
+		return Vector2.INF
+	var origin: Vector2i = item["origin"]
+	var size: Vector2i = item["size"]
+	return (Vector2(origin) + Vector2(size) * 0.5) * DungeonMap.TILE_SIZE
 
 ## Petit texte affiché quand on touche la créature.
 func describe() -> String:
@@ -292,7 +403,7 @@ func describe() -> String:
 	if possessed_left > 0.0:
 		activity = "possédée"
 	elif state == State.WORKING:
-		activity = WORK_NAMES[_work_room]
+		activity = _work_name()
 	elif state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
 		activity = "garde le %s" % Rooms.display_name(_guarded_room())
 	return "%s niv. %d [%s] (%s) : vie %d/%d, humeur %d%%, faim %d%%, énergie %d%%, salaire %d or%s" % [
@@ -332,6 +443,8 @@ func _process(delta: float) -> void:
 	if not is_inside_tree() or is_queued_for_deletion():
 		return # Une créature temporaire vient de s'effacer (voir vanish).
 	_update_fire_trail()
+	tipsy_left = maxf(0.0, tipsy_left - delta)
+	_update_healer(delta)
 	# Possédée : elle n'obéit plus qu'au maître.
 	if possessed_left > 0.0:
 		_process_possessed(delta)
@@ -378,9 +491,7 @@ func _process(delta: float) -> void:
 			if map.get_room(_work_cell) != _work_room:
 				_stop_work()
 			elif move_along_path(delta):
-				state = State.WORKING
-				_work_timer = WORK_DURATION
-				_work_tick = 0.0
+				_arrive_at_work()
 		State.WORKING:
 			_process_working(delta * work_factor()) # Le Fouet la fait travailler plus vite.
 		State.RAIDING:
@@ -702,11 +813,30 @@ func _process_working(delta: float) -> void:
 			Rooms.Type.LIBRARY:
 				# Les Sorciers étudient 3 fois plus vite (et les Studieuses 50 % plus vite).
 				var study := 3.0 if type == Creatures.Type.WARLOCK else 1.0
-				worked.emit(_work_room, study * Traits.mult(traits, "research"))
+				worked.emit(_work_room, study * Traits.mult(traits, "research") * _work_bonus())
 			Rooms.Type.WORKSHOP:
 				# Les Orques sont les meilleurs artisans.
 				var craft := 3.0 if type == Creatures.Type.ORC else 2.0
-				worked.emit(_work_room, craft * Traits.mult(traits, "craft"))
+				worked.emit(_work_room, craft * Traits.mult(traits, "craft") * _work_bonus())
+			Rooms.Type.TAVERN:
+				# Une chope : l'humeur remonte (deux fois plus vite pour le Gobelin brasseur).
+				happiness = minf(100.0, happiness + Rules.TAVERN_MOOD * _work_bonus())
+			Rooms.Type.INFIRMARY:
+				if _patient:
+					var boost := Rules.INFIRMARY_NURSE_BOOST if _nurse_on_duty(get_tree()) else 1.0
+					heal(Rules.INFIRMARY_HEAL * boost)
+					happiness = minf(100.0, happiness + 0.5)
+				else:
+					gain_xp(1.0) # La Goule apprend en recousant.
+			Rooms.Type.MINT:
+				worked.emit(_work_room, Rules.MINT_WORK_GOLD * Traits.mult(traits, "craft") * _work_bonus())
+			Rooms.Type.TORTURE:
+				worked.emit(_work_room, _work_bonus())
+				happiness = minf(100.0, happiness + 0.5) # Le métier a ses plaisirs.
+			Rooms.Type.MANA_WELL:
+				worked.emit(_work_room, Rules.MANA_MEDITATION * Traits.mult(traits, "prayer") * _work_bonus())
+			Rooms.Type.CRYPT:
+				worked.emit(_work_room, _work_bonus())
 			Rooms.Type.TEMPLE:
 				# Prier rend heureux, soigne, et donne un peu de mana au maître (deux fois plus si Pieuse).
 				var prayer := Traits.mult(traits, "prayer")
@@ -716,8 +846,23 @@ func _process_working(delta: float) -> void:
 	var stop_training := _work_room == Rooms.Type.TRAINING and level >= MAX_LEVEL
 	var stop_research := _work_room == Rooms.Type.LIBRARY and not research_needed
 	var stop_workshop := _work_room == Rooms.Type.WORKSHOP and not workshop_needed
+	var stop_den := false
+	match _work_room:
+		Rooms.Type.TAVERN:
+			if _work_timer <= 0.0:
+				tipsy_left = Rules.TIPSY_TIME # Elle sort en titubant...
+				_pay_discount = true          # ... et se montre conciliante à la paie.
+		Rooms.Type.INFIRMARY:
+			if _patient:
+				# Couchée, elle reste jusqu'à guérison (même affamée ou fatiguée).
+				if hp >= max_hp:
+					_stop_work()
+				return
+			stop_den = _patients() == 0
+		Rooms.Type.TORTURE:
+			stop_den = map.prisoners.is_empty()
 	if _work_timer <= 0.0 or hunger >= HUNGRY_LEVEL or energy <= TIRED_LEVEL \
-			or stop_training or stop_research or stop_workshop:
+			or stop_training or stop_research or stop_workshop or stop_den:
 		_stop_work()
 
 
@@ -725,7 +870,12 @@ func _process_working(delta: float) -> void:
 func _start_work() -> bool:
 	if _guarded_room() != Rooms.Type.NONE:
 		return false # Un gardien ne quitte pas son poste pour travailler.
+	var info := Creatures.info(type)
+	# La Gargouille ne fait qu'une chose : monter la garde.
+	if info.get("sentinel", false):
+		return _go_to_room(Rooms.Type.GUARDPOST)
 	var options: Array[int] = []
+	_add_den_options(options, info)
 	if research_needed and map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
 		options.append(Rooms.Type.LIBRARY)
 		if type == Creatures.Type.WARLOCK:
@@ -742,10 +892,17 @@ func _start_work() -> bool:
 			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Pieuse : elle adore prier.
 	if options.is_empty():
 		return false
-	var room: int = options.pick_random()
+	return _go_to_room(options.pick_random())
+
+
+## Part vers un poste libre d'une salle de travail. Renvoie false s'il n'y en a pas.
+func _go_to_room(room: int) -> bool:
+	if map.count_room_tiles(room) == 0:
+		return false
 	var spot := map.find_work_spot(self, room, current_cell())
 	if spot.is_empty():
 		return false
+	_patient = false
 	_work_room = room
 	_work_cell = spot["target"]
 	follow_path(spot["path"])
@@ -753,8 +910,138 @@ func _start_work() -> bool:
 	return true
 
 
+## Les antres (règles 2.7) : ce que la créature peut y faire, selon son humeur et ses goûts.
+func _add_den_options(options: Array[int], info: Dictionary) -> void:
+	# La Taverne : quand l'humeur baisse (une Gourmande, toujours), s'il reste des champignons.
+	if map.count_room_tiles(Rooms.Type.TAVERN) > 0 and not is_undead() and map.has_food() \
+			and (happiness < Rules.TAVERN_MOOD_BELOW or Traits.value(traits, "meal_mood") > 0.0):
+		options.append(Rooms.Type.TAVERN)
+		if happiness < 45.0 or info.get("brewer", false):
+			options.append_array([Rooms.Type.TAVERN, Rooms.Type.TAVERN])
+	# L'Hôtel des monnaies : frapper des pièces (le Diablotin adore ça).
+	if map.count_room_tiles(Rooms.Type.MINT) > 0 and type != Creatures.Type.WARLOCK:
+		options.append(Rooms.Type.MINT)
+		if type == Creatures.Type.IMP:
+			options.append_array([Rooms.Type.MINT, Rooms.Type.MINT, Rooms.Type.MINT])
+	# La Chambre de torture : seulement s'il y a des prisonniers (les Pieuses refusent).
+	if map.count_room_tiles(Rooms.Type.TORTURE) > 0 and not map.prisoners.is_empty() \
+			and Traits.mult(traits, "prayer") <= 1.0:
+		options.append(Rooms.Type.TORTURE)
+		if type == Creatures.Type.EXECUTIONER:
+			options.append_array([Rooms.Type.TORTURE, Rooms.Type.TORTURE, Rooms.Type.TORTURE])
+	# Le Poste de garde : quelqu'un doit bien guetter.
+	if map.count_room_tiles(Rooms.Type.GUARDPOST) > 0:
+		options.append(Rooms.Type.GUARDPOST)
+	# Le Puits de mana : méditer (l'Oracle y passe sa vie).
+	if map.count_room_tiles(Rooms.Type.MANA_WELL) > 0:
+		options.append(Rooms.Type.MANA_WELL)
+		if type == Creatures.Type.ORACLE or type == Creatures.Type.WARLOCK:
+			options.append_array([Rooms.Type.MANA_WELL, Rooms.Type.MANA_WELL])
+	# La Crypte : seul le Nécromancien veille les morts.
+	if type == Creatures.Type.NECROMANCER and map.count_room_tiles(Rooms.Type.CRYPT) > 0:
+		options.append_array([Rooms.Type.CRYPT, Rooms.Type.CRYPT, Rooms.Type.CRYPT])
+	# L'Infirmerie : la Goule va au chevet des blessés.
+	if info.get("nurse", false) and _patients() > 0:
+		options.append_array([Rooms.Type.INFIRMARY, Rooms.Type.INFIRMARY, Rooms.Type.INFIRMARY])
+
+
+## Arrivée au poste de travail.
+func _arrive_at_work() -> void:
+	state = State.WORKING
+	_work_timer = WORK_DURATION
+	_work_tick = 0.0
+	if _work_room == Rooms.Type.TAVERN:
+		# Une chope de bière de champignons : on la prend à la Champignonnière.
+		if not map.take_any_food():
+			_stop_work()
+			return
+		_work_timer = Rules.TAVERN_DRINK_TIME
+		Sound.play("coins", position, -14.0)
+	elif _work_room == Rooms.Type.INFIRMARY and _patient:
+		_work_timer = 999.0 # Elle reste couchée jusqu'à guérison.
+
+
+## Une créature blessée (hors combat) qui ferait bien de passer à l'Infirmerie.
+func _needs_care() -> bool:
+	return not is_undead() and hp < max_hp * Rules.INFIRMARY_BELOW \
+			and map.count_room_tiles(Rooms.Type.INFIRMARY) > 0
+
+
+## Le nombre de blessés couchés à l'Infirmerie.
+func _patients() -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var other := node as Creature
+		if other != null and other.is_patient():
+			count += 1
+	return count
+
+
+func is_patient() -> bool:
+	return _work_room == Rooms.Type.INFIRMARY and _patient \
+			and (state == State.WORKING or state == State.GOING_TO_WORK)
+
+
+## Vrai si elle monte la garde à son poste en ce moment (main.gd s'en sert).
+func on_guard_duty() -> bool:
+	return state == State.WORKING and _work_room == Rooms.Type.GUARDPOST
+
+
+## Vrai si une Goule soigne à l'Infirmerie en ce moment.
+static func _nurse_on_duty(tree: SceneTree) -> bool:
+	for node in tree.get_nodes_in_group("dungeon"):
+		var other := node as Creature
+		if other != null and other.state == State.WORKING and other._work_room == Rooms.Type.INFIRMARY \
+				and not other._patient:
+			return true
+	return false
+
+
+## L'alarme du Poste de garde : elle se réveille (ou lâche son travail) et court au héros.
+func alert(enemy: Unit) -> void:
+	if possessed_left > 0.0 or fleeing or is_catcher() or not is_instance_valid(enemy):
+		return
+	if state != State.SLEEPING and state != State.WORKING and state != State.WANDER \
+			and state != State.GOING_TO_WORK and state != State.EATING:
+		return
+	if is_patient():
+		return # Les blessés restent couchés.
+	map.release_work_spot(self)
+	_work_room = Rooms.Type.NONE
+	_work_cell = NO_CELL
+	path.clear()
+	_enemy = enemy
+	state = State.FIGHTING
+
+
+## La Goule rebouteuse soigne les créatures blessées autour d'elle, même en combat.
+func _update_healer(delta: float) -> void:
+	var healer: Dictionary = Creatures.info(type).get("healer", {})
+	if healer.is_empty() or state == State.SLEEPING:
+		return
+	_heal_timer -= delta
+	if _heal_timer > 0.0:
+		return
+	_heal_timer = healer["interval"]
+	var healed := false
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var other := node as Unit
+		if other != null and other != self and not other.is_dead() and other.hp < other.max_hp \
+				and other.position.distance_to(position) <= healer["radius"]:
+			other.heal(healer["amount"])
+			healed = true
+	if healed:
+		Fx.burst("heal", position, Color("b2ff59"))
+
+
+## Le talent de l'espèce pour le travail en cours (catalogue : "work_bonus").
+func _work_bonus() -> float:
+	return Creatures.info(type).get("work_bonus", {}).get(_work_room, 1.0)
+
+
 func _stop_work() -> void:
 	map.release_work_spot(self)
+	_patient = false
 	_work_room = Rooms.Type.NONE
 	_work_cell = NO_CELL
 	if state == State.GOING_TO_WORK or state == State.WORKING:
@@ -849,6 +1136,11 @@ func _process_wander(delta: float) -> void:
 	# Priorité 2 : dormir.
 	if energy <= TIRED_LEVEL and _has_bed() and go_to(bed_cell):
 		state = State.GOING_TO_SLEEP
+		return
+
+	# Priorité 2 bis : blessée, elle va se faire soigner à l'Infirmerie.
+	if _needs_care() and _go_to_room(Rooms.Type.INFIRMARY):
+		_patient = true
 		return
 
 	# Priorité 3 : travailler (si elle n'a ni faim ni sommeil).

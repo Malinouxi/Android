@@ -30,7 +30,7 @@ from mathutils import Vector
 SIZE = 256           # Taille des images.
 ORTHO = 2.2         # Largeur vue par la caméra (mètres).
 LINE = 3.4           # Épaisseur du contour (pixels de l'image).
-THIN_LINES = {"web": 1.3, "cage": 1.6, "rune": 1.6, "bookshelf": 2.0, "recall": 2.2}  # Contour plus fin : objets ajourés.
+THIN_LINES = {"pincers": 2.4, "web": 1.3, "cage": 1.6, "rune": 1.6, "bookshelf": 2.0, "recall": 2.2}  # Contour plus fin : objets ajourés.
 MARGIN = 1.1         # Le cadrage serré : l'objet remplit la case, avec 10 % de marge.
 
 
@@ -193,6 +193,7 @@ def _palette():
         "ember": mat("ember", "bf360c", emission=2.0),
         "glow_green": mat("glow_green", "69f0ae", emission=3.0),
         "glow_purple": mat("glow_purple", "b388ff", emission=3.0),
+        "glow_blue": mat("glow_blue", "40c4ff", emission=3.0),
         "glow_orange": mat("glow_orange", "ffab40", emission=5.0),
         "blood": mat("blood", "b71c1c", rough=0.2, coat=1.0),
         "gem_red": mat("gem_red", "ff1744", rough=0.08, emission=1.2, coat=1.0),
@@ -1077,6 +1078,92 @@ def arrow_down(m):
     _arrow(m, False)
 
 
+# ---------------------------------------------------------------------------
+# Les antres (règles 2.7)
+# ---------------------------------------------------------------------------
+
+def mug(m):
+    """Taverne : une grosse chope de bois cerclée de fer, mousse qui déborde."""
+    cyl(m["wood"], (0, 0, -0.15), 0.42, 0.95, bevel=0.04)
+    for z in (-0.5, 0.2):
+        cyl(m["iron"], (0, 0, z), 0.44, 0.08, bevel=0.01)
+    tube(m["wood_dark"], [(0.4, 0, 0.15), (0.72, 0, 0.1), (0.75, 0, -0.25), (0.4, 0, -0.35)], [0.08, 0.08, 0.08, 0.08])
+    for x, z, r in ((0, 0.38, 0.4), (-0.25, 0.42, 0.22), (0.22, 0.45, 0.22), (0.05, 0.6, 0.2)):
+        ball(m["white"], (x, -0.02, z), r, scale=(1, 1, 0.7))
+    ball(m["white"], (-0.35, -0.3, 0.12), 0.1, scale=(0.8, 0.8, 1.6))
+
+
+def salve(m):
+    """Infirmerie : un pot d'onguent vert et un rouleau de bandage taché de sang."""
+    cyl(m["stone_light"], (-0.15, 0, -0.25), 0.42, 0.7, radius2=0.36, bevel=0.04)
+    cyl(m["glow_green"], (-0.15, 0, 0.12), 0.36, 0.06, bevel=0.0)
+    ball(m["glow_green"], (-0.15, 0, 0.17), 0.2, scale=(1, 1, 0.5))
+    cyl(m["leather"], (-0.15, 0, 0.12), 0.42, 0.06, bevel=0.01, radius2=0.4)
+    cyl(m["cloth_beige"], (0.48, -0.25, -0.38), 0.28, 0.45, rot=(math.radians(90), 0, math.radians(20)), bevel=0.03)
+    ball(m["blood"], (0.5, -0.5, -0.3), 0.09, scale=(1, 0.3, 1))
+    box(m["cloth_beige"], (0.3, -0.5, -0.62), (0.5, 0.2, 0.04), rot=(0, 0, math.radians(20)), bevel=0.01)
+
+
+def coin_press(m):
+    """Hôtel des monnaies : une pile de pièces frappées au trident, et un marteau de frappe."""
+    for k in range(6):
+        cyl(m["gold"], (-0.15 + 0.02 * (k % 2), 0, -0.6 + k * 0.13), 0.42, 0.11, bevel=0.02)
+    cyl(m["gold"], (0.45, -0.1, -0.15), 0.36, 0.1, rot=(math.radians(70), 0, math.radians(-20)), bevel=0.02)
+    box(m["red"], (0.45, -0.17, -0.15), (0.06, 0.02, 0.32), rot=(math.radians(-20), 0, math.radians(-20)), bevel=0.0)
+    hammer = group((-0.1, -0.1, 0.45), rotation_y=math.radians(-35))
+    box(m["iron"], (0, 0, 0.0), (0.55, 0.28, 0.28), bevel=0.04, parent=hammer)
+    cyl(m["wood"], (0.0, 0, -0.45), 0.06, 0.8, bevel=0.01, parent=hammer)
+
+
+def pincers(m):
+    """Chambre de torture : des tenailles rougies au feu."""
+    for side in (-1, 1):
+        tube(m["iron_dark"], [(0.1 * side, 0, -0.7), (0.15 * side, 0, -0.1), (-0.05 * side, 0, 0.35),
+                              (-0.18 * side, 0, 0.75)], [0.07, 0.07, 0.06, 0.05])
+    ball(m["iron"], (0, -0.02, 0.0), 0.11)
+    for side in (-1, 1):
+        cone(m["glow_orange"], (-0.2 * side, 0, 0.85), 0.07, 0.25)
+    ball(m["blood"], (0.35, -0.1, -0.5), 0.08)
+    ball(m["blood"], (0.38, -0.1, -0.65), 0.05)
+
+
+def watch_horn(m):
+    """Poste de garde : le cor d'alarme recourbé, embouchure et pavillon d'or."""
+    tube(m["bone"], [(-0.75, 0, -0.35), (-0.4, 0, -0.45), (0.0, 0, -0.3), (0.35, 0, 0.05), (0.55, 0, 0.45)],
+         [0.06, 0.1, 0.16, 0.24, 0.34])
+    ring(m["gold"], (0.55, 0, 0.45), 0.34, 0.06, rot=(0, math.radians(-35), 0))
+    ring(m["gold"], (-0.05, 0, -0.32), 0.17, 0.04, rot=(0, math.radians(70), 0))
+    cyl(m["gold"], (-0.78, 0, -0.34), 0.07, 0.12, rot=(0, math.radians(80), 0), bevel=0.01)
+    tube(m["leather"], [(-0.4, 0, -0.45), (-0.2, 0, -0.75), (0.2, 0, -0.65), (0.35, 0, 0.05)], [0.03] * 4)
+
+
+def mana_crystal(m):
+    """Puits de mana : un grand cristal bleu qui flotte au-dessus d'une margelle runique."""
+    lathe(m["glow_blue"], [(0.05, 0.0), (0.45, 0.32), (0.95, 0.0)], center=(0, 0, 0.0))
+    cyl(m["stone"], (0, 0, -0.55), 0.7, 0.3, bevel=0.05)
+    cyl(m["glow_blue"], (0, 0, -0.39), 0.55, 0.03, bevel=0.0)
+    for k in range(5):
+        a = math.radians(200 + k * 35)
+        box(m["glow_blue"], (0.7 * math.cos(a), 0.7 * math.sin(a), -0.55), (0.1, 0.03, 0.12), rot=(0, 0, a + math.pi / 2),
+            bevel=0.0)
+    for x in (-0.55, 0.55):
+        cone(m["glow_blue"], (x, 0, 0.15), 0.08, 0.3)
+
+
+def sarcophagus(m):
+    """Crypte : un sarcophage dressé, couvercle entrouvert, une âme violette qui s'échappe."""
+    plate(m["stone_light"], [(-0.42, -0.75), (0.42, -0.75), (0.5, 0.55), (0.3, 0.9), (-0.3, 0.9), (-0.5, 0.55)],
+          0.35, y=0.15, bevel=0.03)
+    lid = group((0.0, -0.08, 0.0), rotation_y=math.radians(10))
+    plate(m["stone"], [(-0.38, -0.7), (0.38, -0.7), (0.45, 0.5), (0.27, 0.82), (-0.27, 0.82), (-0.45, 0.5)],
+          0.1, y=0.0, bevel=0.02, parent=lid)
+    _skull(m, (0.0, -0.14, 0.5), 0.55)
+    box(m["iron"], (0, -0.14, -0.15), (0.08, 0.04, 0.6), bevel=0.01)
+    box(m["iron"], (0, -0.14, 0.05), (0.32, 0.04, 0.06), bevel=0.01)
+    for x, z, r in ((0.58, 0.2, 0.14), (0.7, 0.5, 0.1), (0.62, 0.8, 0.07)):
+        ball(m["glow_purple"], (x, -0.1, z), r)
+
+
 ICONS = {
     "pickaxe": pickaxe, "hand": hand, "hammer": hammer, "dagger": dagger,
     "chest": chest, "bed": bed, "mushroom": mushroom, "bookshelf": bookshelf, "anvil": anvil,
@@ -1089,6 +1176,8 @@ ICONS = {
     "convert": convert, "sanctuary": sanctuary, "recall": recall,
     "tools": tools, "arch": arch, "trident": trident, "scroll": scroll,
     "arrow_up": arrow_up, "arrow_down": arrow_down,
+    "mug": mug, "salve": salve, "coin_press": coin_press, "pincers": pincers, "watch_horn": watch_horn,
+    "mana_crystal": mana_crystal, "sarcophagus": sarcophagus,
 }
 
 

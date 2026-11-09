@@ -4,7 +4,7 @@ class_name Creatures
 ## Pour ajouter une créature : un nom dans Type et une entrée dans INFO.
 
 enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER, CATCHER, REVENANT, CERBERUS,
-		COLOSSUS, RENEGADE }
+		COLOSSUS, RENEGADE, GOBLIN, GHOUL, IMP, EXECUTIONER, GARGOYLE, ORACLE, NECROMANCER }
 
 ## "requires" : nombre minimum de SALLES de chaque type pour attirer la créature
 ## (une salle = un bloc entier : un lit de Repaire, une Bibliothèque 2 x 3...).
@@ -16,6 +16,12 @@ enum Type { KOBOLD, ORC, WARLOCK, SPIDER, DEMON, BAT, GOLEM, VAMPIRE, SALAMANDER
 ##   "armor" (part des dégâts ignorés), "lifesteal" (part des dégâts regagnée en vie),
 ##   "splash" (rayon des dégâts par ricochet), "regen" (vie par seconde),
 ##   "slow" (secondes de ralentissement infligées), "attack_sound" (nom d'un son).
+## Talents des créatures des antres (voir creature.gd) :
+##   "brewer" (la Taverne lui fait deux fois plus plaisir), "healer" (soigne ses voisines :
+##   {"radius", "amount", "interval"}), "nurse" (double les soins de l'Infirmerie où elle
+##   travaille), "gold_hit" (or volé à chaque coup), "execute" (dégâts doublés contre un
+##   héros sous cette part de sa vie), "work_bonus" ({salle: multiplicateur}),
+##   "raise_on_kill" (un héros qu'elle abat se relève en Revenant pour un temps).
 const INFO := {
 	Type.KOBOLD: {
 		"name": "Kobold", "sprite": "kobold", "color": Color("ff9800"), "size": 7.0, "speed": 105.0,
@@ -115,6 +121,66 @@ const INFO := {
 		"name": "Renégat", "sprite": "adventurer", "color": Color("8d6e63"), "size": 8.0, "speed": 75.0,
 		"salary": 20, "requires": {}, "graveyard": true, "renegade": true,
 		"hp": 120.0, "damage": 11.0, "range": 28.0, "attack_interval": 1.0, "tint": Color(1.2, 0.75, 0.75),
+	},	# --- Les créatures des antres (règles 2.7) : une par nouvelle salle. ---
+	Type.GOBLIN: {
+		# Le Gobelin brasseur : pas cher, bon artisan, et la Taverne le rend deux fois plus heureux.
+		"name": "Gobelin brasseur", "sprite": "goblin", "color": Color("7cb342"), "size": 7.5, "speed": 95.0,
+		"salary": 20, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.TAVERN: 1},
+		"hp": 80.0, "damage": 8.0, "range": 26.0, "attack_interval": 0.9,
+		"brewer": true, "work_bonus": {Rooms.Type.WORKSHOP: 1.25, Rooms.Type.TAVERN: 2.0},
+	},
+	Type.GHOUL: {
+		# La Goule rebouteuse : elle recoud ses voisines en plein combat, et soigne à l'Infirmerie.
+		"name": "Goule rebouteuse", "sprite": "ghoul", "color": Color("8fa38a"), "size": 8.0, "speed": 85.0,
+		"salary": 45, "requires": {Rooms.Type.LAIR: 3, Rooms.Type.INFIRMARY: 1},
+		"limit_room": Rooms.Type.INFIRMARY, "limit_each": Rules.GHOULS_PER_INFIRMARY, "limit_max": Rules.MAX_GHOULS,
+		"hp": 120.0, "damage": 10.0, "range": 26.0, "attack_interval": 1.0,
+		"healer": {"radius": 72.0, "amount": 8.0, "interval": 3.0}, "nurse": true,
+	},
+	Type.IMP: {
+		# Le Diablotin argentier : vif, fragile, il fait les poches des héros à chaque coup.
+		"name": "Diablotin argentier", "sprite": "imp", "color": Color("c62828"), "size": 6.5, "speed": 130.0,
+		"salary": 25, "requires": {Rooms.Type.LAIR: 2, Rooms.Type.MINT: 1},
+		"limit_room": Rooms.Type.MINT, "limit_each": Rules.IMPS_PER_MINT, "limit_max": Rules.MAX_IMPS,
+		"hp": 55.0, "damage": 6.0, "range": 26.0, "attack_interval": 0.6, "gold_hit": 3,
+		"work_bonus": {Rooms.Type.MINT: 3.0},
+	},
+	Type.EXECUTIONER: {
+		# Le Bourreau : il achève les héros affaiblis, et fait parler les prisonniers deux fois plus vite.
+		"name": "Bourreau", "sprite": "executioner", "color": Color("3e2723"), "size": 10.5, "speed": 70.0,
+		"salary": 75, "requires": {Rooms.Type.LAIR: 4, Rooms.Type.TORTURE: 1},
+		"limit_room": Rooms.Type.TORTURE, "limit_each": Rules.EXECUTIONERS_PER_TORTURE,
+		"limit_max": Rules.MAX_EXECUTIONERS,
+		"hp": 220.0, "damage": 22.0, "range": 30.0, "attack_interval": 1.3, "execute": 0.3,
+		"work_bonus": {Rooms.Type.TORTURE: 2.0},
+	},
+	Type.GARGOYLE: {
+		# La Gargouille : une sentinelle de pierre (ni lit, ni repas). Elle garde le Poste de garde
+		# et son regard perce la discrétion des Voleuses.
+		"name": "Gargouille", "sprite": "gargoyle", "color": Color("78909c"), "size": 9.5, "speed": 80.0,
+		"salary": 35, "requires": {Rooms.Type.LAIR: 1, Rooms.Type.GUARDPOST: 1}, "undead": true,
+		"limit_room": Rooms.Type.GUARDPOST, "limit_each": Rules.GARGOYLES_PER_GUARDPOST,
+		"limit_max": Rules.MAX_GARGOYLES,
+		"hp": 180.0, "damage": 13.0, "range": 28.0, "attack_interval": 1.1, "armor": 0.25,
+		"keen_nose": true, "sentinel": true,
+	},
+	Type.ORACLE: {
+		# L'Oracle des ombres : magie à distance, et sa méditation au Puits donne 3 fois plus de mana.
+		"name": "Oracle des ombres", "sprite": "oracle", "color": Color("18ffff"), "size": 8.0, "speed": 85.0,
+		"salary": 80, "requires": {Rooms.Type.LAIR: 4, Rooms.Type.MANA_WELL: 1},
+		"limit_room": Rooms.Type.MANA_WELL, "limit_each": Rules.ORACLES_PER_WELL, "limit_max": Rules.MAX_ORACLES,
+		"hp": 90.0, "damage": 16.0, "range": 96.0, "attack_interval": 1.3, "attack_sound": "zap",
+		"work_bonus": {Rooms.Type.MANA_WELL: 3.0},
+	},
+	Type.NECROMANCER: {
+		# Le Nécromancien : les héros qu'il abat se relèvent un moment pour toi ; il veille la Crypte
+		# (les morts s'y relèvent 3 fois plus vite).
+		"name": "Nécromancien", "sprite": "necromancer", "color": Color("76ff03"), "size": 8.5, "speed": 80.0,
+		"salary": 90, "requires": {Rooms.Type.LAIR: 5, Rooms.Type.CRYPT: 1},
+		"limit_room": Rooms.Type.CRYPT, "limit_each": Rules.NECROMANCERS_PER_CRYPT,
+		"limit_max": Rules.MAX_NECROMANCERS,
+		"hp": 100.0, "damage": 15.0, "range": 90.0, "attack_interval": 1.4, "attack_sound": "zap",
+		"raise_on_kill": Rules.NECRO_RAISE_TIME, "work_bonus": {Rooms.Type.CRYPT: 3.0},
 	},
 }
 

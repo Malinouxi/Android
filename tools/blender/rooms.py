@@ -10,6 +10,8 @@ Objets de plusieurs cases, centrés sur leur milieu, le côté LONG le long de Y
 (le jeu les tourne d'un quart de tour s'ils sont posés dans l'autre sens) :
   treasury_0..3 (Trésor 1 x 2, rempli de 0 à 3), library (2 x 3, le laboratoire
   d'alchimie), workshop (2 x 2), training (2 x 4), temple (2 x 3).
+  Les antres (règles 2.7) : tavern, infirmary, mint, torture, mana_well, crypt_0..2
+  (2 x 2, la Crypte avec 0 à 2 sarcophages occupés) et guardpost (1 x 2).
 Le trône du cœur : throne (salle de départ 5 x 5, centré sur le cœur, tourné vers -Y).
 
 Les parties animées sont des pivots nommés, que view_3d.gd fait bouger :
@@ -841,6 +843,498 @@ def _throne(ctx):
         _skull(ctx, part, (x, y, 0.1 if abs(x) < 0.9 else 0.0), rng.uniform(0.8, 1.2))
 
 
+# ---------------------------------------------------------------------------
+# Les antres (règles 2.7) : objets de 2 x 2 cases (le Poste de garde : 1 x 2).
+# Les créatures se tiennent au milieu des cases, en (±0,5, ±0,5) : on y laisse
+# de la place, le mobilier est au centre, sur les bords et dans les coins.
+# ---------------------------------------------------------------------------
+
+def _barrel(ctx, part, at, height=0.42, radius=0.15, lying=False):
+    """Un tonneau cerclé de fer, debout (ou couché le long de X)."""
+    x, y, z = at
+    wood = ctx.planks("7a4a22")
+    iron = ctx.iron("3a4045")
+    if lying:
+        part.loft([((x - height / 2, y, z + radius), radius * 0.85, radius * 0.85),
+                   ((x, y, z + radius), radius, radius),
+                   ((x + height / 2, y, z + radius), radius * 0.85, radius * 0.85)], wood, sides=10)
+        for dx in (-height * 0.35, height * 0.35):
+            part.loft([((x + dx - 0.012, y, z + radius), radius * 0.97, radius * 0.97),
+                       ((x + dx + 0.012, y, z + radius), radius * 0.97, radius * 0.97)], iron, sides=10,
+                      cap_start=False, cap_end=False)
+        # Le robinet de laiton, sur le fond.
+        part.loft([((x + height / 2, y, z + radius * 0.7), 0.015, 0.015),
+                   ((x + height / 2 + 0.06, y, z + radius * 0.65), 0.012, 0.012)], ctx.mat("brass", "b8892e"), sides=5)
+        return
+    part.loft([((x, y, z), radius * 0.85, radius * 0.85), ((x, y, z + height / 2), radius, radius),
+               ((x, y, z + height), radius * 0.85, radius * 0.85)], wood, sides=10)
+    for dz in (0.08, height - 0.08):
+        part.loft([((x, y, z + dz - 0.012), radius * 0.97, radius * 0.97),
+                   ((x, y, z + dz + 0.012), radius * 0.97, radius * 0.97)], iron, sides=10,
+                  cap_start=False, cap_end=False)
+
+
+def _mug(ctx, part, at, foam=True):
+    x, y, z = at
+    part.loft([((x, y, z), 0.032, 0.032), ((x, y, z + 0.08), 0.035, 0.035)], ctx.planks("8d5a2b"), sides=7)
+    if foam:
+        part.loft([((x, y, z + 0.078), 0.036, 0.036), ((x, y, z + 0.1), 0.03, 0.03), ((x, y, z + 0.11), 0.0, 0.0)],
+                  ctx.mat("foam", "fff8e1"), sides=7, cap_end=False)
+    part.box((x + 0.045, y, z + 0.045), (0.02, 0.012, 0.05), ctx.wood("5d4037"))
+
+
+def _stool(ctx, part, at):
+    x, y = at
+    wood = ctx.wood("5d4037")
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        part.loft([((x + 0.06 * math.cos(a), y + 0.06 * math.sin(a), 0.0), 0.012, 0.012),
+                   ((x + 0.04 * math.cos(a), y + 0.04 * math.sin(a), 0.22), 0.012, 0.012)], wood, sides=4)
+    part.loft([((x, y, 0.22), 0.085, 0.085), ((x, y, 0.25), 0.085, 0.085)], ctx.planks("6d4c41"), sides=8)
+
+
+def _tavern(ctx):
+    """La Taverne : comptoir et tonneaux au fond, cheminée à gauche, table ronde au milieu,
+    tabourets, chopes qui débordent de mousse, et une enseigne qui se balance."""
+    part = ctx.base
+    rng = random.Random(21)
+    wood = ctx.planks("6d4c41")
+    dark = ctx.wood("3e2723")
+    stone = ctx.stone("5a4c45")
+    # Le comptoir, contre le mur du fond.
+    cy = 0.82
+    part.box((-0.1, cy, 0.27), (1.3, 0.24, 0.54), wood)
+    part.box((-0.1, cy - 0.02, 0.56), (1.38, 0.32, 0.05), dark)
+    for x in (-0.65, -0.1, 0.45):
+        part.box((x, cy - 0.125, 0.27), (0.05, 0.01, 0.5), dark)
+    for k, x in enumerate((-0.55, -0.3, 0.05, 0.3)):
+        _mug(ctx, part, (x, cy - 0.04 + 0.03 * (k % 2), 0.585), foam=k % 2 == 0)
+    _candle(ctx, part, (0.42, cy, 0.585))
+    # Les tonneaux : deux debout dans le coin, un couché sur son chevalet, robinet ouvert.
+    _barrel(ctx, part, (0.8, 0.82, 0.0))
+    _barrel(ctx, part, (0.82, 0.45, 0.0), height=0.36, radius=0.13)
+    for x in (-0.75, -0.45):
+        part.box((x, 0.97 - 0.05, 0.5), (0.04, 0.06, 1.0), dark)
+    part.box((-0.6, 0.92, 0.72), (0.4, 0.08, 0.03), dark)
+    _barrel(ctx, part, (-0.6, 0.92, 0.75), height=0.36, radius=0.12, lying=True)
+    # Des caisses de champignons (la bière en est faite).
+    part.box((0.78, -0.12, 0.12), (0.3, 0.26, 0.24), ctx.planks("8d6e63"))
+    cap = ctx.mat("cap", "d32f2f", texture="rough")
+    for k in range(5):
+        x, y = 0.68 + 0.05 * (k % 3), -0.18 + 0.06 * (k // 3)
+        part.loft([((x, y, 0.24), 0.04, 0.04), ((x, y, 0.27), 0.05, 0.05), ((x, y, 0.3), 0.0, 0.0)], cap, sides=6,
+                  cap_end=False)
+    # La cheminée de pierre, sur le mur de gauche, et son feu.
+    fx = -0.88
+    part.box((fx, 0.0, 0.3), (0.22, 0.7, 0.6), stone)
+    part.box((fx + 0.02, 0.0, 0.62), (0.3, 0.8, 0.08), ctx.stone("3a302c"))
+    part.loft([((fx, 0.0, 0.66), 0.13, 0.3), ((fx - 0.02, 0.0, 1.4), 0.09, 0.18)], stone, sides=4, twist=math.pi / 4)
+    part.flat([(fx + 0.115, -0.2, 0.05), (fx + 0.115, 0.2, 0.05), (fx + 0.115, 0.2, 0.42), (fx + 0.115, -0.2, 0.42)],
+              ctx.mat("hearth", "1a0e08"), facing=(1, 0, 0))
+    part.loft([((fx + 0.05, 0.0, 0.0), 0.1, 0.16), ((fx + 0.05, 0.0, 0.05), 0.08, 0.14)],
+              ctx.mat("embers", "bf360c", emission=1.5), sides=7)
+    for y in (-0.08, 0.06):
+        _flame(ctx, (fx + 0.05, y, 0.05), 0.07)
+    # Un chaudron de soupe pendu au-dessus du feu.
+    iron = ctx.iron("37474f")
+    part.loft([((fx + 0.05, 0.0, 0.42), 0.012, 0.012), ((fx + 0.05, 0.0, 0.3), 0.012, 0.012)], iron, sides=4)
+    part.loft([((fx + 0.05, 0.0, 0.14), 0.06, 0.06), ((fx + 0.05, 0.0, 0.2), 0.09, 0.09),
+               ((fx + 0.05, 0.0, 0.28), 0.08, 0.08)], iron, sides=8, cap_end=False)
+    # La table ronde au milieu, chopes et cruche, un os rongé.
+    part.loft([((0, 0, 0.0), 0.12, 0.12), ((0, 0, 0.04), 0.05, 0.05), ((0, 0, 0.34), 0.05, 0.05)], dark, sides=6)
+    part.loft([((0, 0, 0.34), 0.25, 0.25), ((0, 0, 0.38), 0.25, 0.25)], wood, sides=10)
+    _mug(ctx, part, (0.08, 0.05, 0.38))
+    _mug(ctx, part, (-0.1, -0.06, 0.38), foam=False)
+    part.loft([((-0.02, 0.1, 0.38), 0.04, 0.04), ((-0.02, 0.1, 0.46), 0.05, 0.05), ((-0.02, 0.1, 0.52), 0.025, 0.025)],
+              ctx.mat("jug", "a1887f", texture="rough"), sides=7)
+    part.box((0.1, -0.1, 0.39), (0.12, 0.02, 0.02), ctx.mat("bone", "e0dccb", texture="rough"), rotation_z=0.6)
+    _candle(ctx, part, (-0.12, 0.12, 0.38), height=0.08)
+    for x, y in ((0.0, -0.36), (0.0, 0.36), (-0.36, 0.0), (0.36, 0.0)):
+        _stool(ctx, part, (x, y))
+    # Une flaque de bière renversée.
+    puddle = [(0.3, -0.45), (0.45, -0.4), (0.5, -0.55), (0.35, -0.62), (0.22, -0.55)]
+    part.flat([(x, y, 0.004) for x, y in puddle], ctx.mat("beer", "c88a12", emission=0.2), facing=(0, 0, 1))
+    # L'enseigne qui grince, pendue à une potence dans le coin avant.
+    sx, sy = -0.88, -0.88
+    part.loft([((sx, sy, 0.0), 0.03, 0.03), ((sx, sy, 1.2), 0.025, 0.025)], dark, sides=5)
+    part.loft([((sx, sy, 1.18), 0.018, 0.018), ((sx + 0.35, sy, 1.18), 0.018, 0.018)], dark, sides=4)
+    sign = ctx.animated("sway", (sx + 0.25, sy, 1.17))
+    for dx in (-0.08, 0.08):
+        sign.loft([((dx, 0, 0.0), 0.004, 0.004), ((dx, 0, -0.1), 0.004, 0.004)], iron, sides=3)
+    sign.box((0, 0, -0.2), (0.26, 0.03, 0.2), ctx.planks("8d6e63"))
+    for side in (-1, 1):
+        _mug(ctx, sign, (0, 0.022 * side, -0.25))
+    for _ in range(4):
+        x, y = rng.uniform(-0.3, 0.3), rng.uniform(-0.75, -0.55)
+        part.loft([((x, y, 0.0), 0.02, 0.02), ((x, y, 0.01), 0.02, 0.02)], ctx.mat("cork", "8d6e63"), sides=5)
+
+
+def _infirmary(ctx):
+    """L'Infirmerie : quatre paillasses (une par case), chaudron d'onguent vert au milieu,
+    étagère de bocaux, scie et bandages, seau de linges sanglants."""
+    part = ctx.base
+    straw = ctx.mat("straw", "c8a165", texture="straw")
+    linen = ctx.cloth("d7ccc8")
+    blood = ctx.mat("blood_stain", "7f0000")
+    for x in (-0.5, 0.5):
+        for y in (-0.5, 0.5):
+            part.loft([((x, y, 0.0), 0.36, 0.17), ((x, y, 0.05), 0.34, 0.16), ((x, y, 0.07), 0.32, 0.15)],
+                      straw, sides=8, twist=0.0)
+            part.box((x + 0.05, y, 0.075), (0.5, 0.28, 0.012), linen)
+            part.loft([((x - 0.26, y, 0.07), 0.06, 0.1), ((x - 0.26, y, 0.12), 0.05, 0.09)], ctx.cloth("efebe9"),
+                      sides=6, twist=0.0)
+            part.flat([(x + 0.1, y - 0.06, 0.083), (x + 0.2, y - 0.02, 0.083), (x + 0.16, y + 0.07, 0.083),
+                       (x + 0.05, y + 0.04, 0.083)], blood, facing=(0, 0, 1))
+    # Le chaudron d'onguent vert, sur son trépied et son petit feu.
+    iron = ctx.iron("3a4045")
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.3
+        part.loft([((0.13 * math.cos(a), 0.13 * math.sin(a), 0.0), 0.012, 0.012),
+                   ((0.06 * math.cos(a), 0.06 * math.sin(a), 0.3), 0.012, 0.012)], iron, sides=4)
+    _flame(ctx, (0, 0, 0.02), 0.045, outer="ff6f00")
+    part.loft([((0, 0, 0.14), 0.06, 0.06), ((0, 0, 0.18), 0.11, 0.11), ((0, 0, 0.27), 0.1, 0.1)], iron, sides=8,
+              cap_end=False)
+    salve = ctx.mat("salve", "76ff03", emission=1.2, texture="slime")
+    part.loft([((0, 0, 0.25), 0.095, 0.095), ((0, 0, 0.26), 0.09, 0.09)], salve, sides=8)
+    bubbles = ctx.animated("flame", (0, 0, 0.26))
+    for bx, by, r in ((0.03, 0.02, 0.025), (-0.04, -0.01, 0.02)):
+        bubbles.loft([((bx, by, 0.0), r, r), ((bx, by, r * 1.6), 0.0, 0.0)], ctx.mat("bubble", "b2ff59", emission=3.0),
+                     sides=6, cap_end=False)
+    # L'étagère du fond : bocaux luisants, bandages roulés, un crâne.
+    wood = ctx.planks("5d3a24")
+    for z in (0.55, 0.85):
+        part.box((0, 0.93, z), (1.3, 0.12, 0.03), wood)
+    for x in (-0.65, 0.65):
+        part.box((x, 0.93, 0.5), (0.04, 0.12, 1.0), wood)
+    for k, color in enumerate(("76ff03", "ff4081", "40c4ff", "76ff03", "ffab40")):
+        _bottle(ctx, part, (-0.5 + k * 0.22, 0.93, 0.565), color, height=0.12)
+    for k in range(3):
+        part.loft([((-0.4 + k * 0.12, 0.92, 0.88), 0.04, 0.04), ((-0.4 + k * 0.12, 0.92, 0.95), 0.04, 0.04)],
+                  ctx.cloth("efebe9"), sides=7)
+    _skull(ctx, part, (0.35, 0.93, 0.865), 0.9)
+    # La scie d'os et les pinces, accrochées au mur de droite.
+    steel = ctx.iron("b0bec5")
+    part.slab([(0.97, -0.1, 0.9), (0.97, 0.2, 0.9), (0.97, 0.2, 0.82), (0.97, -0.1, 0.84)], (-0.01, 0, 0), steel)
+    part.box((0.965, -0.16, 0.86), (0.02, 0.1, 0.05), ctx.wood())
+    # Le seau de linges sanglants, devant.
+    part.loft([((0.0, -0.88, 0.0), 0.09, 0.09), ((0.0, -0.88, 0.16), 0.11, 0.11)], ctx.planks("795548"), sides=8,
+              cap_end=False)
+    part.loft([((0.0, -0.88, 0.12), 0.1, 0.1), ((0.0, -0.88, 0.18), 0.06, 0.06)], ctx.cloth("a33a3a"), sides=7)
+    _candle(ctx, part, (-0.9, -0.9, 0.0), height=0.2)
+    _candle(ctx, part, (0.9, -0.9, 0.0), height=0.16)
+
+
+def _mint(ctx):
+    """L'Hôtel des monnaies : four à fondre l'or (creuset rougeoyant), presse à vis au
+    milieu, balance, sacs et piles de pièces, lingots, moules."""
+    part = ctx.base
+    rng = random.Random(31)
+    stone = ctx.stone("5a4c45")
+    dark = ctx.wood("3e2723")
+    iron = ctx.iron("4a5258")
+    # Le four, dans le coin du fond à gauche, et son creuset d'or fondu.
+    fx, fy = -0.68, 0.68
+    part.loft([((fx, fy, 0.0), 0.3, 0.3), ((fx, fy, 0.45), 0.26, 0.26), ((fx, fy, 0.52), 0.3, 0.3)], stone, sides=4,
+              twist=math.pi / 4)
+    part.loft([((fx, fy, 0.52), 0.24, 0.24), ((fx - 0.05, fy + 0.05, 1.5), 0.1, 0.1)], ctx.stone("3a302c"), sides=4,
+              twist=math.pi / 4, cap_start=False)
+    part.flat([(fx + 0.2, fy - 0.2, 0.08), (fx + 0.05, fy - 0.29, 0.08), (fx + 0.05, fy - 0.29, 0.3),
+               (fx + 0.2, fy - 0.2, 0.3)], ctx.mat("furnace_mouth", "ff6d00", emission=2.5), facing=(1, -1, 0))
+    crucible = ctx.animated("flame", (fx, fy, 0.52))
+    crucible.loft([((0, 0, 0.0), 0.12, 0.12), ((0, 0, 0.06), 0.13, 0.13)], ctx.mat("molten", "ffab00", emission=3.0),
+                  sides=8)
+    _flame(ctx, (fx + 0.08, fy - 0.05, 0.56), 0.05, outer="ff6d00")
+    # La presse à vis au milieu : deux montants, une traverse, la vis et sa barre.
+    for x in (-0.18, 0.18):
+        part.box((x, 0.0, 0.4), (0.07, 0.12, 0.8), dark)
+    part.box((0, 0.0, 0.78), (0.5, 0.14, 0.09), dark)
+    part.box((0, 0.0, 0.18), (0.42, 0.22, 0.1), stone)
+    part.loft([((0, 0, 0.3), 0.035, 0.035), ((0, 0, 0.92), 0.035, 0.035)], iron, sides=6)
+    for k in range(6):
+        part.loft([((0, 0, 0.36 + k * 0.07), 0.045, 0.045), ((0, 0, 0.38 + k * 0.07), 0.045, 0.045)], iron, sides=6,
+                  cap_start=False, cap_end=False)
+    part.loft([((-0.3, 0, 0.9), 0.015, 0.015), ((0.3, 0, 0.9), 0.015, 0.015)], iron, sides=4)
+    for x in (-0.3, 0.3):
+        part.loft([((x, 0, 0.9), 0.03, 0.03), ((x * 1.1, 0, 0.9), 0.0, 0.0)], ctx.mat("knob", "e0a526"), sides=5)
+    part.loft([((0, 0, 0.24), 0.07, 0.07), ((0, 0, 0.26), 0.07, 0.07)], ctx.gold(), sides=8)
+    # Les piles de pièces et les sacs d'or, dans les coins de devant.
+    for cx, cy in ((-0.82, -0.82), (0.82, -0.8)):
+        _coin_pile(ctx, part, (cx, cy, 0.0), (0.15, 0.15), 0.16, rng, 10)
+        part.loft([((cx + 0.02, cy + 0.18, 0.0), 0.08, 0.08), ((cx + 0.02, cy + 0.18, 0.1), 0.1, 0.1),
+                   ((cx + 0.02, cy + 0.18, 0.2), 0.04, 0.04), ((cx + 0.02, cy + 0.18, 0.24), 0.05, 0.05)],
+                  ctx.mat("sack", "8d6e63", texture="cloth"), sides=7)
+    # Les lingots empilés, la balance sur son établi (au fond à droite).
+    for k, (x, y, z) in enumerate(((0.55, 0.85, 0.03), (0.7, 0.85, 0.03), (0.62, 0.85, 0.08))):
+        part.box((x, y, z), (0.13, 0.07, 0.05), ctx.gold("ffc107", 0.2))
+    tx, ty = 0.68, 0.55
+    part.box((tx, ty, 0.45), (0.5, 0.3, 0.04), ctx.planks())
+    for x in (-0.2, 0.2):
+        part.box((tx + x, ty, 0.22), (0.04, 0.24, 0.44), dark)
+    brass = ctx.mat("brass", "b8892e", texture="metal")
+    part.loft([((tx, ty, 0.47), 0.012, 0.012), ((tx, ty, 0.75), 0.012, 0.012)], brass, sides=4)
+    part.loft([((tx - 0.15, ty, 0.74), 0.008, 0.008), ((tx + 0.15, ty, 0.74), 0.008, 0.008)], brass, sides=4)
+    for x in (-0.15, 0.15):
+        part.loft([((tx + x, ty, 0.6), 0.05, 0.05), ((tx + x, ty, 0.62), 0.055, 0.055)], brass, sides=7,
+                  cap_end=False)
+    part.loft([((tx - 0.15, ty, 0.62), 0.03, 0.03), ((tx - 0.15, ty, 0.64), 0.0, 0.0)], ctx.gold(), sides=6,
+              cap_end=False)
+    _candle(ctx, part, (tx + 0.2, ty - 0.1, 0.47), height=0.1)
+
+
+def _torture(ctx):
+    """La Chambre de torture : chevalet au milieu, cage pendue qui se balance, brasero
+    et fers rougis, chaînes au mur, râtelier d'outils, sang."""
+    part = ctx.base
+    wood = ctx.planks("5d4037")
+    dark = ctx.wood("3e2723")
+    iron = ctx.iron("37474f")
+    blood = ctx.mat("blood_pool", "6a0000", emission=0.1)
+    # Le chevalet, au milieu, le long de X.
+    for x in (-0.38, 0.38):
+        for y in (-0.15, 0.15):
+            part.box((x, y, 0.17), (0.06, 0.06, 0.34), dark)
+    for y in (-0.15, 0.15):
+        part.box((0, y, 0.33), (0.86, 0.06, 0.05), wood)
+    for x in (-0.38, 0.38):
+        part.loft([((x, -0.2, 0.38), 0.04, 0.04), ((x, 0.2, 0.38), 0.04, 0.04)], dark, sides=6)
+    for x in (-0.48, 0.48):
+        part.box((x, -0.22, 0.38), (0.02, 0.02, 0.2), iron)
+    rope = ctx.mat("rope", "8d6e63", texture="straw")
+    part.loft([((-0.38, 0.0, 0.38), 0.008, 0.008), ((0.38, 0.0, 0.38), 0.008, 0.008)], rope, sides=4)
+    part.flat([(-0.2, -0.3, 0.004), (0.1, -0.35, 0.004), (0.15, -0.5, 0.004), (-0.1, -0.55, 0.004),
+               (-0.28, -0.45, 0.004)], blood, facing=(0, 0, 1))
+    # La cage pendue à une potence, au fond à droite (elle se balance).
+    px, py = 0.88, 0.88
+    part.loft([((px, py, 0.0), 0.035, 0.035), ((px, py, 1.45), 0.03, 0.03)], dark, sides=5)
+    part.loft([((px, py, 1.42), 0.025, 0.025), ((px - 0.4, py - 0.4, 1.42), 0.025, 0.025)], dark, sides=4)
+    cage = ctx.animated("sway", (px - 0.36, py - 0.36, 1.4))
+    cage.loft([((0, 0, 0.0), 0.006, 0.006), ((0, 0, -0.25), 0.006, 0.006)], iron, sides=3)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        x, y = 0.14 * math.cos(a), 0.14 * math.sin(a)
+        cage.loft([((x, y, -0.3), 0.007, 0.007), ((x, y, -0.8), 0.007, 0.007)], iron, sides=3)
+    for z in (-0.3, -0.8):
+        cage.loft([((0, 0, z - 0.01), 0.145, 0.145), ((0, 0, z + 0.01), 0.145, 0.145)], iron, sides=8,
+                  cap_start=False, cap_end=False)
+    cage.loft([((0, 0, -0.3), 0.14, 0.14), ((0, 0, -0.25), 0.0, 0.0)], iron, sides=8, cap_end=False)
+    _skull(ctx, cage, (0.02, 0.0, -0.79), 0.9)
+    cage.box((-0.04, 0.03, -0.77), (0.14, 0.018, 0.018), ctx.mat("bone", "e0dccb", texture="rough"), rotation_z=0.7)
+    # Le brasero et ses fers rougis, devant à gauche.
+    bx, by = -0.82, -0.82
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        part.loft([((bx + 0.12 * math.cos(a), by + 0.12 * math.sin(a), 0.0), 0.015, 0.015),
+                   ((bx + 0.05 * math.cos(a), by + 0.05 * math.sin(a), 0.45), 0.015, 0.015)], iron, sides=4)
+    part.loft([((bx, by, 0.43), 0.07, 0.07), ((bx, by, 0.5), 0.16, 0.16), ((bx, by, 0.56), 0.18, 0.18)],
+              ctx.iron("455a64"), sides=8, cap_end=False)
+    part.loft([((bx, by, 0.53), 0.15, 0.15), ((bx, by, 0.55), 0.1, 0.1)], ctx.mat("embers", "bf360c", emission=1.5),
+              sides=8)
+    _flame(ctx, (bx, by, 0.55), 0.09, outer="ff3d00", inner="ffab00")
+    hot = ctx.mat("hot_iron", "ff5722", emission=2.5)
+    for k, a in enumerate((0.5, 1.2, 2.0)):
+        tip_x, tip_y = bx + 0.05 * math.cos(a), by + 0.05 * math.sin(a)
+        part.loft([((tip_x, tip_y, 0.56), 0.01, 0.01), ((tip_x + 0.2 * math.cos(a), tip_y + 0.2 * math.sin(a), 0.78),
+                                                        0.01, 0.01)], iron, sides=4)
+        part.loft([((tip_x, tip_y, 0.56), 0.016, 0.016), ((tip_x - 0.04 * math.cos(a), tip_y - 0.04 * math.sin(a), 0.53),
+                                                          0.0, 0.0)], hot, sides=4, cap_end=False)
+    # Les chaînes et fers au mur du fond.
+    for x in (-0.55, -0.2):
+        for k in range(7):
+            part.box((x, 0.96, 1.0 - k * 0.06), (0.03, 0.012, 0.05) if k % 2 else (0.012, 0.03, 0.05), iron)
+        _ring(part, (x, 0.95, 0.56), 0.05, 0.02, iron, sides=7)
+    # Le râtelier d'outils sur le mur de gauche : pince, scie, marteau, tisonnier.
+    part.box((-0.96, 0.3, 0.75), (0.03, 0.6, 0.06), dark)
+    steel = ctx.iron("90a4ae")
+    for k, y in enumerate((0.08, 0.22, 0.36, 0.5)):
+        part.loft([((-0.94, y, 0.78), 0.01, 0.01), ((-0.94, y, 0.4 + 0.05 * k), 0.01, 0.01)], steel, sides=4)
+        part.box((-0.94, y, 0.4 + 0.05 * k), (0.02, 0.06 if k % 2 else 0.03, 0.06), steel)
+    _skull(ctx, part, (0.85, -0.85, 0.0), 1.1)
+
+
+def _guardpost(ctx):
+    """Le Poste de garde (1 x 2) : tour de guet au fond (plateforme, garde-corps, toit
+    pointu, bannière), cor d'alarme sur son trépied, brasero, râtelier de lances."""
+    part = ctx.base
+    wood = ctx.planks("6d4c41")
+    dark = ctx.wood("3e2723")
+    iron = ctx.iron("37474f")
+    # La tour : 4 poteaux, des croix, une plateforme à 1,3 m, un garde-corps et un toit.
+    y0, y1 = 0.62, 0.95
+    top = 1.3
+    for x in (-0.4, 0.4):
+        for y in (y0, y1):
+            part.box((x, y, top / 2 + 0.2), (0.07, 0.07, top + 0.4), dark)
+    for y in (y0, y1):
+        brace = part
+        brace.slab([(-0.38, y, 0.2), (-0.32, y, 0.2), (0.38, y, 1.05), (0.32, y, 1.05)], (0, 0.03, 0), dark)
+    part.box((0, (y0 + y1) / 2, top), (0.9, 0.42, 0.05), wood)
+    for y in (y0 - 0.02, y1 + 0.02):
+        part.box((0, y, top + 0.22), (0.86, 0.03, 0.04), dark)
+    for x in (-0.42, 0.42):
+        part.box((x, (y0 + y1) / 2, top + 0.22), (0.03, 0.4, 0.04), dark)
+    part.loft([((0, (y0 + y1) / 2, top + 0.6), 0.55, 0.3), ((0, (y0 + y1) / 2, top + 1.0), 0.0, 0.0)],
+              ctx.mat("roof", "5d2a1a", texture="planks"), sides=4, twist=math.pi / 4, cap_end=False)
+    part.cone((0, (y0 + y1) / 2, top + 0.98), (0, (y0 + y1) / 2, top + 1.15), 0.02, iron, sides=4)
+    _banner_cloth(ctx, part, 0.0, y0 - 0.06, top + 0.18, 0.36, 0.55)
+    # Une échelle contre la tour.
+    for x in (-0.22, -0.06):
+        part.loft([((x, y0 - 0.08, 0.0), 0.015, 0.015), ((x, y0 - 0.02, top), 0.015, 0.015)], dark, sides=4)
+    for k in range(8):
+        z = 0.12 + k * 0.15
+        part.box((-0.14, y0 - 0.08 + 0.06 * z / top, z), (0.18, 0.02, 0.02), dark)
+    # Le cor d'alarme sur son trépied, devant à droite.
+    hx, hy = 0.3, -0.75
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        part.loft([((hx + 0.12 * math.cos(a), hy + 0.12 * math.sin(a), 0.0), 0.012, 0.012),
+                   ((hx, hy, 0.55), 0.012, 0.012)], dark, sides=4)
+    horn = ctx.mat("horn", "cfc6b8", texture="rough")
+    part.loft([((hx - 0.15, hy, 0.6), 0.02, 0.02), ((hx - 0.02, hy, 0.62), 0.04, 0.04), ((hx + 0.1, hy, 0.68), 0.06, 0.06),
+               ((hx + 0.18, hy, 0.78), 0.1, 0.1)], horn, sides=8, cap_end=False)
+    _ring(part, (hx + 0.18, hy, 0.775), 0.105, 0.025, ctx.mat("trim", "e0a526"), sides=8)
+    # Le brasero, devant à gauche.
+    bx, by = -0.3, -0.82
+    part.loft([((bx, by, 0.0), 0.1, 0.1), ((bx, by, 0.06), 0.05, 0.05), ((bx, by, 0.5), 0.035, 0.035)], iron, sides=6)
+    part.loft([((bx, by, 0.48), 0.05, 0.05), ((bx, by, 0.55), 0.13, 0.13), ((bx, by, 0.6), 0.15, 0.15)],
+              iron, sides=8, cap_end=False)
+    part.loft([((bx, by, 0.56), 0.12, 0.12), ((bx, by, 0.58), 0.08, 0.08)], ctx.mat("embers", "bf360c", emission=1.5),
+              sides=8)
+    _flame(ctx, (bx, by, 0.57), 0.08)
+    # Le râtelier de lances, contre le bord droit (au milieu de la salle).
+    steel = ctx.iron("cfd8dc")
+    part.box((0.45, 0.0, 0.15), (0.06, 0.4, 0.04), dark)
+    part.box((0.45, 0.0, 0.8), (0.06, 0.4, 0.04), dark)
+    for k in range(3):
+        y = -0.14 + k * 0.14
+        part.loft([((0.45, y, 0.02), 0.012, 0.012), ((0.45, y, 1.1), 0.012, 0.012)], ctx.wood("8d6e63"), sides=4)
+        part.cone((0.45, y, 1.1), (0.45, y, 1.24), 0.028, steel, sides=4)
+    # Des sacs de sable et une caisse.
+    sand = ctx.mat("sandbag", "a1887f", texture="cloth")
+    for x, y in ((-0.38, 0.1), (-0.38, -0.12)):
+        part.loft([((x, y, 0.0), 0.08, 0.1), ((x, y, 0.07), 0.09, 0.11), ((x, y, 0.12), 0.06, 0.08)], sand, sides=7)
+    part.box((-0.36, 0.0, 0.22), (0.16, 0.2, 0.1), ctx.planks("8d6e63"))
+
+
+def _mana_well(ctx):
+    """Le Puits de mana : margelle de pierres runiques autour d'une eau bleue qui luit,
+    cristal qui flotte au-dessus (il monte et descend), cristaux dans les coins,
+    cercle de runes au sol."""
+    part = ctx.base
+    stone = ctx.stone("4f5966")
+    rune = ctx.mat("rune_blue", "40c4ff", emission=2.5)
+    mana = ctx.mat("mana_water", "29b6f6", emission=1.8, texture="slime")
+    crystal = ctx.mat("crystal", "80d8ff", emission=2.2)
+    # La margelle : 10 pierres taillées, chacune avec sa rune lumineuse.
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        x, y = 0.3 * math.cos(a), 0.3 * math.sin(a)
+        part.box((x, y, 0.15), (0.13, 0.1, 0.3), stone, rotation_z=a + math.pi / 2)
+        part.box((x * 1.18, y * 1.18, 0.17), (0.04, 0.01, 0.07), rune, rotation_z=a + math.pi / 2)
+    # Le rebord (un anneau : on voit l'eau au milieu), puis l'eau de mana qui luit.
+    rim = ctx.stone("3d4550")
+    outer = [(0.37 * math.cos(2 * math.pi * k / 20), 0.37 * math.sin(2 * math.pi * k / 20)) for k in range(20)]
+    for k in range(20):
+        (x0, y0), (x1, y1) = outer[k], outer[(k + 1) % 20]
+        part.slab([(x0, y0, 0.3), (x1, y1, 0.3), (x1 * 0.62, y1 * 0.62, 0.3), (x0 * 0.62, y0 * 0.62, 0.3)],
+                  (0, 0, 0.04), rim)
+    part.loft([((0, 0, 0.22), 0.24, 0.24), ((0, 0, 0.25), 0.24, 0.24)], mana, sides=12)
+    # Le cristal qui flotte au-dessus du puits (feu follet : il monte et descend).
+    wisp = ctx.animated("wisp", (0, 0, 0.8), unique=True)
+    wisp.loft([((0, 0, -0.2), 0.0, 0.0), ((0, 0, 0.0), 0.09, 0.09), ((0, 0, 0.22), 0.0, 0.0)], crystal, sides=6,
+              cap_start=False, cap_end=False)
+    for a in (0.0, 2.1, 4.2):
+        x, y = 0.13 * math.cos(a), 0.13 * math.sin(a)
+        wisp.loft([((x, y, -0.06), 0.0, 0.0), ((x, y, 0.0), 0.025, 0.025), ((x, y, 0.08), 0.0, 0.0)], crystal, sides=4,
+                  cap_start=False, cap_end=False)
+    # Des filets de mana qui montent du puits (animés comme des flammes).
+    for a in (0.6, 2.6, 4.6):
+        x, y = 0.15 * math.cos(a), 0.15 * math.sin(a)
+        _flame(ctx, (x, y, 0.22), 0.05, outer="29b6f6", inner="e1f5fe")
+    # Les grappes de cristaux dans les coins.
+    for cx, cy in ((-0.82, -0.82), (0.82, -0.82), (-0.82, 0.82), (0.82, 0.82)):
+        part.loft([((cx, cy, 0.0), 0.12, 0.12), ((cx, cy, 0.05), 0.08, 0.08)], ctx.stone("2e3640"), sides=6)
+        for k, (dx, dy, h, tilt) in enumerate(((0, 0, 0.42, 0.0), (0.07, 0.03, 0.26, 0.1), (-0.06, 0.05, 0.3, -0.12),
+                                               (0.02, -0.07, 0.22, 0.08))):
+            base = (cx + dx, cy + dy, 0.03)
+            tip = (cx + dx * 2.2 + tilt, cy + dy * 2.2, 0.03 + h)
+            part.loft([(base, 0.04, 0.04), ((base[0] * 0.5 + tip[0] * 0.5, base[1] * 0.5 + tip[1] * 0.5,
+                                             0.03 + h * 0.7), 0.045, 0.045), (tip, 0.0, 0.0)],
+                      crystal, sides=5, cap_end=False)
+    # Le cercle de runes au sol, entre la margelle et les coins.
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        x, y = 0.62 * math.cos(a), 0.62 * math.sin(a)
+        part.box((x, y, 0.004), (0.08, 0.025, 0.006), ctx.mat("rune_floor", "1e88e5", emission=1.2),
+                 rotation_z=a + (math.pi / 2 if k % 2 else 0.0))
+
+
+def _sarcophagus(ctx, part, x, occupied):
+    """Un sarcophage de pierre le long de Y ; occupé : le couvercle a glissé et une lueur
+    d'âme s'en échappe (animée comme une flamme)."""
+    stone = ctx.stone("6b6670")
+    dark = ctx.stone("3d3842")
+    part.box((x, 0.0, 0.17), (0.34, 0.86, 0.34), stone)
+    part.box((x, 0.0, 0.03), (0.38, 0.9, 0.06), dark)
+    shift = 0.1 if occupied else 0.0
+    lid_z = 0.37
+    part.loft([((x, -0.43 + shift, lid_z), 0.17, 0.05), ((x, 0.43 + shift, lid_z), 0.17, 0.05)], dark, sides=6,
+              twist=0.0)
+    # Le gisant sculpté sur le couvercle : tête, mains jointes, épée.
+    part.loft([((x, 0.28 + shift, lid_z + 0.04), 0.05, 0.05), ((x, 0.28 + shift, lid_z + 0.1), 0.045, 0.045)],
+              stone, sides=6)
+    part.box((x, 0.05 + shift, lid_z + 0.06), (0.1, 0.3, 0.05), stone)
+    part.box((x, -0.2 + shift, lid_z + 0.055), (0.03, 0.34, 0.02), ctx.iron("90a4ae"))
+    part.box((x, -0.05 + shift, lid_z + 0.06), (0.1, 0.02, 0.02), ctx.iron("90a4ae"))
+    _skull(ctx, part, (x, -0.47, 0.08), 0.8)
+    if occupied:
+        # La fente du couvercle, d'où sort une lueur violette.
+        part.flat([(x - 0.13, -0.43, lid_z + 0.001), (x + 0.13, -0.43, lid_z + 0.001), (x + 0.13, -0.33, lid_z + 0.001),
+                   (x - 0.13, -0.33, lid_z + 0.001)], ctx.mat("soul_slit", "b388ff", emission=3.0), facing=(0, 0, 1))
+        _flame(ctx, (x, -0.38, lid_z), 0.07, outer="7c4dff", inner="e1bee7")
+
+
+def _crypt(ctx, occupied):
+    """La Crypte : deux sarcophages le long des murs (occupés : une âme en sort), un
+    ossuaire de crânes au fond, des cierges, un cercle gravé au sol."""
+    part = ctx.base
+    for k, x in enumerate((-0.8, 0.8)):
+        _sarcophagus(ctx, part, x, k < occupied)
+    # L'ossuaire : des niches pleines de crânes, au mur du fond.
+    stone = ctx.stone("4a4550")
+    part.box((0, 0.93, 0.55), (1.1, 0.12, 1.1), stone)
+    for row in range(3):
+        for col in range(4):
+            x, z = -0.39 + col * 0.26, 0.25 + row * 0.3
+            part.box((x, 0.865, z), (0.2, 0.01, 0.2), ctx.mat("niche", "15121a"))
+            _skull(ctx, part, (x, 0.88, z - 0.09), 1.1)
+    part.box((0, 0.9, 1.13), (1.2, 0.18, 0.06), ctx.stone("3d3842"))
+    # Des cierges sur un chandelier de fer, au fond, et au pied des sarcophages.
+    iron = ctx.iron("37474f")
+    for x in (-0.5, 0.5):
+        part.loft([((x, 0.72, 0.0), 0.08, 0.08), ((x, 0.72, 0.05), 0.03, 0.03), ((x, 0.72, 0.6), 0.02, 0.02)], iron,
+                  sides=6)
+        part.loft([((x - 0.12, 0.72, 0.6), 0.012, 0.012), ((x + 0.12, 0.72, 0.6), 0.012, 0.012)], iron, sides=4)
+        for dx in (-0.12, 0.0, 0.12):
+            _candle(ctx, part, (x + dx, 0.72, 0.6), height=0.12 if dx else 0.18)
+    for x, y in ((-0.55, -0.85), (0.55, -0.85)):
+        _candle(ctx, part, (x, y, 0.0), height=0.22)
+        part.loft([((x, y, 0.0), 0.045, 0.045), ((x, y, 0.02), 0.045, 0.045)], ctx.mat("wax_pool", "eceff1"), sides=7)
+    # Le cercle gravé au sol (pentacle de pierre sombre, faiblement lumineux).
+    glow = ctx.mat("crypt_rune", "7c4dff", emission=0.8)
+    for k in range(20):
+        a = 2 * math.pi * k / 20
+        part.box((0.38 * math.cos(a), -0.1 + 0.38 * math.sin(a), 0.004), (0.12, 0.02, 0.006), glow,
+                 rotation_z=a + math.pi / 2)
+    for k in range(5):
+        a1 = math.pi / 2 + 2 * math.pi * k / 5
+        a2 = math.pi / 2 + 2 * math.pi * (k + 2) / 5
+        x1, y1 = 0.36 * math.cos(a1), -0.1 + 0.36 * math.sin(a1)
+        x2, y2 = 0.36 * math.cos(a2), -0.1 + 0.36 * math.sin(a2)
+        length = math.hypot(x2 - x1, y2 - y1)
+        part.box(((x1 + x2) / 2, (y1 + y2) / 2, 0.005), (length, 0.018, 0.006), glow,
+                 rotation_z=math.atan2(y2 - y1, x2 - x1))
+
+
 BUILDERS = {
     "bed": _bed,
     "mushrooms_1": lambda ctx: _mushrooms(ctx, 1),
@@ -861,4 +1355,14 @@ BUILDERS = {
     "training": _training,
     "temple": _temple,
     "throne": _throne,
+    # Les antres (règles 2.7).
+    "tavern": _tavern,
+    "infirmary": _infirmary,
+    "mint": _mint,
+    "torture": _torture,
+    "guardpost": _guardpost,
+    "mana_well": _mana_well,
+    "crypt_0": lambda ctx: _crypt(ctx, 0),
+    "crypt_1": lambda ctx: _crypt(ctx, 1),
+    "crypt_2": lambda ctx: _crypt(ctx, 2),
 }

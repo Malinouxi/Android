@@ -44,7 +44,7 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
 - **Interface** (HUD « pierre et fer ») : en haut, le médaillon du Seigneur (il parle et donne des
   conseils quand on le touche), l'or et le Trésor, la mana, les créatures et les lits, les ouvriers, le
   cœur, la vague et la paie, **+ ouvrier** (100 or), la vitesse **x1/x2/x3** et la **pause**. À gauche,
-  les catégories d'outils : Actions, Salles, Défenses, **Sorts**, **Pouvoirs**. En haut à droite, la
+  les catégories d'outils : Actions, Salles, **Antres**, Défenses, **Sorts**, **Pouvoirs**. En haut à droite, la
   mini-carte et l'objectif. En bas, la fiche de la créature touchée, les outils et le journal (30
   messages, flèches pour remonter).
 - **Actions** : Creuser, **Main** (ramasser jusqu'à 8 unités et les déposer ailleurs ; déposée sur le
@@ -70,6 +70,18 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
 | Prison | 200 | 2 x 2 | 4 cellules : héros capturés (rançon, recherche, sacrifice) |
 | Temple | 450 | 2 x 3 | prière : humeur, soins et mana |
 | Cimetière | 70 | 1 x 1 | un héros mort y est enterré et se relève en Revenant 60 s plus tard |
+
+**Les antres** (onglet Antres, règles 2.7, tout à découvrir par la recherche) : chacune attire sa créature.
+
+| Antre | Prix | Taille | À quoi elle sert |
+|-------|------|--------|------------------|
+| Taverne | 220 | 2 x 2 | sous 75 d'humeur, une créature boit une chope (un champignon) : +5 humeur/s, -10 % sur sa paie suivante, elle titube 25 s |
+| Infirmerie | 240 | 2 x 2 | sous 60 % de vie, une créature s'y couche : 10 PV/s (20 avec une Goule au chevet) |
+| Hôtel des monnaies | 400 | 2 x 2 | toutes les 30 s, 2 % d'intérêts sur le Trésor (50 or au plus par Hôtel) ; on y frappe 1 or/s |
+| Chambre de torture | 300 | 2 x 2 | avec des prisonniers : 1,5 point de recherche/s, la vague suivante avouée (une fois par vague), prisonnier converti après 45 s |
+| Poste de garde | 150 | 1 x 2 | le guetteur voit à 8 cases : démasque les Voleuses, chasse l'éclaireur sans rapport, alarme (10 cases) |
+| Puits de mana | 500 | 2 x 2 | +50 mana maximum par puits (3 au plus) ; méditer donne 0,6 mana/s |
+| Crypte | 280 | 2 x 2 | 2 places : une créature morte se relève 60 s plus tard pour 60 mana, un niveau plus bas, trait « Revenue » |
 
 Seules les salles « Trésor, Repaire, Champignonnière, Bibliothèque » sont là dès le départ ; les autres
 se découvrent par la recherche. Les ouvriers désœuvrés décorent (tapis, tableaux, tapisseries,
@@ -98,9 +110,22 @@ Repaire, une Bibliothèque 2 x 3 = une salle).
 | Revenant | un Cimetière (héros enterré) | 10 | mort-vivant : ni lit, ni faim, ni sommeil (6 au plus) |
 | Colosse ancien | vaincre le Colosse endormi | 60 | géant de pierre, unique |
 | Renégat | sort Conversion sur un prisonnier | 20 | garde l'allure du héros qu'il était |
+| Gobelin brasseur | 2 Repaire + 1 Taverne | 20 | la Taverne lui fait deux fois plus d'effet ; bon artisan |
+| Goule rebouteuse | 3 Repaire + 1 Infirmerie | 45 | soigne ses voisines (8 PV toutes les 3 s), double les soins de l'Infirmerie (2 par Infirmerie, 4 au plus) |
+| Diablotin argentier | 2 Repaire + 1 Hôtel des monnaies | 25 | vole 3 or par coup porté, frappe la monnaie 3 fois plus vite (3 par Hôtel, 6 au plus) |
+| Bourreau | 4 Repaire + 1 Chambre de torture | 75 | dégâts doublés contre un héros sous 30 % de vie, torture 2 fois plus vite (2 par Chambre, 3 au plus) |
+| Gargouille | 1 Repaire + 1 Poste de garde | 35 | pierre (ni lit, ni faim), armure, flaire les Voleuses, monte toujours la garde (2 par Poste, 4 au plus) |
+| Oracle des ombres | 4 Repaire + 1 Puits de mana | 80 | attaque à distance, médite 3 fois mieux (2 par Puits, 3 au plus) |
+| Nécromancien | 5 Repaire + 1 Crypte | 90 | attaque à distance ; les héros qu'il abat se relèvent 30 s pour toi ; veille la Crypte (1 par Crypte, 2 au plus) |
 
 Faim, fatigue, lit manquant ou salaire impayé font baisser l'**humeur** ; à zéro, la créature repart
-par le portail. Les créatures prient au Temple, étudient, fabriquent ou s'entraînent quand tout va bien.
+par le portail. Les créatures prient au Temple, étudient, fabriquent ou s'entraînent quand tout va bien,
+et fréquentent les antres (Taverne, Infirmerie, Poste de garde...).
+
+En 3D, chaque activité a sa **pose** (`Creature.pose()`, animée par `_animate_pose` dans `view_3d.gd`) :
+elles dorment allongées dans leur lit, se couchent à l'Infirmerie, croquent un champignon, trinquent
+(chope en main) puis titubent, lisent un grimoire, forgent, prient à genoux, fouettent au chevalet,
+montent la garde en scrutant les couloirs, méditent en lévitation, incantent au-dessus des sarcophages.
 
 ## Héros et vagues
 
@@ -295,6 +320,8 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   `lowpoly.py` et les textures peintes de `textures.py`. Tout reconstruire :
   `blender --background --python tools/blender/build_all.py` (les effets : `spell_fx.build_all(...)`).
   Ils marchent aussi avec le module Python `bpy` (`pip install bpy`) au lieu de Blender.
+  Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
+  `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
 - **Interface** : icônes (`tools/blender/icons.py` → `assets/icons_hd/`) et cadres « pierre et fer »
   (`tools/blender/hud.py` → `assets/ui_hd/`), rendus dans Blender.
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
@@ -309,7 +336,8 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
 2. Lance Godot, clique **Importer**, choisis le fichier `project.godot` de ce dossier.
 3. Appuie sur **F5** (ou ▶) pour jouer sur ton ordinateur : la souris fait office de doigt.
 4. Vérifier l'affichage sans téléphone : `godot --path . -s res://tools/screenshots.gd` (captures du menu,
-   du codex, d'une partie, d'un combat...) ; le portrait du Seigneur : `tools/portrait_test.gd`.
+   du codex, d'une partie, d'un combat...) ; le portrait du Seigneur : `tools/portrait_test.gd` ;
+   les antres et les poses des créatures : `tools/dens_test.gd`.
 
 ## Tester sur un téléphone Android
 
@@ -369,7 +397,8 @@ les autres. Pour expérimenter, change d'abord les chiffres de `scripts/rules.gd
 
 Fait : creuser, salles, créatures, héros et combat, main du maître, pièges et portes, menu et sauvegarde,
 territoire, recherche et atelier, son et musique, campagne et maître rival, 3D et modèles Blender,
-traits et vétérans, combos, profondeurs, héros tacticiens, 17 sorts, version web, effets 3D et sang.
+traits et vétérans, combos, profondeurs, héros tacticiens, 17 sorts, version web, effets 3D et sang,
+7 antres et leurs créatures, poses animées.
 
 À venir :
 - **Équilibrage** sur téléphone (prix, vagues, sorts, quantité de sang) d'après les retours de partie ;
@@ -407,3 +436,6 @@ Résumé des étapes (les détails des règles de chaque version sont dans *Code
 42. 14 nouveaux sorts, héros qui résistent à la magie, Exorciste (2.5) ; version web.
 43. HUD « pierre et fer » d'après la photo de référence.
 44. Effets 3D des sorts, lumières et reflets légers, sang des combats (2.6).
+45. Les antres (2.7) : Taverne, Infirmerie, Hôtel des monnaies, Chambre de torture, Poste de garde, Puits de
+    mana et Crypte, modélisés dans Blender ; 7 créatures (Gobelin brasseur, Goule rebouteuse, Diablotin
+    argentier, Bourreau, Gargouille, Oracle des ombres, Nécromancien) ; poses animées pour chaque activité.

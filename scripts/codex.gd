@@ -162,6 +162,8 @@ func _room_img(type: int) -> String:
 			texture = Art.MUSHROOM
 		Rooms.Type.PRISON:
 			texture = Art.PRISON_BARS
+	if texture == null and Rooms.ICONS.has(type):
+		return _img("res://assets/icons_hd/%s.png" % Rooms.ICONS[type], TABLE_IMAGE_SIZE)
 	if texture == null:
 		return "" # Pas d'image pour cette salle : on laisse la case vide.
 	return _img(texture.resource_path, TABLE_IMAGE_SIZE)

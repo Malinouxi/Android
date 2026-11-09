@@ -21,7 +21,7 @@ class_name Traits
 ##     "needs_temple" (humeur perdue par seconde sans Temple),
 ##     "crowd_mood" (humeur perdue par seconde quand CROWD créatures l'entourent).
 ## "excludes" : traits incompatibles. "living" : seulement pour les créatures
-## vivantes (un Revenant ne mange pas et ne dort pas).
+## vivantes (un Revenant ne mange pas et ne dort pas). "special" : jamais tiré au hasard.
 
 const INFO := {
 	"avare": {"name": "Avare", "salary": 1.3, "treasure_damage": 1.3,
@@ -50,6 +50,9 @@ const INFO := {
 		"text": "+25 % de dégâts quand aucune autre créature n'est près d'elle ; la foule l'agace."},
 	"robuste": {"name": "Robuste", "hp": 1.2,
 		"text": "+20 % de vie."},
+	# « special » : jamais tiré au hasard (la Crypte le donne aux créatures qui reviennent).
+	"revenue": {"name": "Revenue", "damage": 1.1, "salary": 0.8, "special": true,
+		"text": "Revenue d'entre les morts (Crypte) : +10 % de dégâts, et demande 20 % de salaire en moins."},
 }
 
 ## Chance d'avoir un second trait.
@@ -71,7 +74,7 @@ static func roll(undead: bool) -> Array[String]:
 	for id: String in options:
 		if result.size() >= count:
 			break
-		if undead and INFO[id].get("living", false):
+		if (undead and INFO[id].get("living", false)) or INFO[id].get("special", false):
 			continue
 		var compatible := true
 		for other in result:

@@ -14,10 +14,22 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.6"
+const VERSION := "2.7"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.7", "changes": [
+		"7 nouvelles salles, nouvel onglet « Antres » (à découvrir à la Bibliothèque) : Taverne, Infirmerie, Hôtel des monnaies, Chambre de torture, Poste de garde, Puits de mana et Crypte.",
+		"Taverne : une créature de mauvaise humeur va y boire une chope (un champignon de la Champignonnière) : +humeur, et 10 % de salaire en moins à la paie suivante. Elle titube un moment en sortant.",
+		"Infirmerie : sous 60 % de vie, une créature va s'y coucher et guérit vite (10 PV/s, deux fois plus avec une Goule rebouteuse au chevet).",
+		"Hôtel des monnaies : toutes les 30 s, 2 % d'intérêts sur l'or du Trésor (50 or au plus par Hôtel) ; les créatures y frappent aussi des pièces.",
+		"Chambre de torture : les bourreaux font parler les prisonniers (recherche, et composition de la vague suivante), qui finissent par changer de camp. Les Pieuses refusent d'y travailler.",
+		"Poste de garde : un guetteur en poste démasque les Voleuses, chasse l'éclaireur sans son rapport et sonne l'alarme : les créatures proches se réveillent et accourent.",
+		"Puits de mana : +50 mana au maximum par puits (3 puits au plus) ; les créatures y méditent pour te donner de la mana.",
+		"Crypte : une créature morte y repose (2 places par Crypte) et se relève 60 s plus tard pour 60 mana, un niveau plus bas, avec le trait « Revenue ».",
+		"7 nouvelles créatures, une par salle : Gobelin brasseur, Goule rebouteuse, Diablotin argentier, Bourreau, Gargouille, Oracle des ombres, Nécromancien.",
+		"Le donjon est plus vivant : les créatures s'allongent pour dormir, mangent, étudient, forgent, prient à genoux, trinquent, montent la garde, méditent en lévitation...",
+	]},
 	{"version": "2.6", "changes": [
 		"Vue 3D : les sorts ont leurs effets modélisés dans Blender : foudre qui tombe, toile au sol, flammes du Brasier, rochers de l'Effondrement, spectre de la Terreur, dôme du Sanctuaire, Œil du maître, main qui sort de terre, cercles magiques colorés.",
 		"Les envoûtements se voient sur les unités : toile sous les héros englués, dôme autour des unités protégées, cercle rouge sous la créature possédée.",
@@ -381,6 +393,56 @@ const BLOOD_MIN_CHANCE := 0.25
 const BLOOD_WALL_CHANCE := 0.3
 ## Au plus tant de taches à la fois (les plus anciennes s'effacent) : léger pour un téléphone.
 const MAX_BLOOD := 60
+
+# --- Les antres (règles 2.7, voir creature.gd et main.gd) --------------------------
+## Taverne : une créature va boire quand son humeur est sous ce seuil (une Gourmande, toujours).
+const TAVERN_MOOD_BELOW := 75.0
+## Secondes à boire une chope, et humeur gagnée par seconde (deux fois plus pour le Gobelin).
+const TAVERN_DRINK_TIME := 6.0
+const TAVERN_MOOD := 5.0
+## Après une chope : elle titube tant de secondes, et sa prochaine paie baisse d'autant.
+const TIPSY_TIME := 25.0
+const TIPSY_SALARY := 0.9
+## Infirmerie : sous cette part de sa vie (hors combat), une créature va s'y soigner.
+const INFIRMARY_BELOW := 0.6
+const INFIRMARY_HEAL := 10.0      ## PV par seconde.
+const INFIRMARY_NURSE_BOOST := 2.0 ## Avec une Goule rebouteuse au travail dans l'Infirmerie.
+## Hôtel des monnaies : intérêts toutes les MINT_INTERVAL secondes, plafonnés par Hôtel.
+const MINT_INTERVAL := 30.0
+const MINT_INTEREST := 0.02
+const MINT_CAP := 50
+const MINT_WORK_GOLD := 1.0       ## Or frappé par seconde de travail (le Diablotin : 3).
+## Chambre de torture : secondes de travail pour qu'un prisonnier change de camp.
+const TORTURE_CONVERT_TIME := 45.0
+const TORTURE_RESEARCH := 1.5     ## Points de recherche par seconde de torture.
+const TORTURE_INTEL_TIME := 15.0  ## Secondes de torture pour apprendre la vague suivante (une fois par vague).
+## Poste de garde : rayon (en cases) surveillé par un guetteur en poste, et rayon de l'alarme.
+const GUARD_RADIUS := 8
+const ALARM_RADIUS := 10
+const ALARM_COOLDOWN := 20.0
+## Puits de mana : mana maximum en plus par puits (MANA_WELL_MAX puits au plus).
+const MANA_WELL_BONUS := 50.0
+const MANA_WELL_MAX := 3
+const MANA_MEDITATION := 0.6      ## Mana par seconde de méditation (l'Oracle : 3 fois plus).
+## Crypte : places par Crypte, secondes avant de se relever, et mana que ça coûte.
+const CRYPT_SLOTS := 2
+const CRYPT_RISE_TIME := 60.0
+const CRYPT_MANA := 60.0
+## Nouvelles créatures : combien par salle, et au plus.
+const GHOULS_PER_INFIRMARY := 2.0
+const MAX_GHOULS := 4
+const IMPS_PER_MINT := 3.0
+const MAX_IMPS := 6
+const EXECUTIONERS_PER_TORTURE := 2.0
+const MAX_EXECUTIONERS := 3
+const GARGOYLES_PER_GUARDPOST := 2.0
+const MAX_GARGOYLES := 4
+const ORACLES_PER_WELL := 2.0
+const MAX_ORACLES := 3
+const NECROMANCERS_PER_CRYPT := 1.0
+const MAX_NECROMANCERS := 2
+## Nécromancien : un héros qu'il abat se relève en Revenant pour tant de secondes.
+const NECRO_RAISE_TIME := 30.0
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

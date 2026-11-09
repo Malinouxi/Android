@@ -982,11 +982,250 @@ def make_characters():
                 save(image, "units", "%s_%s_%d.png" % (name, animation, pose.frame))
 
 
+# --- Les créatures des antres (règles 2.7) ----------------------------------------
+
+def draw_goblin(step):
+    # Gobelin brasseur : olive, grandes oreilles, tablier taché, maillet de bois.
+    sp, m = humanoid(step, "#8d9e3a", "#795548", "#5d4037", "#3e2723")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(9, hy + 5), (2, hy + 2), (9, hy + 9)], "#8d9e3a")
+    sp.part("polygon", [(22, hy + 5), (29, hy + 2), (22, hy + 9)], "#8d9e3a")
+    sp.part("rectangle", [12, 17 + bob, 19, 26 + bob], "#a1887f")              # tablier
+    sp.dots([(15, 21 + bob), (16, 22 + bob), (14, 23 + bob)], "#c88a12")      # bière renversée
+    eyes(sp, hy + 5, "#ff9800", glow=True)
+    sp.dots([(15, hy + 8), (16, hy + 9), (16, hy + 8)], "#6b7a2a")             # nez crochu
+    sp.flat("line", [(13, hy + 10), (18, hy + 10)], "#3b4a12")
+    x, y = m["right_hand"]                                                       # maillet
+    sp.part("rectangle", [x, y - 8, x + 1, y + 2], "#6d4c41")
+    sp.part("rectangle", [x - 2, y - 12, x + 3, y - 8], "#8d6e63")
+    return sp.finish()
+
+
+def draw_ghoul(step):
+    # Goule rebouteuse : chair grise recousue, bandages, fioles vertes, griffes.
+    sp, m = humanoid(step, "#a5b59a", "#4e5b4e", "#3e4a3e", "#263238")
+    hy, bob = m["head_y"], m["bob"]
+    sp.flat("rectangle", [9, hy + 1, 22, hy + 2], "#d7ccc8")                     # bandage au front
+    sp.flat("line", [(17, hy + 3), (21, hy + 4)], "#3e2723")                     # couture
+    sp.dots([(18, hy + 2), (20, hy + 3)], "#3e2723")
+    eyes(sp, hy + 6, "#b2ff59", glow=True)
+    sp.flat("line", [(13, hy + 10), (18, hy + 9)], "#3e4a3e")
+    for x in (12, 15, 18):                                                       # fioles
+        sp.flat("rectangle", [x, 22 + bob, x + 1, 24 + bob], "#76ff03")
+    for hand in (m["left_hand"], m["right_hand"]):                               # griffes
+        x, y = hand
+        sp.dots([(x - 1, y + 2), (x + 1, y + 2)], "#212121")
+    return sp.finish()
+
+
+def draw_imp(step):
+    # Diablotin argentier : rouge, cornes noires, ailes, queue, bourse d'or.
+    sp = Sprite()
+    up = -2 if step else 0
+    sp.part("polygon", [(11, 15), (2, 9 + up), (4, 18), (10, 19)], "#4a0000")
+    sp.part("polygon", [(20, 15), (29, 9 + up), (27, 18), (21, 19)], "#4a0000")
+    sp.part("polygon", [(18, 24), (26, 27), (28, 25), (29, 29), (25, 28)], "#c62828")  # queue
+    body, m = humanoid(step, "#c62828", "#b71c1c", "#8e0000", "#3e0000", short=True)
+    sp.image.alpha_composite(body.image)
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(11, hy + 2), (9, hy - 3), (13, hy + 1)], "#212121")
+    sp.part("polygon", [(20, hy + 2), (22, hy - 3), (18, hy + 1)], "#212121")
+    eyes(sp, hy + 5, "#ffeb3b", glow=True)
+    sp.flat("line", [(13, hy + 9), (18, hy + 9)], "#3e0000")
+    sp.dots([(14, hy + 10), (17, hy + 10)], "#ffffff")
+    sp.part("ellipse", [17, 23 + bob, 21, 27 + bob], "#6d4c41")                  # bourse
+    sp.dots([(19, 24 + bob)], "#ffca28")
+    return sp.finish()
+
+
+def draw_executioner(step):
+    # Bourreau : torse nu, cagoule noire, tablier de cuir taché de sang, grande hache.
+    sp, m = humanoid(step, "#c8a27a", "#c8a27a", "#3e2723", "#212121")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(15, hy - 3), (23, hy + 6), (22, hy + 13), (9, hy + 13), (8, hy + 6)], "#1a1a1a")
+    eyes(sp, hy + 6, "#ff5252", glow=True)
+    sp.part("rectangle", [11, 19 + bob, 20, 28], "#3e2723")                      # tablier
+    sp.dots([(13, 22 + bob), (14, 23 + bob), (18, 25 + bob), (17, 21 + bob)], "#8e0000")
+    sp.flat("line", [(10, 15 + bob), (20, 19 + bob)], "#3e2723")                 # sangle
+    x, y = m["right_hand"]                                                       # hache
+    sp.part("rectangle", [x, y - 14, x + 1, y + 3], "#795548")
+    sp.part("polygon", [(x + 1, y - 14), (x + 6, y - 16), (x + 6, y - 8), (x + 1, y - 10)], "#9e9e9e")
+    return sp.finish()
+
+
+def draw_gargoyle(step):
+    # Gargouille : pierre grise, ailes de pierre, cornes, yeux ambrés, fissure qui rougeoie.
+    sp = Sprite()
+    up = -2 if step else 0
+    stone, light, dark = "#78909c", "#a7b6bd", "#455a64"
+    sp.part("polygon", [(10, 14), (1, 6 + up), (3, 17), (9, 20)], "#546e7a", light, dark)
+    sp.part("polygon", [(21, 14), (30, 6 + up), (28, 17), (22, 20)], "#546e7a", light, dark)
+    body, m = humanoid(step, stone, stone, "#607d8b", dark)
+    sp.image.alpha_composite(body.image)
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(11, hy + 2), (8, hy - 3), (13, hy + 1)], "#546e7a")
+    sp.part("polygon", [(20, hy + 2), (23, hy - 3), (18, hy + 1)], "#546e7a")
+    sp.flat("rectangle", [10, hy + 3, 21, hy + 4], dark)                         # arcade
+    eyes(sp, hy + 6, "#ffab40", glow=True)
+    sp.dots([(13, hy + 10), (18, hy + 10)], "#eceff1")                          # crocs
+    sp.flat("line", [(14, 17 + bob), (16, 20 + bob), (15, 23 + bob)], "#ff6d00")
+    return sp.finish()
+
+
+def draw_oracle(step):
+    # Oracle des ombres : robe bleu nuit, capuche, troisième œil, bâton à orbe cyan.
+    sp, m = humanoid(step, "#102a43", "#0d2b3e", "#0d2b3e", "#06141f", robe="#0d2b3e")
+    hy = m["head_y"]
+    sp.part("polygon", [(15, hy - 3), (24, hy + 8), (22, hy + 14), (9, hy + 14), (7, hy + 8)], "#123b54")
+    sp.part("ellipse", [11, hy + 5, 20, hy + 13], "#05101a")
+    eyes(sp, hy + 9, "#18ffff", glow=True)
+    sp.dots([(15, hy + 3), (16, hy + 3), (15, hy + 4), (16, hy + 4)], "#18ffff")  # troisième œil
+    for y in (20, 23, 26):
+        sp.dots([(15, y + m["bob"]), (16, y + 1 + m["bob"])], "#18ffff")           # runes
+    staff(sp, m["right_hand"], "#18ffff", wood="#37474f")
+    return sp.finish()
+
+
+def draw_necromancer(step):
+    # Nécromancien : robe noire, capuche, crânes aux épaules, bâton d'os à orbe vert.
+    sp, m = humanoid(step, "#d8d2bf", "#1b1b1b", "#1b1b1b", "#0a0a0a", robe="#1b1b1b")
+    hy, bob = m["head_y"], m["bob"]
+    sp.part("polygon", [(15, hy - 3), (24, hy + 8), (22, hy + 14), (9, hy + 14), (7, hy + 8)], "#212121")
+    sp.part("ellipse", [11, hy + 5, 20, hy + 13], "#d8d2bf")                      # visage d'os
+    sp.flat("rectangle", [12, hy + 8, 14, hy + 9], "#1a1a1a")
+    sp.flat("rectangle", [17, hy + 8, 19, hy + 9], "#1a1a1a")
+    sp.dots([(13, hy + 8), (18, hy + 8)], "#76ff03")
+    for x in (5, 22):                                                             # crânes aux épaules
+        sp.part("ellipse", [x, 14 + bob, x + 4, 18 + bob], "#e0dccb")
+        sp.dots([(x + 1, 16 + bob), (x + 3, 16 + bob)], "#1a1a1a")
+    sp.dots([(15, 21 + bob), (16, 22 + bob), (14, 22 + bob)], "#76ff03")
+    staff(sp, m["right_hand"], "#76ff03", wood="#d8d2bf")
+    return sp.finish()
+
+
+DEN_CHARACTERS = {"goblin": draw_goblin, "ghoul": draw_ghoul, "imp": draw_imp, "executioner": draw_executioner,
+                  "gargoyle": draw_gargoyle, "oracle": draw_oracle, "necromancer": draw_necromancer}
+
+
+# --- Le sol des antres --------------------------------------------------------------
+
+def room_tavern(rng):
+    """Taverne : un plancher de lattes sombres, avec des taches de bière."""
+    image = Image.new("RGBA", (S, S), rgb("#2a1a0e"))
+    draw = ImageDraw.Draw(image)
+    for top in range(0, S, 8):
+        offset = rng.randint(0, 15)
+        draw.rectangle([0, top + 1, S - 1, top + 7], fill=rgb("#5d3a1a"))
+        draw.line([(0, top + 1), (S - 1, top + 1)], fill=rgb("#734a24"))
+        for x in range(offset, S, 16):
+            draw.line([(x, top + 1), (x, top + 7)], fill=rgb("#2a1a0e"))
+    for _ in range(2):
+        x, y = rng.randint(4, S - 8), rng.randint(4, S - 8)
+        draw.ellipse([x, y, x + 5, y + 3], fill=rgb("#8a5a16"))
+    return image
+
+
+def room_infirmary(rng):
+    """Infirmerie : des dalles pâles, des joints sombres, quelques gouttes de sang."""
+    image = Image.new("RGBA", (S, S), rgb("#252b25"))
+    draw = ImageDraw.Draw(image)
+    for ty in range(0, S, 8):
+        for tx in range(0, S, 8):
+            draw.rectangle([tx + 1, ty + 1, tx + 7, ty + 7], fill=rgb("#3e4a3e" if (tx + ty) // 8 % 2 else "#465446"))
+    for _ in range(3):
+        draw.point([(rng.randint(2, S - 3), rng.randint(2, S - 3))], fill=rgb("#7f0000"))
+    return image
+
+
+def room_mint():
+    """Hôtel des monnaies : un damier d'or terni et de pierre sombre."""
+    image = Image.new("RGBA", (S, S), rgb("#2b2410"))
+    draw = ImageDraw.Draw(image)
+    for ty in range(0, S, 8):
+        for tx in range(0, S, 8):
+            gold = (tx + ty) // 8 % 2 == 0
+            draw.rectangle([tx + 1, ty + 1, tx + 7, ty + 7], fill=rgb("#6b5a1e" if gold else "#3a3428"))
+            if gold:
+                draw.point([(tx + 4, ty + 4)], fill=rgb("#c9a227"))
+    return image
+
+
+def room_torture(rng):
+    """Chambre de torture : pierre rouge sombre, rigoles et sang séché."""
+    image = quantize(fractal_noise(rng), ["#2a1010", "#331414", "#3d1818"])
+    draw = ImageDraw.Draw(image)
+    for i in range(0, S, 8):
+        draw.line([(i, 0), (i, S - 1)], fill=rgb("#1c0a0a"))
+        draw.line([(0, i), (S - 1, i)], fill=rgb("#1c0a0a"))
+    for _ in range(4):
+        x, y = rng.randint(2, S - 6), rng.randint(2, S - 6)
+        draw.ellipse([x, y, x + 3, y + 2], fill=rgb("#5a0a0a"))
+    return image
+
+
+def room_guardpost():
+    """Poste de garde : des pavés gris et une bande de sable."""
+    image = Image.new("RGBA", (S, S), rgb("#2c2924"))
+    draw = ImageDraw.Draw(image)
+    for row, top in enumerate(range(0, S, 6)):
+        offset = 0 if row % 2 == 0 else 6
+        for x in range(-offset, S, 12):
+            draw.rectangle([x + 1, top + 1, x + 11, top + 5], fill=rgb("#4a4238"))
+            draw.line([(x + 1, top + 1), (x + 11, top + 1)], fill=rgb("#5e554a"))
+    return image
+
+
+def room_mana_well():
+    """Puits de mana : des dalles bleu nuit, des runes qui luisent."""
+    image = Image.new("RGBA", (S, S), rgb("#0f1a28"))
+    draw = ImageDraw.Draw(image)
+    for ty in range(0, S, 8):
+        for tx in range(0, S, 8):
+            draw.rectangle([tx + 1, ty + 1, tx + 7, ty + 7], fill=rgb("#1f3550"))
+    for x, y in ((4, 4), (20, 12), (12, 24), (27, 27)):
+        draw.line([(x, y), (x + 2, y + 2)], fill=rgb("#40c4ff"))
+        draw.point([(x + 2, y)], fill=rgb("#80d8ff"))
+    return image
+
+
+def room_crypt(rng):
+    """Crypte : de grandes dalles funéraires violacées, fissurées."""
+    image = quantize(fractal_noise(rng), ["#1d1a22", "#24202b", "#2b2733"])
+    draw = ImageDraw.Draw(image)
+    for i in range(0, S, 16):
+        draw.line([(i, 0), (i, S - 1)], fill=rgb("#141118"))
+        draw.line([(0, i), (S - 1, i)], fill=rgb("#141118"))
+    for _ in range(2):
+        x, y = rng.randint(2, S - 8), rng.randint(2, S - 8)
+        draw.line([(x, y), (x + 3, y + 2), (x + 5, y + 1)], fill=rgb("#4a3f5c"))
+    return image
+
+
+def make_dens():
+    """Les images des antres (règles 2.7) : créatures (8 images chacune) et sols."""
+    for name, draw in DEN_CHARACTERS.items():
+        for animation, poses in ANIMATIONS.items():
+            for pose in poses:
+                image = draw(pose)
+                if animation == "attack" and pose.frame == 1:
+                    image = add_swoosh(image)
+                save(image, "units", "%s_%s_%d.png" % (name, animation, pose.frame))
+    rng = random.Random(77)
+    save(room_tavern(rng), "tiles", "room_tavern.png")
+    save(room_infirmary(rng), "tiles", "room_infirmary.png")
+    save(room_mint(), "tiles", "room_mint.png")
+    save(room_torture(rng), "tiles", "room_torture.png")
+    save(room_guardpost(), "tiles", "room_guardpost.png")
+    save(room_mana_well(), "tiles", "room_mana_well.png")
+    save(room_crypt(rng), "tiles", "room_crypt.png")
+
+
 def make_all():
     make_tiles()
     make_chests()
     make_characters()
     make_props_and_icons()
+    make_dens()
 
 
 # ===========================================================================

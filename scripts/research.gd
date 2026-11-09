@@ -14,21 +14,28 @@ const ITEMS := [
 	{"name": "Pointes", "kind": "defense", "id": Defenses.Type.SPIKES, "points": 60},
 	{"name": "Sort Fouet", "kind": "spell", "id": Spells.Type.WHIP, "points": 70},
 	{"name": "Prison", "kind": "room", "id": Rooms.Type.PRISON, "points": 100},
+	{"name": "Taverne", "kind": "room", "id": Rooms.Type.TAVERN, "points": 110},
 	{"name": "Sort Toile", "kind": "spell", "id": Spells.Type.WEB, "points": 110},
 	{"name": "Salle d'entraînement", "kind": "room", "id": Rooms.Type.TRAINING, "points": 120},
+	{"name": "Infirmerie", "kind": "room", "id": Rooms.Type.INFIRMARY, "points": 140},
 	{"name": "Sort Festin", "kind": "spell", "id": Spells.Type.FEAST, "points": 120},
 	{"name": "Sort Éclair", "kind": "spell", "id": Spells.Type.LIGHTNING, "points": 150},
 	{"name": "Porte", "kind": "defense", "id": Defenses.Type.DOOR, "points": 180},
+	{"name": "Poste de garde", "kind": "room", "id": Rooms.Type.GUARDPOST, "points": 170},
 	{"name": "Sort Œil du maître", "kind": "spell", "id": Spells.Type.EYE, "points": 160},
 	{"name": "Temple", "kind": "room", "id": Rooms.Type.TEMPLE, "points": 200},
+	{"name": "Hôtel des monnaies", "kind": "room", "id": Rooms.Type.MINT, "points": 210},
 	{"name": "Sort Invocation", "kind": "spell", "id": Spells.Type.SUMMON, "points": 180},
 	{"name": "Sort Hâte", "kind": "spell", "id": Spells.Type.HASTE, "points": 220},
 	{"name": "Sort Conversion", "kind": "spell", "id": Spells.Type.CONVERT, "points": 230},
 	{"name": "Sort Brasier", "kind": "spell", "id": Spells.Type.FIRESTORM, "points": 240},
 	{"name": "Rune explosive", "kind": "defense", "id": Defenses.Type.RUNE, "points": 260},
+	{"name": "Chambre de torture", "kind": "room", "id": Rooms.Type.TORTURE, "points": 250},
 	{"name": "Cimetière", "kind": "room", "id": Rooms.Type.GRAVEYARD, "points": 240},
+	{"name": "Crypte", "kind": "room", "id": Rooms.Type.CRYPT, "points": 260},
 	{"name": "Sort Relever les morts", "kind": "spell", "id": Spells.Type.RAISE, "points": 260},
 	{"name": "Sort Sanctuaire", "kind": "spell", "id": Spells.Type.SANCTUARY, "points": 280},
+	{"name": "Puits de mana", "kind": "room", "id": Rooms.Type.MANA_WELL, "points": 300},
 	{"name": "Sort Terreur", "kind": "spell", "id": Spells.Type.TERROR, "points": 300},
 	{"name": "Sort Transmutation", "kind": "spell", "id": Spells.Type.TRANSMUTE, "points": 300},
 	{"name": "Sort Rappel", "kind": "spell", "id": Spells.Type.RECALL, "points": 320},
@@ -40,8 +47,14 @@ const ITEMS := [
 ## leur « next_index » comptait dans cet ordre-là.
 const OLD_ORDER := ["Atelier", "Pointes", "Prison", "Salle d'entraînement", "Sort Éclair", "Porte",
 		"Temple", "Sort Hâte", "Rune explosive", "Cimetière"]
+## La liste de la version 2 (avant les antres des règles 2.7), même raison.
+const ORDER_V2 := ["Atelier", "Pointes", "Sort Fouet", "Prison", "Sort Toile", "Salle d'entraînement",
+		"Sort Festin", "Sort Éclair", "Porte", "Sort Œil du maître", "Temple", "Sort Invocation", "Sort Hâte",
+		"Sort Conversion", "Sort Brasier", "Rune explosive", "Cimetière", "Sort Relever les morts",
+		"Sort Sanctuaire", "Sort Terreur", "Sort Transmutation", "Sort Rappel", "Sort Possession",
+		"Sort Effondrement"]
 ## Version de la liste, écrite dans la sauvegarde.
-const LIST_VERSION := 2
+const LIST_VERSION := 3
 
 ## Indice de la prochaine découverte dans ITEMS.
 var next_index := 0
@@ -87,10 +100,12 @@ func to_save() -> Dictionary:
 func load_save(data: Dictionary) -> void:
 	next_index = int(data.get("next_index", 0))
 	points = float(data.get("points", 0.0))
-	if int(data.get("list", 1)) < LIST_VERSION and next_index > 0:
+	var version := int(data.get("list", 1))
+	if version < LIST_VERSION and next_index > 0:
 		# Vieille sauvegarde : on retrouve la dernière découverte dans la nouvelle liste
-		# (les nouveaux sorts placés avant elle sont offerts).
-		var last: String = OLD_ORDER[mini(next_index, OLD_ORDER.size()) - 1]
+		# (les nouveautés placées avant elle sont offertes).
+		var order: Array = OLD_ORDER if version <= 1 else ORDER_V2
+		var last: String = order[mini(next_index, order.size()) - 1]
 		for i in ITEMS.size():
 			if ITEMS[i]["name"] == last:
 				next_index = i + 1

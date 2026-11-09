@@ -35,6 +35,13 @@ const ROOM_FLOORS := {
 	Rooms.Type.PRISON: preload("res://assets/tiles/room_prison.png"),
 	Rooms.Type.TEMPLE: preload("res://assets/tiles/room_temple.png"),
 	Rooms.Type.GRAVEYARD: preload("res://assets/tiles/room_graveyard.png"),
+	Rooms.Type.TAVERN: preload("res://assets/tiles/room_tavern.png"),
+	Rooms.Type.INFIRMARY: preload("res://assets/tiles/room_infirmary.png"),
+	Rooms.Type.MINT: preload("res://assets/tiles/room_mint.png"),
+	Rooms.Type.TORTURE: preload("res://assets/tiles/room_torture.png"),
+	Rooms.Type.GUARDPOST: preload("res://assets/tiles/room_guardpost.png"),
+	Rooms.Type.MANA_WELL: preload("res://assets/tiles/room_mana_well.png"),
+	Rooms.Type.CRYPT: preload("res://assets/tiles/room_crypt.png"),
 }
 ## Le sol revendiqué par ton donjon.
 const CLAIMED := [

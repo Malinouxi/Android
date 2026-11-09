@@ -614,6 +614,16 @@ func attack_progress() -> float:
 	return _attack_animation_left / ATTACK_ANIMATION_TIME
 
 
+## La pose à jouer en 3D (les créatures en ont une par activité, voir creature.gd).
+func pose() -> String:
+	return ""
+
+
+## Le point vers lequel l'unité se tourne pendant son travail (Vector2.INF : aucun).
+func focus_point() -> Vector2:
+	return Vector2.INF
+
+
 func is_hasted() -> bool:
 	return _haste_left > 0.0
 

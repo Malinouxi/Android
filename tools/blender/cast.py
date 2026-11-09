@@ -5,6 +5,8 @@ leur propre script (demon.py, knight.py) ; les bêtes sont dans beasts.py.
 Construire un personnage : cast.build("orc", r"<projet>/assets/models/orc.glb").
 """
 
+import math
+
 import humanoid
 from humanoid import star
 from lowpoly import mirrored
@@ -249,6 +251,152 @@ def _monk(ctx):
               ctx.mat("robe"), sides=8, cap_start=False)
 
 
+# --- Les créatures des antres (règles 2.7) ---------------------------------
+
+def _goblin(ctx):
+    # Tablier de brasseur taché de bière, petit tonnelet sur le dos, nez crochu.
+    body = ctx.part("body")
+    body.slab([(-0.09, -0.08, 0.52), (0.09, -0.08, 0.52), (0.12, -0.1, 0.16), (-0.12, -0.1, 0.16)], (0, 0.01, 0),
+              ctx.mat("apron", "a1887f"))
+    body.flat([(0.02, -0.103, 0.3), (0.07, -0.104, 0.27), (0.04, -0.105, 0.22)], ctx.mat("stain", "c88a12"),
+              facing=(0, -1, 0))
+    wood = ctx.mat("keg", "8d5a2b")
+    body.loft([((-0.08, 0.13, 0.48), 0.07, 0.07), ((0.0, 0.14, 0.48), 0.08, 0.08), ((0.08, 0.13, 0.48), 0.07, 0.07)],
+              wood, sides=8)
+    for x in (-0.05, 0.05):
+        body.loft([((x - 0.006, 0.14, 0.48), 0.082, 0.082), ((x + 0.006, 0.14, 0.48), 0.082, 0.082)],
+                  ctx.mat("hoop", "37474f"), sides=8, cap_start=False, cap_end=False)
+    p = _head_p(ctx)
+    head = ctx.part("head")
+    head.cone(p(0, -0.1, 0.0), p(0, -0.17, -0.04), 0.022, ctx.mat("skin"), sides=5)
+
+
+def _ghoul(ctx):
+    # Chair grise recousue, bandages, fioles vertes à la ceinture, longues griffes.
+    p = _head_p(ctx)
+    head = ctx.part("head")
+    stitch = ctx.mat("stitch", "3e2723")
+    head.box(p(0.03, -0.098, 0.07), (0.07, 0.006, 0.006), stitch)
+    for k in range(4):
+        head.box(p(0.005 + k * 0.018, -0.1, 0.07), (0.004, 0.006, 0.02), stitch)
+    head.loft([(p(0, 0, 0.1), 0.1, 0.1), (p(0, 0, 0.125), 0.095, 0.095)], ctx.mat("bandage", "d7ccc8"), sides=8,
+              cap_start=False, cap_end=False)
+    body = ctx.part("body")
+    vial = ctx.mat("vial", "76ff03", emission=2.5)
+    for x in (-0.07, 0.0, 0.07):
+        body.loft([((x, -0.085, 0.24), 0.015, 0.015), ((x, -0.088, 0.3), 0.016, 0.016)], vial, sides=5)
+    for arm_name in ("arm_l", "arm_r"):
+        arm = ctx.part(arm_name)
+        arm.loft([((0, 0, -0.08), 0.053, 0.053), ((0, 0, -0.16), 0.05, 0.05)], ctx.mat("bandage", "d7ccc8"),
+                 sides=6, cap_start=False, cap_end=False)
+        for dx in (-0.02, 0.0, 0.02):
+            arm.cone((dx, -0.015, -0.29), (dx, -0.03, -0.36), 0.008, ctx.mat("claw", "212121"), sides=3)
+
+
+def _imp(ctx):
+    # Bourse d'or à la ceinture, anneau d'or à l'oreille, pointe de queue en fer de lance.
+    body = ctx.part("body")
+    gold = ctx.mat("gold", "ffca28", emission=0.4)
+    body.loft([((0.09, -0.06, 0.24), 0.03, 0.025), ((0.09, -0.065, 0.28), 0.04, 0.035),
+               ((0.09, -0.06, 0.32), 0.015, 0.015)], ctx.mat("pouch", "6d4c41"), sides=6)
+    body.loft([((0.09, -0.07, 0.25), 0.012, 0.012), ((0.09, -0.075, 0.27), 0.012, 0.012)], gold, sides=6)
+    p = _head_p(ctx)
+    head = ctx.part("head")
+    head.loft([(p(0.1, 0, -0.02), 0.018, 0.018), (p(0.1, 0, -0.03), 0.018, 0.018)], gold, sides=6,
+              cap_start=False, cap_end=False)
+    for side in (-1, 1):
+        head.loft([(p(0.09 * side, 0.005, 0.03), 0.015, 0.03), (p(0.17 * side, 0.03, 0.07), 0.0, 0.0)],
+                  ctx.mat("skin"), sides=4, cap_end=False)
+    tail = ctx.part("tail")
+    tail.slab([(0, 0.33, -0.12), (0.04, 0.37, -0.1), (0, 0.44, -0.1), (-0.04, 0.37, -0.1)], (0, 0, 0.012),
+              ctx.mat("tail"))
+
+
+def _executioner(ctx):
+    # Tablier de cuir taché de sang, sangles croisées sur le torse nu, gros ventre.
+    body = ctx.part("body")
+    leather = ctx.mat("leather", "3e2723")
+    body.loft([((0, -0.01, 0.34), 0.12, 0.09), ((0, -0.03, 0.42), 0.14, 0.1), ((0, -0.01, 0.5), 0.13, 0.085)],
+              ctx.mat("skin"), sides=8)
+    body.slab([(-0.12, -0.11, 0.46), (0.12, -0.11, 0.46), (0.13, -0.12, 0.1), (-0.13, -0.12, 0.1)], (0, 0.012, 0),
+              leather)
+    blood = ctx.mat("blood", "8e0000")
+    for x, z in ((0.04, 0.3), (-0.06, 0.2), (0.07, 0.15)):
+        body.flat([(x - 0.025, -0.124, z), (x + 0.02, -0.124, z + 0.02), (x + 0.03, -0.124, z - 0.03),
+                   (x - 0.01, -0.124, z - 0.04)], blood, facing=(0, -1, 0))
+    for side in (-1, 1):
+        body.slab([(0.14 * side, -0.085, 0.62), (0.1 * side, -0.088, 0.64), (-0.1 * side, -0.1, 0.44),
+                   (-0.06 * side, -0.1, 0.42)], (0, 0.008, 0), leather)
+    for x in (-0.1, 0.1):
+        body.loft([((x, -0.1, 0.3), 0.006, 0.006), ((x, -0.1, 0.22), 0.006, 0.006), ((x - 0.02, -0.1, 0.2), 0.0, 0.0)],
+                  ctx.mat("hook", "9e9e9e"), sides=4, cap_end=False)
+
+
+def _gargoyle(ctx):
+    # Bosses de pierre sur les épaules, mousse, griffes, fissures qui rougeoient.
+    rock = ctx.mat("rock", "607d8b")
+    body = ctx.part("body")
+    for x, z, r in ((-0.15, 0.62, 0.07), (0.15, 0.62, 0.07), (0.0, 0.5, 0.06)):
+        body.loft([((x, 0.04, z - r), r * 0.6, r * 0.5), ((x, 0.04, z), r, r * 0.9), ((x, 0.05, z + r * 0.7), 0.0, 0.0)],
+                  rock, sides=5, cap_end=False)
+    body.flat([(-0.05, -0.092, 0.55), (-0.02, -0.093, 0.5), (-0.04, -0.093, 0.44), (-0.03, -0.093, 0.44),
+               (-0.01, -0.093, 0.5), (-0.035, -0.092, 0.55)], ctx.mat("crack", "ff6d00", emission=2.0),
+              facing=(0, -1, 0))
+    body.loft([((0.07, -0.05, 0.6), 0.03, 0.02), ((0.08, -0.06, 0.62), 0.025, 0.015)], ctx.mat("moss", "558b2f"),
+              sides=5)
+    for arm_name in ("arm_l", "arm_r"):
+        arm = ctx.part(arm_name)
+        for dx in (-0.025, 0.0, 0.025):
+            arm.cone((dx, -0.02, -0.29), (dx * 1.3, -0.05, -0.37), 0.01, ctx.mat("claw", "263238"), sides=4)
+    p = _head_p(ctx)
+    head = ctx.part("head")
+    head.box(p(0, -0.095, 0.07), (0.17, 0.035, 0.03), rock)
+    for side in (-1, 1):
+        head.cone(p(0.03 * side, -0.1, -0.05), p(0.035 * side, -0.11, -0.09), 0.01, ctx.mat("fang", "eceff1"), sides=3)
+
+
+def _oracle(ctx):
+    # Un troisième œil sur la capuche, des runes cyan sur la robe, une étole.
+    p = _head_p(ctx)
+    head = ctx.part("head")
+    eye = ctx.mat("third_eye", "18ffff", emission=4.0)
+    head.flat([p(-0.02, -0.122, 0.1), p(0.02, -0.122, 0.1), p(0.0, -0.121, 0.125), p(0.0, -0.123, 0.075)], eye,
+              facing=(0, -1, 0))
+    body = ctx.part("body")
+    rune = ctx.mat("rune", "18ffff", emission=2.0)
+    for z in (0.12, 0.2, 0.28):
+        y = -0.1 - (0.32 - z) * 0.12
+        body.flat([(-0.02, y, z + 0.02), (0.02, y, z + 0.02), (0.0, y, z - 0.02)], rune, facing=(0, -1, 0))
+    stole = ctx.mat("stole", "00838f", double_sided=True)
+    for side in (-1, 1):
+        body.slab([(0.06 * side, -0.07, 0.64), (0.09 * side, -0.075, 0.64), (0.07 * side, -0.12, 0.2),
+                   (0.04 * side, -0.115, 0.2)], (0, 0.006, 0), stole)
+
+
+def _necromancer(ctx):
+    # Épaulières en crânes, crâne à la ceinture, collier d'os, runes vertes.
+    bone = ctx.mat("bone", "e0dccb")
+    socket = ctx.mat("socket", "1a1a1a")
+    for side, arm_name in ((-1, "arm_l"), (1, "arm_r")):
+        arm = ctx.part(arm_name)
+        arm.loft([((0.02 * side, 0, 0.03), 0.06, 0.055), ((0.025 * side, 0, 0.08), 0.065, 0.06),
+                  ((0.025 * side, 0, 0.13), 0.0, 0.0)], bone, sides=6, cap_end=False)
+        for dx in (-0.018, 0.018):
+            arm.box((0.025 * side + dx, -0.055, 0.075), (0.016, 0.01, 0.016), socket)
+    body = ctx.part("body")
+    body.loft([((0.08, -0.085, 0.26), 0.035, 0.03), ((0.08, -0.09, 0.3), 0.04, 0.04), ((0.08, -0.085, 0.33), 0.0, 0.0)],
+              bone, sides=6, cap_end=False)
+    for k in range(7):
+        a = math.pi * (0.15 + 0.7 * k / 6)
+        body.loft([((0.1 * math.cos(a), -0.075 - 0.01 * math.sin(a), 0.66 - 0.06 * math.sin(a)), 0.01, 0.01),
+                   ((0.1 * math.cos(a), -0.08 - 0.01 * math.sin(a), 0.63 - 0.06 * math.sin(a)), 0.008, 0.008)],
+                  bone, sides=4)
+    rune = ctx.mat("rune", "76ff03", emission=2.0)
+    for z in (0.14, 0.22):
+        y = -0.1 - (0.32 - z) * 0.12
+        body.flat([(-0.025, y, z), (0.025, y, z), (0.0, y, z + 0.04)], rune, facing=(0, -1, 0))
+
+
 def _kingdom_star(ctx, part, center):
     star(part, center, 0.06, ctx.mat("emblem", "ffca28"), "x")
 
@@ -278,6 +426,27 @@ CHARACTERS = {
     "revenant": {"skin": "d8d2bf", "top": "6d5a46", "legs": "d8d2bf", "boots": "3a2f26", "head": "skull",
                  "eyes": "76ff03", "weapon": "sword", "blade": "8d6e63", "hands": "d8d2bf", "belt": "3a2f26",
                  "extra": _revenant},
+    # Les créatures des antres (règles 2.7).
+    "goblin": {"skin": "8d9e3a", "top": "795548", "legs": "5d4037", "boots": "3e2723", "head": "ears",
+               "eyes": "ff9800", "weapon": "hammer", "hammer": "8d6e63", "head_scale": 1.15, "width": 1.1,
+               "belt": "4e342e", "extra": _goblin},
+    "ghoul": {"skin": "a5b59a", "top": "4e5b4e", "legs": "3e4a3e", "boots": "263238", "head": "bald",
+              "eyes": "b2ff59", "weapon": "dagger", "blade": "e0e0e0", "belt": "3e2723", "extra": _ghoul},
+    "imp": {"skin": "c62828", "top": "b71c1c", "legs": "8e0000", "boots": "3e0000", "head": "horns",
+            "head_color": "212121", "eyes": "ffeb3b", "weapon": "dagger", "wings": "4a0000", "wing_bone": "c62828",
+            "tail": "c62828", "width": 0.85, "head_scale": 1.2, "belt": "ffca28", "extra": _imp},
+    "executioner": {"skin": "c8a27a", "top": "c8a27a", "legs": "3e2723", "boots": "212121", "head": "hood",
+                    "head_color": "1a1a1a", "eyes": "ff5252", "weapon": "axe", "blade": "9e9e9e", "width": 1.35,
+                    "belt": "4e342e", "extra": _executioner},
+    "gargoyle": {"skin": "78909c", "top": "78909c", "legs": "607d8b", "boots": "455a64", "head": "horns",
+                 "head_color": "546e7a", "eyes": "ffab40", "wings": "546e7a", "wing_bone": "78909c", "tail": "607d8b",
+                 "width": 1.2, "extra": _gargoyle},
+    "oracle": {"skin": "102a43", "robe": "0d2b3e", "top": "0d2b3e", "boots": "06141f", "head": "hood",
+               "head_color": "123b54", "eyes": "18ffff", "weapon": "staff", "orb": "18ffff", "staff": "37474f",
+               "extra": _oracle},
+    "necromancer": {"skin": "d8d2bf", "robe": "1b1b1b", "top": "1b1b1b", "boots": "0a0a0a", "head": "hood",
+                    "head_color": "212121", "eyes": "76ff03", "weapon": "staff", "orb": "76ff03", "staff": "d8d2bf",
+                    "cape": "2e0a3a", "extra": _necromancer},
     "golem": {"skin": "8d8d8d", "top": "8d8d8d", "legs": "757575", "boots": "616161", "head": "bald",
               "eyes": "4dd0e1", "width": 1.35, "head_scale": 0.85, "extra": _golem},
     # Les héros

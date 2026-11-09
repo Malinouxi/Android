@@ -234,6 +234,7 @@ static func _blender_room(model_name: String) -> Node3D:
 			"sways": root.find_children("sway_*", "", true, false).filter(is_pivot)}
 	if root.has_node("wisp"):
 		anim["wisp"] = root.get_node("wisp")
+		anim["wisp_y"] = anim["wisp"].position.y # Sa hauteur dans le modèle (il flotte autour).
 	root.set_meta("anim", anim)
 	return root
 
@@ -671,8 +672,7 @@ static func scaffold(type: int, size: Vector2i, step: int) -> Node3D:
 	# 1. L'objet de la salle, encore tout petit.
 	var object := Node3D.new()
 	root.add_child(object)
-	if type in [Rooms.Type.TREASURY, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP, Rooms.Type.TRAINING,
-			Rooms.Type.TEMPLE]:
+	if type in Rooms.MULTI_CELL:
 		object.add_child(furniture(type, size, 0))
 	else:
 		var piece_kind: String = {Rooms.Type.LAIR: "bed", Rooms.Type.FARM: "mushrooms_1",
@@ -775,9 +775,11 @@ static func furniture(type: int, size: Vector2i, extra := 0) -> Node3D:
 	if size.x > size.y:
 		inner.rotation.y = PI / 2
 	var anim := {"flames": [], "sways": []}
-	var model_name: String = {Rooms.Type.TREASURY: "treasury_%d" % clampi(extra, 0, 3),
-			Rooms.Type.LIBRARY: "library", Rooms.Type.WORKSHOP: "workshop", Rooms.Type.TRAINING: "training",
-			Rooms.Type.TEMPLE: "temple"}.get(type, "")
+	var model_name: String = Rooms.MODEL_NAMES.get(type, "")
+	if type == Rooms.Type.TREASURY:
+		model_name = "treasury_%d" % clampi(extra, 0, 3)
+	elif type == Rooms.Type.CRYPT:
+		model_name = "crypt_%d" % clampi(extra, 0, Rules.CRYPT_SLOTS) # Sarcophages occupés.
 	var model := _blender_room(model_name) if Vector2i(short, long) == Rooms.footprint(type) else null
 	if model != null:
 		# Le modèle Blender est fait à la taille de la salle (« footprint »).
@@ -795,6 +797,10 @@ static func furniture(type: int, size: Vector2i, extra := 0) -> Node3D:
 			_arena(inner, short, long, anim)
 		Rooms.Type.TEMPLE:
 			_temple(inner, short, long, anim)
+		_:
+			# Une salle sans modèle Blender (les antres) : une estrade à sa couleur et une caisse.
+			box(inner, Vector3(short - 0.2, 0.08, long - 0.2), Vector3(0, 0.04, 0), Rooms.color(type).lightened(0.2))
+			box(inner, Vector3(0.3, 0.3, 0.3), Vector3(0, 0.23, 0), Color("6d4c41"))
 	root.set_meta("anim", anim)
 	return root
 

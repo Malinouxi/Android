@@ -47,6 +47,13 @@ const TOOL_ROOMS := {
 	Hud.Tool.PRISON: Rooms.Type.PRISON,
 	Hud.Tool.TEMPLE: Rooms.Type.TEMPLE,
 	Hud.Tool.GRAVEYARD: Rooms.Type.GRAVEYARD,
+	Hud.Tool.TAVERN: Rooms.Type.TAVERN,
+	Hud.Tool.INFIRMARY: Rooms.Type.INFIRMARY,
+	Hud.Tool.MINT: Rooms.Type.MINT,
+	Hud.Tool.TORTURE: Rooms.Type.TORTURE,
+	Hud.Tool.GUARDPOST: Rooms.Type.GUARDPOST,
+	Hud.Tool.MANA_WELL: Rooms.Type.MANA_WELL,
+	Hud.Tool.CRYPT: Rooms.Type.CRYPT,
 }
 ## Points de recherche par seconde qu'apporte chaque prisonnier interrogé.
 const PRISONER_RESEARCH := Rules.PRISONER_RESEARCH
@@ -137,6 +144,16 @@ var _hero_spawn_timer := 0.0
 ## Nombre de Champions du royaume vaincus (objectif du niveau 9).
 var _champions_defeated := 0
 var _grave_timer := 0.0
+## Les antres (règles 2.7) : minuteurs de l'Hôtel des monnaies et du Poste de garde,
+## or frappé pas encore rangé, aveux sous la torture (vague déjà révélée, progrès),
+## et progrès de la torture de chaque prisonnier (identifiant -> secondes).
+var _mint_timer := Rules.MINT_INTERVAL
+var _mint_gold := 0.0
+var _guard_timer := 0.0
+var _alarm_cooldown := 0.0
+var _intel_wave := 0
+var _intel_progress := 0.0
+var _torture_progress := {}
 ## Les héros échappés qui reviendront en vétérans (voir nemeses.gd)...
 var nemeses := Nemeses.new()
 ## ... et ceux de la vague en cours qui attendent d'entrer (ils entrent les premiers).
@@ -303,7 +320,7 @@ func _process(delta: float) -> void:
 		save_game()
 
 	# La mana se recharge, plus vite avec un grand territoire.
-	mana = minf(Spells.MAX_MANA, mana + Spells.regen_per_second(map.claimed.size()) * delta)
+	mana = minf(_max_mana(), mana + Spells.regen_per_second(map.claimed.size()) * delta)
 	# On dit aux créatures s'il reste quelque chose à chercher ou à fabriquer.
 	Creature.research_needed = not research.is_done()
 	Creature.workshop_needed = _workshop_target() >= 0
@@ -316,6 +333,7 @@ func _process(delta: float) -> void:
 	_update_waves(delta)
 	_update_rival(delta)
 	_update_graves(delta)
+	_update_dens(delta)
 	_goal_timer -= delta
 	if _goal_timer <= 0.0:
 		_goal_timer = 1.0
@@ -406,6 +424,8 @@ func _add_creature(type: int, cell: Vector2i) -> Creature:
 	creature.died.connect(_on_creature_died)
 	creature.worked.connect(_on_creature_worked)
 	creature.sacrificed.connect(_on_creature_sacrificed)
+	creature.gold_stolen.connect(_on_gold_stolen)
+	creature.raised_hero.connect(_on_hero_raised)
 	creature.leveled_up.connect(func(c: Creature) -> void:
 		Sound.play("level_up", c.position)
 		hud.show_message("%s passe au niveau %d !" % [c.display_name(), c.level], 3.0))
@@ -422,8 +442,20 @@ func _on_creature_worked(room_type: int, amount: float) -> void:
 		research.add_points(amount)
 	elif room_type == Rooms.Type.WORKSHOP:
 		_add_workshop_points(amount)
-	elif room_type == Rooms.Type.TEMPLE:
-		mana = minf(Spells.MAX_MANA, mana + amount)
+	elif room_type == Rooms.Type.TEMPLE or room_type == Rooms.Type.MANA_WELL:
+		mana = minf(_max_mana(), mana + amount)
+	elif room_type == Rooms.Type.MINT:
+		_mint_gold += amount
+		if _mint_gold >= 1.0:
+			var coins := int(_mint_gold)
+			_mint_gold -= coins
+			map.add_gold_to_treasury(coins)
+	elif room_type == Rooms.Type.TORTURE:
+		_torture(amount)
+	elif room_type == Rooms.Type.CRYPT:
+		# Le Nécromancien veille : le premier mort de la Crypte se relève plus vite.
+		if not map.crypt_bodies.is_empty():
+			map.crypt_bodies[0]["time"] = float(map.crypt_bodies[0]["time"]) - amount
 
 
 func _on_research_discovered(item: Dictionary) -> void:
@@ -742,17 +774,7 @@ func _collapse(cell: Vector2i, info: Dictionary) -> bool:
 
 ## Œil du maître : la prochaine vague, les Voleuses démasquées, les secrets proches.
 func _master_eye(world_position: Vector2, info: Dictionary) -> void:
-	var heroes := _planned_heroes(_next_wave)
-	var counts := {}
-	for type in heroes:
-		counts[type] = counts.get(type, 0) + 1
-	var parts: Array[String] = []
-	for type: int in counts:
-		parts.append("%d %s" % [counts[type], Heroes.info(type)["name"]])
-	var champion := " Le Champion du royaume les mène !" if _champion_leads_wave(_next_wave) else ""
-	var veterans := nemeses.waiting.filter(func(e: Dictionary) -> bool: return int(e["return_wave"]) <= _next_wave)
-	var veteran_text := (" Et %d vétéran%s." % [veterans.size(), "s" if veterans.size() > 1 else ""]) if not veterans.is_empty() else ""
-	hud.show_message("L'Œil du maître voit la vague %d : %s.%s%s" % [_next_wave, ", ".join(parts), champion, veteran_text], 8.0)
+	hud.show_message("L'Œil du maître voit la %s" % _wave_intel_text(), 8.0)
 	# Les héros discrets (la Voleuse) sont démasqués.
 	for node in get_tree().get_nodes_in_group("heroes"):
 		var hero := node as Hero
@@ -848,6 +870,188 @@ func _convert_prisoner(world_position: Vector2) -> bool:
 	return true
 
 
+# ---------------------------------------------------------------------------
+# Les antres (règles 2.7) : Hôtel des monnaies, Torture, Poste de garde, Puits, Crypte
+# ---------------------------------------------------------------------------
+
+## La mana maximum : un peu plus avec chaque Puits de mana (MANA_WELL_MAX au plus).
+func _max_mana() -> float:
+	var wells := mini(map.count_rooms(Rooms.Type.MANA_WELL), Rules.MANA_WELL_MAX)
+	return Spells.MAX_MANA + Rules.MANA_WELL_BONUS * wells
+
+
+func _update_dens(delta: float) -> void:
+	_update_mint(delta)
+	_update_guards(delta)
+	_update_crypt(delta)
+
+
+## L'Hôtel des monnaies : les intérêts sur l'or rangé au Trésor.
+func _update_mint(delta: float) -> void:
+	_mint_timer -= delta
+	if _mint_timer > 0.0:
+		return
+	_mint_timer = Rules.MINT_INTERVAL
+	var mints := map.count_rooms(Rooms.Type.MINT)
+	if mints == 0:
+		return
+	var interest := mini(int(map.get_treasury_stored() * Rules.MINT_INTEREST), Rules.MINT_CAP * mints)
+	if interest <= 0:
+		return
+	var stored := map.add_gold_to_treasury(interest)
+	if stored > 0:
+		Sound.play("coins", null, -10.0)
+		hud.show_message("Hôtel des monnaies : +%d or d'intérêts." % stored, 3.0)
+
+
+## Le Diablotin argentier a fait les poches d'un héros.
+func _on_gold_stolen(amount: int, where: Vector2) -> void:
+	if map.add_gold_to_treasury(amount) > 0:
+		Fx.burst("coins", where)
+
+
+## Le Nécromancien a abattu un héros : il se relève en Revenant, pour un temps.
+func _on_hero_raised(where: Vector2, duration: float) -> void:
+	var cell := map.world_to_cell(where)
+	if not map.is_walkable(cell):
+		return
+	var revenant := _add_creature(Creatures.Type.REVENANT, cell)
+	revenant.lifetime = duration
+	revenant.happiness = 100.0
+	Fx.burst("magic", revenant.position, Color("76ff03"))
+	Fx.burst("dust", revenant.position)
+	hud.show_message("Le Nécromancien relève le héros abattu : il te sert pour %d s !" % int(duration), 3.0)
+
+
+## La Chambre de torture : chaque seconde de travail fait parler un prisonnier.
+## Il donne de la recherche, une fois par vague la composition de la vague suivante,
+## et, brisé, il finit par changer de camp (comme le sort Conversion).
+func _torture(amount: float) -> void:
+	research.add_points(Rules.TORTURE_RESEARCH * amount)
+	_intel_progress += amount
+	if _intel_progress >= Rules.TORTURE_INTEL_TIME and _intel_wave != _next_wave:
+		_intel_progress = 0.0
+		_intel_wave = _next_wave
+		hud.show_message("Sous la torture, un prisonnier avoue : %s" % _wave_intel_text(), 8.0)
+	# On travaille le prisonnier le plus avancé (ou le premier venu).
+	var victim: Hero = null
+	for cell: Vector2i in map.prisoners:
+		var hero: Hero = map.prisoners[cell]
+		if not is_instance_valid(hero) or not hero.is_captured():
+			continue
+		if victim == null or float(_torture_progress.get(hero.get_instance_id(), 0.0)) 				> float(_torture_progress.get(victim.get_instance_id(), 0.0)):
+			victim = hero
+	if victim == null:
+		return
+	var id := victim.get_instance_id()
+	_torture_progress[id] = float(_torture_progress.get(id, 0.0)) + amount
+	if _torture_progress[id] >= Rules.TORTURE_CONVERT_TIME:
+		_torture_progress.erase(id)
+		var name := victim.display_name()
+		if _convert_prisoner(map.cell_to_world(victim.prison_cell)):
+			hud.show_message("%s, brisé par la torture, rejoint ton donjon !" % name, 5.0)
+
+
+## Le Poste de garde : les guetteurs en poste démasquent les héros discrets, chassent
+## l'éclaireur avant qu'il ait tout vu, et sonnent l'alarme.
+func _update_guards(delta: float) -> void:
+	_alarm_cooldown -= delta
+	_guard_timer -= delta
+	if _guard_timer > 0.0:
+		return
+	_guard_timer = 0.5
+	var spotted: Hero = null
+	var lookout: Creature = null
+	for creature: Creature in creatures_root.get_children():
+		if not creature.on_guard_duty():
+			continue
+		var post := creature.current_cell()
+		for node in get_tree().get_nodes_in_group("heroes"):
+			var hero := node as Hero
+			if hero == null or not hero.is_targetable() or hero.ignored_as_enemy():
+				continue
+			var cell := hero.current_cell()
+			if maxi(absi(cell.x - post.x), absi(cell.y - post.y)) > Rules.GUARD_RADIUS:
+				continue
+			if hero.stealthy:
+				hero.unmask(1.0) # Le guetteur la voit : tout le monde la voit.
+			if hero.is_scout() and not hero.has_meta("spotted"):
+				hero.set_meta("spotted", true)
+				hero.seen_traps.clear()
+				hero.start_fleeing(false)
+				Fx.text(hero.position, "Repéré !", Color("ffd54a"))
+				hud.show_message("Le guetteur a repéré l'éclaireur : il détale sans avoir rien vu !", 4.0)
+			spotted = hero
+			lookout = creature
+	if spotted == null or _alarm_cooldown > 0.0:
+		return
+	# L'alarme : les créatures proches se réveillent (ou lâchent leur travail) et accourent.
+	_alarm_cooldown = Rules.ALARM_COOLDOWN
+	Sound.play("horn", lookout.position, -6.0)
+	Fx.text(lookout.position, "Alarme !", Color("ff5252"))
+	var post_cell := lookout.current_cell()
+	var roused := 0
+	for creature: Creature in creatures_root.get_children():
+		var cell := creature.current_cell()
+		if creature != lookout and maxi(absi(cell.x - post_cell.x), absi(cell.y - post_cell.y)) <= Rules.ALARM_RADIUS:
+			var before := creature.state
+			creature.alert(spotted)
+			if creature.state != before:
+				roused += 1
+	hud.show_message("Alarme au Poste de garde ! %d créature%s accourent." % [roused, "s" if roused > 1 else ""], 4.0)
+
+
+## La Crypte : les morts se relèvent quand leur temps est venu (et s'il y a la mana).
+func _update_crypt(delta: float) -> void:
+	var bodies := map.crypt_bodies
+	# Une Crypte démolie : les corps en trop reposent en paix.
+	while bodies.size() > map.crypt_capacity():
+		bodies.pop_back()
+	if bodies.is_empty():
+		return
+	for body: Dictionary in bodies:
+		body["time"] = float(body["time"]) - delta
+	var body: Dictionary = bodies[0]
+	if float(body["time"]) > 0.0:
+		return
+	if mana < Rules.CRYPT_MANA:
+		if not body.get("waiting", false):
+			body["waiting"] = true
+			_hint("Un mort attend dans la Crypte : il faut %d mana pour le relever." % int(Rules.CRYPT_MANA))
+		return
+	var spots: Array[Vector2i] = []
+	for cell: Vector2i in map.rooms:
+		if map.rooms[cell] == Rooms.Type.CRYPT and map.is_walkable(cell):
+			spots.append(cell)
+	if spots.is_empty():
+		return
+	mana -= Rules.CRYPT_MANA
+	bodies.pop_front()
+	var creature := _add_creature(int(body["type"]), spots.pick_random())
+	creature.revive(body)
+	Fx.burst("magic", creature.position, Color("b388ff"))
+	Fx.burst("dust", creature.position)
+	Fx.flash_light(creature.position, Color(0.6, 0.4, 1.0), 120.0, 0.6)
+	Sound.play("level_up", creature.position)
+	hud.show_message("%s se relève de la Crypte, plus faible mais revenue d'entre les morts !" %
+			creature.display_name(), 4.0)
+
+
+## La vague suivante, en toutes lettres (Œil du maître, aveux sous la torture).
+func _wave_intel_text() -> String:
+	var heroes := _planned_heroes(_next_wave)
+	var counts := {}
+	for type in heroes:
+		counts[type] = counts.get(type, 0) + 1
+	var parts: Array[String] = []
+	for type: int in counts:
+		parts.append("%d %s" % [counts[type], Heroes.info(type)["name"]])
+	var champion := " Le Champion du royaume les mène !" if _champion_leads_wave(_next_wave) else ""
+	var veterans := nemeses.waiting.filter(func(e: Dictionary) -> bool: return int(e["return_wave"]) <= _next_wave)
+	var veteran_text := (" Et %d vétéran%s." % [veterans.size(), "s" if veterans.size() > 1 else ""]) if not veterans.is_empty() else ""
+	return "vague %d : %s.%s%s" % [_next_wave, ", ".join(parts), champion, veteran_text]
+
+
 ## Rappel : toutes les créatures disponibles apparaissent autour du cœur.
 func _recall_creatures() -> bool:
 	var spots: Array[Vector2i] = []
@@ -888,7 +1092,16 @@ func _on_creature_left(creature: Creature) -> void:
 
 
 func _on_creature_died(unit: Unit) -> void:
-	hud.show_message("Ton %s est mort au combat !" % (unit as Creature).display_name(), 4.0)
+	var creature := unit as Creature
+	hud.show_message("Ton %s est mort au combat !" % creature.display_name(), 4.0)
+	# La Crypte : s'il reste une place, son corps y repose en attendant de revenir.
+	if creature.lifetime > 0.0 or map.crypt_bodies.size() >= map.crypt_capacity():
+		return
+	map.crypt_bodies.append({"type": creature.type, "level": creature.level, "traits": creature.traits.duplicate(),
+			"sprite": creature.sprite_override, "tint": creature.self_modulate.to_html(),
+			"time": Rules.CRYPT_RISE_TIME})
+	_hint("Le corps de ton %s repose dans la Crypte. Il se relèvera bientôt (%d mana)." %
+			[creature.display_name(), int(Rules.CRYPT_MANA)])
 
 
 # ---------------------------------------------------------------------------
@@ -1999,7 +2212,7 @@ func _refresh_hud() -> void:
 	hud.set_payday(ceili(_payday_timer), due, income, map.get_total_gold() + income >= due)
 	hud.set_heart(map.heart_hp, DungeonMap.HEART_MAX_HP)
 	hud.set_next_wave(_next_wave, ceili(_wave_timer))
-	hud.set_mana(mana, Spells.MAX_MANA)
+	hud.set_mana(mana, _max_mana())
 	hud.set_goal(_goal_status_text())
 	var research_text := research.status_text()
 	var workshop_target := _workshop_target()

@@ -31,7 +31,8 @@ enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		ALTAR, SACRIFICE, GRAVEYARD, BRAZIER,
 		SPELL_WEB, SPELL_FIRESTORM, SPELL_TERROR, SPELL_COLLAPSE, SPELL_POSSESSION,
 		SPELL_WHIP, SPELL_FEAST, SPELL_EYE, SPELL_SUMMON, SPELL_TRANSMUTE,
-		SPELL_RAISE, SPELL_CONVERT, SPELL_SANCTUARY, SPELL_RECALL }
+		SPELL_RAISE, SPELL_CONVERT, SPELL_SANCTUARY, SPELL_RECALL,
+		TAVERN, INFIRMARY, MINT, TORTURE, GUARDPOST, MANA_WELL, CRYPT }
 
 var _top_panel: PanelContainer
 ## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
@@ -91,7 +92,7 @@ const LOG_LINES := 30 ## Nombre de messages gardés dans le journal (on remonte 
 const TOP_HEIGHT := 96
 const BOTTOM_HEIGHT := 196 ## Hauteur de la barre du bas (écran de 1280 x 720).
 const TOOL_SIZE := 72 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
-const CATEGORY_SIZE := 60 ## Côté des boutons de catégorie (colonne de gauche).
+const CATEGORY_SIZE := 52 ## Côté des boutons de catégorie (colonne de gauche : 6 catégories).
 const UNIT_SECTION_WIDTH := 370 ## Largeur de la fiche de créature (barre du bas).
 const SIDE_PANEL_WIDTH := 278 ## Largeur de la mini-carte et de l'objectif (à droite).
 ## Hauteur du cadre de la mini-carte : la carte (Minimap.CELL pixels par case) et le cadre.
@@ -115,12 +116,17 @@ const TOOL_ICON_NAMES := {
 	Tool.SPELL_FEAST: "feast", Tool.SPELL_EYE: "eye", Tool.SPELL_SUMMON: "summon",
 	Tool.SPELL_TRANSMUTE: "transmute", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "convert",
 	Tool.SPELL_SANCTUARY: "sanctuary", Tool.SPELL_RECALL: "recall",
+	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "pincers",
+	Tool.GUARDPOST: "watch_horn", Tool.MANA_WELL: "mana_crystal", Tool.CRYPT: "sarcophagus",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
 	"Actions": ["tools", [Tool.DIG, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
 	"Salles": ["arch", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
 			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
+	# Les antres (règles 2.7) : de quoi rendre le donjon plus vivant.
+	"Antres": ["sarcophagus", [Tool.TAVERN, Tool.INFIRMARY, Tool.MINT, Tool.TORTURE, Tool.GUARDPOST,
+			Tool.MANA_WELL, Tool.CRYPT]],
 	"Défenses": ["trident", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
 	# Les sorts de combat...
 	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,

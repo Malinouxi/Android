@@ -432,7 +432,7 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Tout est sauvegardé (escouades, file d'attente, rapport de l'éclaireur, seconde entrée).
   Réglages : partie « Tactiques des héros » de `rules.gd`.
 
-**Étape 43 — Effets des sorts en 3D, lumières et sang** (règles 2.6)
+**Étape 44 — Effets des sorts en 3D, lumières et sang** (règles 2.6)
 
 - **Effets des sorts modélisés dans Blender** (`tools/blender/spell_fx.py` → `assets/models/fx/`) :
   `bolt` (foudre de l'Éclair), `web` (Toile), `flames` (Brasier et tout sol qui brûle), `rocks`

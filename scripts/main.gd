@@ -257,7 +257,6 @@ func _ready() -> void:
 
 	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
-	hud.add_minimap(map, camera)
 	camera.center_on(map.cell_to_world(map.heart_cell))
 	hud.set_summon_cost(WORKER_COST)
 

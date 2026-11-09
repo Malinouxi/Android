@@ -6,7 +6,7 @@ extends CanvasLayer
 ##     ouvriers, vie du cœur, prochaine vague, ouvrier en plus, vitesse, pause ;
 ##   - à gauche : une colonne d'icônes, les catégories d'outils (Actions,
 ##     Salles, Défenses, Sorts, Pouvoirs) ;
-##   - en haut à droite : la mini-carte, puis l'objectif et la recherche ;
+##   - en haut à droite : l'objectif et la recherche ;
 ##   - en bas, une grande barre d'un seul tenant, en trois parties :
 ##     la fiche de la créature touchée, les outils de la catégorie choisie
 ##     (grandes icônes), et le journal des messages (flèches pour remonter).
@@ -41,7 +41,6 @@ var portrait: LordPortrait
 var _bottom_bar: PanelContainer
 var _category_panel: PanelContainer
 var _goal_panel: PanelContainer
-var _minimap_panel: PanelContainer
 ## La partie « fiche » de la barre du bas (toujours là ; vide si rien n'est choisi).
 var _unit_panel: Control
 var _unit_bars: Control
@@ -95,9 +94,9 @@ const BOTTOM_HEIGHT := 196 ## Hauteur de la barre du bas (écran de 1280 x 720).
 const TOOL_SIZE := 72 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
 const CATEGORY_SIZE := 52 ## Côté des boutons de catégorie (colonne de gauche : 6 catégories).
 const UNIT_SECTION_WIDTH := 370 ## Largeur de la fiche de créature (barre du bas).
-const SIDE_PANEL_WIDTH := 278 ## Largeur de la mini-carte et de l'objectif (à droite).
-## Hauteur du cadre de la mini-carte : la carte (Minimap.CELL pixels par case) et le cadre.
-const MINIMAP_PANEL_HEIGHT := DungeonMap.HEIGHT * Minimap.CELL + 28
+const SIDE_PANEL_WIDTH := 278 ## Largeur du panneau de l'objectif (à droite).
+## Marge entre le cadre d'un bouton et son icône : petite, pour que l'icône soit grande.
+const ICON_PADDING := 3.0
 
 ## Les icônes HD (256 x 256, modélisées dans Blender par tools/blender/icons.py).
 static func hd(icon_name: String) -> Texture2D:
@@ -154,7 +153,6 @@ func _ready() -> void:
 	# Le codex s'ouvre par-dessus tout (il marche aussi pendant la pause).
 	codex_pressed.connect(func() -> void: _root.add_child(Codex.new()))
 	_build_top_panel()
-	_build_minimap_panel()
 	_build_goal_panel()
 	_build_bottom_bar()
 	_build_category_panel()
@@ -214,7 +212,7 @@ func _counter(icon_name: String, label: Label, min_width := 0.0) -> PanelContain
 		hd.content_margin_bottom = 4
 	slot.add_theme_stylebox_override("panel", hd if hd != null else style)
 	slot.custom_minimum_size.x = min_width
-	slot.add_child(_with_icon(hd(icon_name), label, 54))
+	slot.add_child(_with_icon(hd(icon_name), label, 58))
 	return slot
 
 
@@ -252,14 +250,14 @@ func _build_top_panel() -> void:
 	var heart_icon := TextureRect.new()
 	heart_icon.texture = hd("heart")
 	heart_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	heart_icon.custom_minimum_size = Vector2(48, 48)
+	heart_icon.custom_minimum_size = Vector2(50, 50)
 	heart_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	heart_box.add_child(heart_icon)
 	_heart_bar = _make_bar(RED, 30)
 	_heart_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_heart_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	heart_box.add_child(_heart_bar)
-	_heart_label = _make_label(18)
+	_heart_label = _make_label(16)
 	_heart_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_heart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_heart_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -279,6 +277,7 @@ func _build_top_panel() -> void:
 	# Un ouvrier de plus : sa grande icône, et le prix en petit dessous.
 	_summon_button = Button.new()
 	_summon_button.custom_minimum_size = Vector2(76, 70)
+	_tight(_summon_button)
 	var summon_box := VBoxContainer.new()
 	summon_box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	summon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -288,7 +287,7 @@ func _build_top_panel() -> void:
 	summon_icon.texture = hd("worker")
 	summon_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	summon_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	summon_icon.custom_minimum_size = Vector2(56, 46)
+	summon_icon.custom_minimum_size = Vector2(62, 50)
 	summon_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	summon_box.add_child(summon_icon)
 	_summon_price = _make_label(14)
@@ -352,7 +351,7 @@ func _build_goal_panel() -> void:
 	_goal_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_goal_panel.offset_right = -8
 	_goal_panel.offset_left = -8
-	_goal_panel.offset_top = TOP_HEIGHT + 8 + MINIMAP_PANEL_HEIGHT + 4 # Sous la mini-carte.
+	_goal_panel.offset_top = TOP_HEIGHT + 8
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
 	_goal_panel.add_child(column)
@@ -410,7 +409,8 @@ func _build_category_panel() -> void:
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 		button.custom_minimum_size = Vector2(CATEGORY_SIZE, CATEGORY_SIZE)
-		button.add_theme_constant_override("icon_max_width", CATEGORY_SIZE - 10)
+		button.add_theme_constant_override("icon_max_width", CATEGORY_SIZE)
+		_tight(button)
 		button.pressed.connect(func() -> void:
 			Sound.play("click")
 			_show_tab(tab_name))
@@ -418,19 +418,6 @@ func _build_category_panel() -> void:
 		_tab_buttons[tab_name] = button
 	_tab_buttons["Actions"].button_pressed = true
 	_show_tab("Actions")
-
-
-## En haut à droite : la mini-carte, dans son cadre de pierre (toucher = y aller).
-func _build_minimap_panel() -> void:
-	_minimap_panel = _framed_panel()
-	_minimap_panel.anchor_left = 1.0
-	_minimap_panel.anchor_right = 1.0
-	_minimap_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_minimap_panel.offset_left = -8
-	_minimap_panel.offset_right = -8
-	_minimap_panel.offset_top = TOP_HEIGHT + 8
-	_minimap_panel.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)
-	_minimap_panel.visible = false # Visible quand main.gd donne la carte (add_minimap).
 
 
 ## La barre du bas, d'un seul tenant : fiche | outils | journal.
@@ -454,8 +441,8 @@ func _build_bottom_bar() -> void:
 		ornament.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 		ornament.offset_left = -32
 		ornament.offset_right = 32
-		ornament.offset_top = -50
-		ornament.offset_bottom = 14
+		ornament.offset_top = -36
+		ornament.offset_bottom = 28
 		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		_root.add_child(ornament)
 
@@ -551,7 +538,8 @@ func _build_log_section(row: HBoxContainer) -> void:
 		button.expand_icon = true
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.custom_minimum_size = Vector2(52, 72)
-		button.add_theme_constant_override("icon_max_width", 32)
+		button.add_theme_constant_override("icon_max_width", 46)
+		_tight(button)
 		button.tooltip_text = "Messages précédents" if arrow[1] < 0 else "Messages suivants"
 		var step: int = arrow[1]
 		button.pressed.connect(func() -> void:
@@ -678,6 +666,17 @@ func _refresh_unit_panel() -> void:
 # ---------------------------------------------------------------------------
 
 ## Une icône suivie d'un texte (pour les compteurs du haut).
+## Des marges intérieures réduites (ICON_PADDING) : l'icône occupe presque tout le
+## bouton au lieu de flotter au milieu d'un grand cadre.
+func _tight(button: Button) -> void:
+	var frames := {"normal": "button_normal", "hover": "button_hover", "pressed": "button_pressed",
+			"hover_pressed": "button_pressed", "disabled": "button_disabled"}
+	for state: String in frames:
+		var box := Ui.hd_frame(frames[state], ICON_PADDING)
+		if box != null:
+			button.add_theme_stylebox_override(state, box)
+
+
 func _with_icon(texture: Texture2D, label: Label, icon_size := 32) -> HBoxContainer:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
@@ -698,8 +697,9 @@ func _make_tool_button(tool: int) -> Button:
 	button.button_group = _tool_group
 	button.button_pressed = tool == Tool.DIG
 	button.custom_minimum_size = Vector2(TOOL_SIZE, TOOL_SIZE)
-	button.add_theme_font_size_override("font_size", 17)
-	button.add_theme_constant_override("icon_max_width", 64)
+	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_constant_override("icon_max_width", TOOL_SIZE)
+	_tight(button)
 	button.pressed.connect(func() -> void:
 		Sound.play("click")
 		_current_tool = tool
@@ -745,16 +745,6 @@ func _update_tool_name() -> void:
 func set_speed(speed: float) -> void:
 	Engine.time_scale = speed
 	_speed_button.text = "x%d" % speed
-
-
-## La mini-carte, en haut à droite (comme sur la photo), au-dessus de l'objectif.
-func add_minimap(map: DungeonMap, camera: CameraController) -> void:
-	var minimap := Minimap.new()
-	minimap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	minimap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_minimap_panel.add_child(minimap)
-	minimap.setup(map, camera)
-	_minimap_panel.visible = true
 
 
 func set_mana(mana: float, max_mana: float) -> void:
@@ -982,7 +972,7 @@ func hide_message() -> void:
 ## Vrai si cette position de l'écran est sur un panneau de l'interface
 ## (pour ne pas agir sur la case cachée sous un bouton).
 func is_over_ui(screen_position: Vector2) -> bool:
-	for panel: Control in [_top_panel, _bottom_bar, _category_panel, _goal_panel, _minimap_panel, portrait]:
+	for panel: Control in [_top_panel, _bottom_bar, _category_panel, _goal_panel, portrait]:
 		if panel != null and panel.visible and panel.get_global_rect().has_point(screen_position):
 			return true
 	return false

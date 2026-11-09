@@ -195,7 +195,9 @@ func _build_ui() -> void:
 		_ui_root.add_child(Codex.new())))
 	column.add_child(_make_button("Réglages", Art.ROOM_PROPS[Rooms.Type.WORKSHOP], func() -> void:
 		_settings_overlay.visible = true))
-	column.add_child(_make_button("Quitter", Art.DOOR, func() -> void: get_tree().quit()))
+	# Dans un navigateur (version web), on ne quitte pas : on ferme l'onglet.
+	if not OS.has_feature("web"):
+		column.add_child(_make_button("Quitter", Art.DOOR, func() -> void: get_tree().quit()))
 
 	# Le bas du panneau : date de la sauvegarde et crédits.
 	var spacer := Control.new()

@@ -1718,9 +1718,13 @@ func _on_menu_pressed() -> void:
 
 ## Godot prévient le jeu quand l'appli passe en arrière-plan (Android) ou quand
 ## on ferme la fenêtre : on sauvegarde pour ne rien perdre.
+## Dans un navigateur (version web), fermer l'onglet ne prévient pas le jeu : on
+## sauvegarde donc dès que la page perd le focus (changement d'onglet, clic ailleurs).
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST \
 			or what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		save_game()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT and OS.has_feature("web"):
 		save_game()
 
 

@@ -467,6 +467,21 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Les unités invoquées pour un temps (ouvrier fantôme, Revenant relevé) ne sont pas sauvegardées.
   Les vieilles sauvegardes gardent leurs découvertes (`Research.OLD_ORDER`).
 
+**Étape 43 — HUD « pierre et fer » d'après la photo de référence, refait dans Blender**
+- **Les cadres** (`tools/blender/hud.py` → `assets/ui_hd/`) ne sont plus une caverne : des **moellons
+  de pierre taillée** (deux rangs en quinconce, longueurs inégales), une **bande de fer rivetée** bordée
+  d'un **liseré de sang**, des **équerres de fer** aux coins. Plus de stalactites (`fringe.png` retiré),
+  ni de cristaux. Le médaillon garde ses cornes et son crâne, avec un anneau de **claveaux**.
+- **Les icônes** (`tools/blender/icons.py`) : plus de galet dessous, **cadrage serré** (l'objet remplit
+  la case, `_fit`), contour plus épais, lumière chaude et **contre-jour rouge**, métaux plus brillants.
+  Six nouvelles icônes : **marteau et pioche croisés**, **arche**, **trident**, **parchemin**, **flèches**.
+- **Nouvelle disposition** (`scripts/hud.gd`), comme sur la photo :
+  - à gauche, une **colonne d'icônes** sans texte (Actions, Salles, Défenses, Sorts, Pouvoirs) ;
+  - en haut à droite, la **mini-carte revient** (4 pixels par case), l'objectif juste dessous ;
+  - en bas, **une seule grande barre** : la **fiche** de la créature (portrait, cœur et barre de vie,
+    humeur, tâche, salaire ; une invitation quand rien n'est choisi), les **outils** (2 rangs de 5) et
+    le **journal**, qui garde 30 messages : les **flèches rouges** remontent l'historique.
+
 **Étape 41 — HUD « caverne » et icônes 3D, le tout fait dans Blender**
 - **Les 30 icônes** (outils, salles, défenses, sorts, compteurs) sont **modélisées en 3D** dans Blender
   (`tools/blender/icons.py` → `assets/icons_hd/`, 256 x 256) : formes lisses, métal et or qui brillent,
@@ -607,6 +622,27 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Des **images** en haut de chaque article (clé `"images"` dans `codex_content.gd`) et une colonne
   d'images dans tous les tableaux (créatures, héros, salles, défenses, sorts, recherche). Les tableaux
   des salles et des défenses montrent aussi le temps de construction.
+
+## Version web (jouer dans le navigateur)
+
+À chaque push, GitHub construit aussi la **version web** du jeu (`.github/workflows/web.yml`, préréglage
+« Web » de `export_presets.cfg`) et la publie sur la branche `gh-pages`.
+
+- **Adresse** : https://malinouxi.github.io/Android/ (PC, tablette ou téléphone, rien à installer).
+- **À faire une seule fois** : sur GitHub, *Settings* > *Pages* > *Build and deployment* > Source
+  « Deploy from a branch », branche `gh-pages`, dossier `/ (root)`, puis *Save*. Une minute plus tard,
+  l'adresse marche.
+- **Dépôt privé** : GitHub Pages n'est gratuit que pour un dépôt **public** (sinon il faut GitHub Pro).
+  Sans Pages, la version web est quand même dans *Actions* > dernier build « Version web » >
+  *Artifacts* > `SeigneurDesProfondeurs-web` (un zip : le décompresser, puis le servir comme indiqué
+  plus bas).
+- La partie est **sauvegardée dans le navigateur** (toutes les 60 s, et quand tu changes d'onglet).
+  Vider les données du site efface la sauvegarde.
+- Le premier chargement télécharge environ 20 Mo (compressés), ensuite le navigateur les garde.
+  Le son démarre après le premier toucher (règle des navigateurs).
+- Sur téléphone, « Ajouter à l'écran d'accueil » l'installe comme une appli (en paysage).
+- Pour tester chez toi sans GitHub : exporte avec Godot (*Projet* > *Exporter* > *Web*), puis
+  `python3 -m http.server` dans le dossier `build/web` et ouvre http://localhost:8000.
 
 ## APK Android (construit par GitHub)
 

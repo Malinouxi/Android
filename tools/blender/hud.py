@@ -1,8 +1,8 @@
 """Les cadres HD du HUD, modélisés dans Blender et rendus en images (assets/ui_hd/).
 
-Une CAVERNE : bords en roche de basalte taillée à facettes, fissures de lave qui
-rougeoient entre les roches, stalactites, grappes de cristaux dans les coins ; le
-médaillon garde son fer riveté, entouré de rochers et de cristaux.
+De la PIERRE ET DU FER : des moellons de pierre brune taillée, une bande de fer
+rivetée bordée d'un liseré de sang, des équerres de fer aux coins ; le médaillon
+garde ses cornes de fer, son anneau de claveaux et son crâne.
 
 Images produites (fond transparent) :
     medallion.png            le médaillon du portrait du Seigneur (centre évidé)
@@ -10,7 +10,6 @@ Images produites (fond transparent) :
     slot.png                 le creux des compteurs de la barre du haut (9 zones)
     button_<état>.png        les boutons : normal, hover, pressed, disabled (9 zones)
     bubble.png               la bulle de parole du Seigneur (9 zones)
-    fringe.png               les stalactites sous la barre du haut (répétées en largeur)
 
 Les images « 9 zones » (StyleBoxTexture dans Godot) : les coins restent nets, les
 bords et le centre se RÉPÈTENT (motif périodique, voir _edge_band). Les ornements
@@ -31,7 +30,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 # Taille des images, et marges « 9 zones » (pixels de l'image).
-SIZES = {"panel": 256, "slot": 128, "button": 128, "bubble": 128, "medallion": 512, "fringe": 256}
+SIZES = {"panel": 256, "slot": 128, "button": 128, "bubble": 128, "medallion": 512}
 # Le jeu les affiche à moitié de leur taille (deux fois plus fines : nettes sur téléphone).
 MARGINS = {"panel": 64, "slot": 32, "button": 32, "bubble": 32}
 
@@ -72,7 +71,7 @@ def _new_scene():
     scene.camera = camera
     # Lumière du haut à gauche (les biseaux s'éclairent en haut, s'ombrent en bas).
     key = bpy.data.objects.new("hud_key", bpy.data.lights.new("hud_key", "SUN"))
-    key.data.energy = 4.0
+    key.data.energy = 6.0
     key.data.color = (1.0, 0.9, 0.8)
     key.data.angle = math.radians(8)
     key.rotation_euler = (math.radians(40), math.radians(-25), math.radians(20))
@@ -141,34 +140,28 @@ def _materials():
     return {
         "stone": _material("hud_stone", "2a201e", rough=0.85, noise=0.35, bump=0.35, scale=9.0),
         "stone_dark": _material("hud_stone_dark", "120c0b", rough=0.9, noise=0.25, bump=0.2, scale=14.0),
-        "iron": _material("hud_iron", "3a3330", metal=0.85, rough=0.45, noise=0.15, bump=0.15, scale=30.0),
-        "iron_dark": _material("hud_iron_dark", "1e1a19", metal=0.8, rough=0.5, bump=0.1, scale=30.0),
-        "rivet": _material("hud_rivet", "8d6e63", metal=0.9, rough=0.3),
-        "gold": _material("hud_gold", "d4a534", metal=1.0, rough=0.28),
-        "ember": _material("hud_ember", "c2410c", emission=2.2),
+        # Les moellons : pierre brune taillée, trois teintes.
+        "block": _material("hud_block", "564539", rough=0.85, noise=0.3, bump=0.45, scale=40.0),
+        "block_alt": _material("hud_block_alt", "45372f", rough=0.85, noise=0.3, bump=0.45, scale=40.0),
+        "block_dark": _material("hud_block_dark", "2f2621", rough=0.9, noise=0.3, bump=0.45, scale=40.0),
+        "iron": _material("hud_iron", "4a4240", metal=0.85, rough=0.42, bump=0.08, scale=60.0),
+        "iron_light": _material("hud_iron_light", "6e625c", metal=0.85, rough=0.38, bump=0.08, scale=60.0),
+        "iron_dark": _material("hud_iron_dark", "2a2422", metal=0.8, rough=0.5, bump=0.08, scale=60.0),
+        "rivet": _material("hud_rivet", "8d7a70", metal=0.9, rough=0.3),
+        "gold": _material("hud_gold", "e0ad3a", metal=1.0, rough=0.28),
+        "ember": _material("hud_ember", "d84315", emission=2.5),
         "blood": _material("hud_blood", "8b1a1a", rough=0.5),
+        "blood_seam": _material("hud_blood_seam", "7a1414", emission=0.8),
+        "gold_seam": _material("hud_gold_seam", "ffc94a", emission=3.5),
         "gem": _material("hud_gem", "ff1744", rough=0.1, emission=1.5),
         "bone": _material("hud_bone", "d8ccb0", rough=0.6, noise=0.12, bump=0.1, scale=20.0),
-        "wood": _material("hud_wood", "7a2e1c", rough=0.7, noise=0.2, bump=0.1, scale=6.0),
-        # La caverne : basalte à facettes, fissures de lave, cristaux.
-        "basalt": _material("hud_basalt", "4f423b", rough=0.8, noise=0.25, bump=0.3, scale=25.0),
-        "basalt_light": _material("hud_basalt_light", "7a675c", rough=0.75, noise=0.25, bump=0.3, scale=25.0),
-        "basalt_alt": _material("hud_basalt_alt", "655349", rough=0.75, noise=0.25, bump=0.3, scale=25.0),
-        "basalt_dark_alt": _material("hud_basalt_dark_alt", "3d322e", rough=0.85, noise=0.2, bump=0.3, scale=25.0),
-        "basalt_dark": _material("hud_basalt_dark", "2e2522", rough=0.85, noise=0.2, bump=0.3, scale=25.0),
-        "gold_rock": _material("hud_gold_rock", "6b5222", metal=0.4, rough=0.5, noise=0.3, bump=0.3, scale=25.0),
-        "lava": _material("hud_lava", "ff5a1f", emission=4.0),
-        "lava_dim": _material("hud_lava_dim", "6e2a12", emission=0.5),
-        "blood_seam": _material("hud_blood_seam", "8b1a1a", emission=1.2),
-        "gold_seam": _material("hud_gold_seam", "ffc94a", emission=4.0),
-        "crystal_red": _material("hud_crystal_red", "c2185b", rough=0.1, emission=0.9),
-        "crystal_gold": _material("hud_crystal_gold", "ffd54a", rough=0.1, emission=2.0),
         # Les fonds : une couleur unie, insensible aux ombres (le jeu les répète).
-        "cave_floor": _flat("hud_cave_floor", "15100f"),
-        "cave_hole": _flat("hud_cave_hole", "0b0807"),
-        "cave_slab": _flat("hud_cave_slab", "2c2321"),
-        "cave_slab_light": _flat("hud_cave_slab_light", "3d302c"),
-        "cave_slab_gold": _flat("hud_cave_slab_gold", "4a3218"),
+        "mortar": _flat("hud_mortar", "0d0908"),
+        "floor": _flat("hud_floor", "120d0c"),
+        "hole": _flat("hud_hole", "080505"),
+        "slab": _flat("hud_slab", "241c1a"),
+        "slab_light": _flat("hud_slab_light", "33281f"),
+        "slab_gold": _flat("hud_slab_gold", "4a2a12"),
     }
 
 
@@ -234,27 +227,13 @@ def _render(scene, path, size, ortho, height=None):
 
 
 # ---------------------------------------------------------------------------
-# Cadres « caverne » : roche taillée, fissures de lave, stalactites, cristaux
+# Cadres « pierre et fer » : moellons taillés, bande de fer rivetée, liseré de sang
 # ---------------------------------------------------------------------------
 #
-# Chaque cadre est un carré de 1 x 1 (le rendu le cadre tout juste). La bande de
-# roches de chaque bord se RÉPÈTE (le jeu la répète au lieu de l'étirer) : les
-# roches du segment du milieu (de -0,25 à 0,25) sont recopiées à ±0,5, pour que
-# le motif se raccorde sans couture. Les coins (0,25 x 0,25) portent les ornements.
-
-def _rock(scene, mat, at, size, rng, squash=0.7, facets=1):
-    """Un rocher à facettes (une icosphère cabossée), posé en « at »."""
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=facets, radius=1.0, location=(0, 0, 0))
-    obj = bpy.context.active_object
-    for v in obj.data.vertices:
-        v.co *= 1.0 + rng.uniform(-0.22, 0.22)
-    obj.scale = (size * rng.uniform(0.85, 1.25), size * rng.uniform(0.75, 1.1), size * squash)
-    obj.rotation_euler = (rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), rng.uniform(0, math.pi))
-    obj.location = at
-    obj.data.materials.append(mat)
-    _relink(scene, obj)
-    return obj
-
+# Chaque cadre est un carré de 1 x 1 (le rendu le cadre tout juste). Les bords se
+# RÉPÈTENT (le jeu les répète au lieu de les étirer) : tout ce qui est posé sur le
+# segment du milieu (de -0,25 à 0,25) est recopié à ±0,5, pour que le motif se
+# raccorde sans couture. Les coins (0,25 x 0,25) portent les équerres de fer.
 
 def _copy(scene, obj, offset):
     twin = obj.copy()  # Même maillage : les copies du motif sont identiques.
@@ -263,171 +242,157 @@ def _copy(scene, obj, offset):
     return twin
 
 
-def _edge_band(scene, m, band, rock_mat, seam_mat, seed, rock_size, count, inset=0.02):
-    """Les quatre bords : une bande de roches, une fissure lumineuse côté intérieur.
-    Le motif est le même sur chaque bord, tourné, et périodique (période 0,5)."""
-    rng = random.Random(seed)
-    pattern = []
-    for k in range(count):
-        t = -0.25 + (k + rng.uniform(0.1, 0.9)) * 0.5 / count
-        across = rng.uniform(0.2, 1.05) * band
-        size = rock_size * rng.uniform(0.8, 1.4)
-        pattern.append((t, across, size, rng.random() * 1e6))
+def _repeat(scene, obj, rot):
+    """Recopie un morceau du motif à ±0,5 le long de son bord."""
+    for shift in (-0.5, 0.5):
+        _copy(scene, obj, rot @ Vector((shift, 0, 0)))
+
+
+def _edges():
+    """Les quatre bords : (angle, rotation) ; 0 = haut, puis gauche, bas, droite."""
     for edge in range(4):
-        angle = edge * math.pi / 2  # 0 : haut, puis gauche, bas, droite (sens trigonométrique).
-        rot = Matrix.Rotation(angle, 4, "Z")
-        # La bande de fond (continue : pas de trou entre les roches).
-        base = _box(scene, "band", m["basalt_dark"], (0, 0, 0), (1.0 - 2 * inset, band, 0.04), bevel=0.0)
-        base.location = rot @ Vector((0, 0.5 - inset - band / 2, -0.02))
+        angle = edge * math.pi / 2
+        yield angle, Matrix.Rotation(angle, 4, "Z")
+
+
+def _masonry(scene, m, inset, band, seed, per_period=4, rows=2, mats=("block", "block_alt", "block_dark")):
+    """Une bande de moellons taillés le long des quatre bords (en quinconce)."""
+    rng = random.Random(seed)
+    length = 0.5 / per_period
+    row_h = band / rows
+    gap = 0.012
+    for angle, rot in _edges():
+        for row in range(rows):
+            shift = (length / 2) * (row % 2)
+            across = 0.5 - inset - row_h * (row + 0.5)
+            # Des moellons de longueurs inégales (la période de 0,5 reste exacte).
+            cuts = sorted(rng.uniform(0.25, 0.75) * length + length * k for k in range(per_period))
+            cuts = [0.0] + [c - cuts[0] for c in cuts[1:]] + [0.5]
+            for k in range(per_period):
+                size = cuts[k + 1] - cuts[k]
+                t = -0.25 + cuts[k] + size / 2 + shift
+                if t > 0.25:
+                    t -= 0.5
+                local = random.Random(rng.random())
+                depth = 0.06 + local.uniform(-0.02, 0.02)
+                block = _box(scene, "block", m[local.choice(mats)], (0, 0, 0),
+                             (size - gap, row_h - gap * local.uniform(1.0, 2.0), depth), bevel=0.016, segments=3)
+                block.location = rot @ Vector((t, across, depth / 2 - 0.03))
+                block.rotation_euler = (local.uniform(-0.03, 0.03), local.uniform(-0.03, 0.03), angle)
+                _repeat(scene, block, rot)
+    # Le mortier sombre sous les moellons (uni : il se répète sans couture).
+    for angle, rot in _edges():
+        base = _box(scene, "mortar", m["mortar"], (0, 0, 0), (1.0 - 2 * inset, band, 0.02))
+        base.location = rot @ Vector((0, 0.5 - inset - band / 2, -0.035))
         base.rotation_euler = (0, 0, angle)
-        if seam_mat:
-            seam = _box(scene, "seam", m[seam_mat], (0, 0, 0), (1.0 - 2 * (inset + band), 0.03, 0.02), bevel=0.0)
-            seam.location = rot @ Vector((0, 0.5 - inset - band - 0.008, -0.025))
-            seam.rotation_euler = (0, 0, angle)
-        for t, across, size, rock_seed in pattern:
-            local = random.Random(rock_seed)
-            shade = m[rock_mat] if local.random() < 0.65 else m.get(rock_mat + "_alt", m[rock_mat])
-            rock = _rock(scene, shade, rot @ Vector((t, 0.5 - inset - across, 0.0)), size, local)
-            rock.rotation_euler.z += angle
-            for shift in (-0.5, 0.5):
-                _copy(scene, rock, rot @ Vector((shift, 0, 0)))
-            # Une petite braise entre deux roches, de temps en temps.
-            if seam_mat and local.random() < 0.35:
-                ember = _rock(scene, m[seam_mat], rot @ Vector((t + size * 0.9, 0.5 - inset - across, -0.01)),
-                              size * 0.25, local, squash=0.5, facets=1)
-                for shift in (-0.5, 0.5):
-                    _copy(scene, ember, rot @ Vector((shift, 0, 0)))
 
 
-def _stalactite(scene, mat, top, length, radius, rng, direction=(0, -1, 0)):
-    """Une stalactite : un cône irrégulier qui pend depuis « top »."""
-    bpy.ops.mesh.primitive_cone_add(vertices=7, radius1=radius, radius2=0.0, depth=length)
-    obj = bpy.context.active_object
-    for v in obj.data.vertices:
-        if v.co.z < length * 0.4:
-            v.co.x *= 1.0 + rng.uniform(-0.25, 0.25)
-            v.co.y *= 1.0 + rng.uniform(-0.25, 0.25)
-    d = Vector(direction).normalized()
-    obj.rotation_euler = Vector((0, 0, 1)).rotation_difference(d).to_euler()
-    obj.rotation_euler.rotate_axis("Z", rng.uniform(0, 1))
-    obj.location = Vector(top) + d * (length / 2)
-    obj.data.materials.append(mat)
-    _relink(scene, obj)
-    return obj
+def _iron_strip(scene, m, along, width, rivets_per_period=2, rivet=0.012, seam=True, mat="iron"):
+    """Une bande de fer plate (côté intérieur), rivetée, avec un fin liseré de sang dessous."""
+    for angle, rot in _edges():
+        strip = _box(scene, "strip", m[mat], (0, 0, 0), (1.0, width, 0.02), bevel=0.004, segments=2)
+        strip.location = rot @ Vector((0, along, 0.03))
+        strip.rotation_euler = (0, 0, angle)
+        if seam:
+            line = _box(scene, "seam", m["blood_seam"], (0, 0, 0), (1.0, 0.012, 0.01))
+            line.location = rot @ Vector((0, along - width / 2 - 0.006, 0.015))
+            line.rotation_euler = (0, 0, angle)
+        for k in range(rivets_per_period):
+            t = -0.25 + 0.5 * (k + 0.5) / rivets_per_period
+            r = _rivet(scene, m["rivet"], rot @ Vector((t, along, 0.045)), rivet)
+            _repeat(scene, r, rot)
 
 
-def _crystals(scene, mat, base, rng, count=3, size=0.06, lean=0.0):
-    """Une grappe de cristaux (prismes à six faces à pointe), qui luisent."""
-    for k in range(count):
-        h = size * rng.uniform(1.6, 2.6)
-        r = size * rng.uniform(0.25, 0.4)
-        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=r, depth=h)
-        prism = bpy.context.active_object
-        bm = bmesh.new()
-        bm.from_mesh(prism.data)
-        cap = [f for f in bm.faces if f.normal.z > 0.9]
-        bmesh.ops.poke(bm, faces=cap, offset=r * 1.2)
-        bm.to_mesh(prism.data)
-        bm.free()
-        tilt = lean + (k - (count - 1) / 2) * 0.45 + rng.uniform(-0.15, 0.15)
-        prism.rotation_euler = (math.radians(70), 0, tilt)
-        prism.location = Vector(base) + Vector((math.sin(tilt) * h * 0.3, -math.cos(tilt) * h * 0.3, 0.03))
-        prism.data.materials.append(mat)
-        _relink(scene, prism)
-
-
-def _corner_ornaments(scene, m, inset, band, rng, top_style, bottom_style, scale=1.0):
-    """Les coins : gros rochers, et une stalactite (haut) ou des cristaux (bas)."""
+def _corner_brackets(scene, m, inset, size, thick, gold=False, rivet=0.016):
+    """Les équerres de fer des quatre coins (en L, biseautées), avec des rivets."""
     for sx in (-1, 1):
         for sy in (-1, 1):
-            c = Vector((sx * (0.5 - inset - band * 0.55), sy * (0.5 - inset - band * 0.55), 0.01))
-            _rock(scene, m["basalt"], c, band * 0.75 * scale, rng, squash=0.8)
-            _rock(scene, m["basalt_light"], c + Vector((-sx * band * 0.5, sy * band * 0.15, 0.02)), band * 0.45 * scale,
-                  rng, squash=0.7)
-            style = top_style if sy > 0 else bottom_style
-            inward = Vector((-sx, -sy, 0)).normalized()
-            if style == "stalactite":
-                for k, (dx, length) in enumerate(((-0.45, 1.7), (-0.05, 1.1))):
-                    _stalactite(scene, m["basalt_light"], c + Vector((sx * band * dx, -band * 0.3, 0.04 + k * 0.01)),
-                                band * length * scale, band * 0.24 * scale, rng)
-            elif style:
-                _crystals(scene, m[style], c + inward * band * 0.5, rng, count=3, size=band * 0.5 * scale,
-                          lean=math.atan2(-sx, sy) * 0.4)
+            cx = sx * (0.5 - inset)
+            cy = sy * (0.5 - inset)
+            # Les deux bras du L.
+            _box(scene, "bracket", m["iron"], (cx - sx * size / 2, cy - sy * thick / 2, 0.06),
+                 (size, thick, 0.04), bevel=0.012)
+            _box(scene, "bracket", m["iron"], (cx - sx * thick / 2, cy - sy * size / 2, 0.06),
+                 (thick, size, 0.04), bevel=0.012)
+            # Une plaque en losange au coin, et son gros rivet.
+            boss = _box(scene, "boss", m["gold" if gold else "iron"], (cx - sx * thick / 2, cy - sy * thick / 2, 0.07),
+                        (thick * 0.95, thick * 0.95, 0.03), bevel=0.008)
+            boss.rotation_euler.z = math.pi / 4
+            _rivet(scene, m["gold" if gold else "rivet"], (cx - sx * thick / 2, cy - sy * thick / 2, 0.09), rivet * 1.2)
+            for along in (0.55, 0.9):
+                _rivet(scene, m["rivet"], (cx - sx * size * along, cy - sy * thick / 2, 0.07), rivet)
+                _rivet(scene, m["rivet"], (cx - sx * thick / 2, cy - sy * size * along, 0.07), rivet)
 
 
-def _plate(scene, m, inset, mat="cave_floor"):
+def _plate(scene, m, inset, mat="floor"):
     _box(scene, "plate", m[mat], (0, 0, -0.06), (1.0 - 2 * inset - 0.02, 1.0 - 2 * inset - 0.02, 0.04), bevel=0.0)
 
 
 def render_panel(scene, m, out):
+    """Le grand cadre : deux rangs de moellons, la bande de fer rivetée, des équerres."""
     _clear(scene)
-    rng = random.Random(7)
-    band = 0.12
+    inset, band = 0.012, 0.15
     _plate(scene, m, 0.03)
-    _edge_band(scene, m, band, "basalt", "lava", seed=11, rock_size=0.05, count=5)
-    _corner_ornaments(scene, m, 0.02, band, rng, "stalactite", "crystal_red")
+    _masonry(scene, m, inset, band, seed=11, per_period=3, rows=2)
+    _iron_strip(scene, m, 0.5 - inset - band - 0.025, 0.05, rivets_per_period=2, rivet=0.016)
+    _corner_brackets(scene, m, inset, 0.235, 0.085, rivet=0.02)
     _render(scene, os.path.join(out, "panel.png"), SIZES["panel"], 1.0)
 
 
 def render_slot(scene, m, out):
+    """Le creux des compteurs : un rebord de fer riveté autour d'un fond noir."""
     _clear(scene)
-    rng = random.Random(3)
-    _plate(scene, m, 0.03, mat="cave_hole")
-    _edge_band(scene, m, 0.1, "basalt_dark", "blood_seam", seed=5, rock_size=0.05, count=4)
-    _corner_ornaments(scene, m, 0.02, 0.1, rng, None, None, scale=0.8)
+    _plate(scene, m, 0.03, mat="hole")
+    for angle, rot in _edges():
+        rim = _box(scene, "rim", m["iron"], (0, 0, 0), (1.0, 0.16, 0.05), bevel=0.025, segments=3)
+        rim.location = rot @ Vector((0, 0.5 - 0.02 - 0.08, 0.0))
+        rim.rotation_euler = (0, 0, angle)
+        line = _box(scene, "seam", m["blood_seam"], (0, 0, 0), (1.0, 0.02, 0.01))
+        line.location = rot @ Vector((0, 0.5 - 0.18 - 0.01, -0.01))
+        line.rotation_euler = (0, 0, angle)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            _rivet(scene, m["rivet"], (sx * 0.4, sy * 0.4, 0.05), 0.04)
     _render(scene, os.path.join(out, "slot.png"), SIZES["slot"], 1.0)
 
 
 BUTTON_STATES = {
-    # état : (fond, roches, fissure, cristaux)
-    "normal": ("cave_slab", "basalt", "lava_dim", None),
-    "hover": ("cave_slab_light", "basalt_light", "lava", None),
-    "pressed": ("cave_slab_gold", "gold_rock", "gold_seam", "crystal_gold"),
-    "disabled": ("cave_hole", "basalt_dark", None, None),
+    # état : (fond, fer du rebord, liseré, rivets)
+    "normal": ("slab", "iron", "blood_seam", "rivet"),
+    "hover": ("slab_light", "iron_light", "ember", "rivet"),
+    "pressed": ("slab_gold", "gold", "gold_seam", "gold"),
+    "disabled": ("hole", "iron_dark", None, "iron_dark"),
 }
 
 
 def render_buttons(scene, m, out):
-    for state, (slab, rock, seam, crystal) in BUTTON_STATES.items():
+    """Les boutons : une dalle de pierre dans un rebord de fer biseauté, rivets aux coins.
+    Enfoncé (outil choisi) : rebord d'or et dalle qui rougeoie, comme sur la photo."""
+    for state, (slab, rim_mat, seam, rivet) in BUTTON_STATES.items():
         _clear(scene)
-        rng = random.Random(21)
         _plate(scene, m, 0.03, mat=slab)
-        _edge_band(scene, m, 0.11, rock, seam, seed=23, rock_size=0.065, count=3)
-        _corner_ornaments(scene, m, 0.02, 0.11, rng, None, crystal, scale=0.9)
+        for angle, rot in _edges():
+            rim = _box(scene, "rim", m[rim_mat], (0, 0, 0), (1.0, 0.11, 0.06), bevel=0.028, segments=4)
+            rim.location = rot @ Vector((0, 0.5 - 0.015 - 0.055, 0.0))
+            rim.rotation_euler = (0, 0, angle)
+            if seam:
+                line = _box(scene, "seam", m[seam], (0, 0, 0), (1.0, 0.018, 0.01))
+                line.location = rot @ Vector((0, 0.5 - 0.125 - 0.009, -0.02))
+                line.rotation_euler = (0, 0, angle)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                _rivet(scene, m[rivet], (sx * 0.43, sy * 0.43, 0.06), 0.032)
         _render(scene, os.path.join(out, "button_%s.png" % state), SIZES["button"], 1.0)
 
 
 def render_bubble(scene, m, out):
+    """La bulle de parole du Seigneur : un petit cadre de moellons et de fer riveté."""
     _clear(scene)
-    rng = random.Random(9)
     _plate(scene, m, 0.03)
-    _edge_band(scene, m, 0.1, "basalt", "lava", seed=13, rock_size=0.06, count=3)
-    _corner_ornaments(scene, m, 0.02, 0.1, rng, None, None, scale=0.85)
+    _masonry(scene, m, 0.015, 0.16, seed=13, per_period=2, rows=1)
+    _iron_strip(scene, m, 0.5 - 0.015 - 0.16 - 0.02, 0.05, rivets_per_period=1, rivet=0.025)
+    _corner_brackets(scene, m, 0.015, 0.26, 0.11, rivet=0.028)
     _render(scene, os.path.join(out, "bubble.png"), SIZES["bubble"], 1.0)
-
-
-def render_fringe(scene, m, out):
-    """Les stalactites qui pendent sous la barre du haut (motif répété en largeur,
-    période 1 : chaque pièce est recopiée à ±1)."""
-    _clear(scene)
-    rng = random.Random(31)
-    height = 0.25  # L'image fait 4 fois plus large que haut.
-    top = height / 2
-    pieces = []
-    for k in range(7):
-        x = -0.5 + (k + rng.uniform(0.15, 0.85)) / 7
-        pieces.append(_rock(scene, m["basalt"], (x, top - 0.02, 0.0), rng.uniform(0.035, 0.06), rng, squash=0.8))
-        length = rng.uniform(0.07, 0.19)
-        pieces.append(_stalactite(scene, m["basalt_light"], (x + rng.uniform(-0.02, 0.02), top - 0.03, 0.01),
-                                  length, rng.uniform(0.018, 0.03), rng))
-        if rng.random() < 0.5:
-            drop = _rock(scene, m["lava"], (pieces[-1].location.x, top - 0.03 - length - 0.012, 0.01), 0.008, rng,
-                         squash=1.2)
-            pieces.append(drop)
-    for piece in pieces:
-        for shift in (-1.0, 1.0):
-            _copy(scene, piece, (shift, 0, 0))
-    _render(scene, os.path.join(out, "fringe.png"), SIZES["fringe"], 1.0, height=SIZES["fringe"] // 4)
 
 
 # ---------------------------------------------------------------------------
@@ -490,7 +455,16 @@ def render_medallion(scene, m, out):
         bpy.data.objects.remove(obj, do_unlink=True)
     # De l'extérieur vers l'intérieur (rayon total de l'image : 1,0 ; cornes en plus).
     _ring(scene, "outer_iron", m["iron"], 0.92, 0.07, 0.1, z=0.0, bevel=0.02)
-    _ring(scene, "stone", m["stone"], 0.83, 0.12, 0.14, z=0.02, bevel=0.03)
+    # L'anneau de pierre : des moellons taillés en claveaux, comme une voûte.
+    _ring(scene, "mortar", m["mortar"], 0.83, 0.13, 0.08, z=0.0, bevel=0.0)
+    rng = random.Random(17)
+    count = 20
+    for k in range(count):
+        angle = 2 * math.pi * k / count
+        block = _box(scene, "voussoir", m[rng.choice(("block", "block_alt", "block_dark"))], (0, 0, 0),
+                     (0.12, 2 * math.pi * 0.83 / count - 0.012, 0.13 + rng.uniform(-0.02, 0.02)), bevel=0.012)
+        block.location = (math.cos(angle) * 0.83, math.sin(angle) * 0.83, 0.02)
+        block.rotation_euler = (0, 0, angle)
     _ring(scene, "ember", m["ember"], 0.765, 0.016, 0.08, z=0.04, bevel=0.004)
     _ring(scene, "inner_iron", m["iron"], 0.738, 0.04, 0.12, z=0.05, bevel=0.01)
     _ring(scene, "inner_gold", m["gold"], 0.714, 0.012, 0.1, z=0.07, bevel=0.003)
@@ -510,19 +484,6 @@ def render_medallion(scene, m, out):
         claw.data.materials.append(m["iron_dark"])
         _relink(scene, claw)
         _rivet(scene, m["gold"], (math.cos(angle) * 0.875, math.sin(angle) * 0.875, 0.1), 0.03)
-    # La caverne : des rochers accrochés autour de l'anneau, et deux grappes de cristaux.
-    rng = random.Random(17)
-    for k in range(16):
-        angle = math.radians(200 + k * 140 / 15)  # Le bas et les côtés (le haut garde ses cornes).
-        if abs(math.degrees(angle) - 270) < 14:
-            continue  # La place du crâne.
-        radius = 0.97 + rng.uniform(-0.02, 0.03)
-        _rock(scene, m["basalt" if k % 3 else "basalt_light"], (math.cos(angle) * radius, math.sin(angle) * radius, 0.02),
-              rng.uniform(0.06, 0.1), rng, squash=0.8)
-    for angle in (205, 335):
-        a = math.radians(angle)
-        _crystals(scene, m["crystal_red"], (math.cos(a) * 1.0, math.sin(a) * 1.0, 0.06), rng, count=3, size=0.07,
-                  lean=a - math.pi / 2)
     # Les cornes de fer au sommet.
     for side in (-1, 1):
         _horn(scene, m["iron_dark"], m["iron"], side)
@@ -562,7 +523,6 @@ def render_all(out):
     render_slot(scene, m, out)
     render_buttons(scene, m, out)
     render_bubble(scene, m, out)
-    render_fringe(scene, m, out)
     render_medallion(scene, m, out)
     return scene
 

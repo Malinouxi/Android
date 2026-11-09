@@ -1,9 +1,9 @@
 """Les ICÔNES HD de l'interface, modélisées en 3D dans Blender (assets/icons_hd/<nom>.png).
 
 Remplace les dessins 2D de tools/icons_hd.py. Chaque icône est un petit objet en
-3D (formes lisses, biseautées, métal et or qui brillent, magie qui luit), posé
-sur un GALET de roche sombre, éclairé comme dans une caverne : lumière chaude en
-haut à gauche, reflet froid derrière, braise par en dessous. Un contour sombre
+3D (formes lisses, biseautées, métal et or qui brillent, magie qui luit), cadré
+au plus près pour remplir la case, éclairé comme sur la photo de référence :
+lumière chaude en haut à gauche, contre-jour rouge derrière, braise par en dessous. Un contour sombre
 (Freestyle) garde la silhouette lisible même quand l'icône est toute petite.
 Images de 256 x 256 (fond transparent) : le jeu les affiche entre 32 et 64 pixels,
 elles restent donc nettes sur un écran de téléphone.
@@ -29,7 +29,9 @@ from mathutils import Vector
 
 SIZE = 256           # Taille des images.
 ORTHO = 2.2         # Largeur vue par la caméra (mètres).
-LINE = 2.2           # Épaisseur du contour (pixels de l'image).
+LINE = 3.4           # Épaisseur du contour (pixels de l'image).
+THIN_LINES = {"web": 1.3, "cage": 1.6, "rune": 1.6, "bookshelf": 2.0, "recall": 2.2}  # Contour plus fin : objets ajourés.
+MARGIN = 1.1         # Le cadrage serré : l'objet remplit la case, avec 10 % de marge.
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +82,8 @@ def _setup(scene):
     world = bpy.data.worlds.get("icons_world") or bpy.data.worlds.new("icons_world")
     world.use_nodes = True
     background = next(n for n in world.node_tree.nodes if n.type == "BACKGROUND")
-    background.inputs["Color"].default_value = (0.42, 0.33, 0.28, 1.0)
-    background.inputs["Strength"].default_value = 1.0
+    background.inputs["Color"].default_value = (0.8, 0.7, 0.64, 1.0)  # Ce que reflètent les métaux.
+    background.inputs["Strength"].default_value = 1.1
     scene.world = world
 
     camera = bpy.data.objects.new("icon_cam", bpy.data.cameras.new("icon_cam"))
@@ -101,9 +103,9 @@ def _setup(scene):
         light.rotation_euler = [math.radians(a) for a in rotation]
         scene.collection.objects.link(light)
 
-    sun("icon_key", 5.5, (1.0, 0.88, 0.75), (50, -35, -30))     # Chaude, en haut à gauche.
-    sun("icon_rim", 3.0, (0.6, 0.75, 1.0), (-60, 30, 160))     # Froide, derrière : détache la silhouette.
-    sun("icon_ember", 1.4, (1.0, 0.4, 0.15), (-110, 0, 10))    # Braise, par en dessous.
+    sun("icon_key", 6.5, (1.0, 0.86, 0.68), (50, -35, -30))     # Chaude, en haut à gauche.
+    sun("icon_rim", 4.5, (1.0, 0.3, 0.15), (-60, 30, 160))     # Contre-jour rouge : détache la silhouette.
+    sun("icon_ember", 1.2, (1.0, 0.45, 0.15), (-110, 0, 10))   # Braise, par en dessous.
 
 
 def _render(scene, path):
@@ -170,16 +172,16 @@ def _palette():
         "stone_light": mat("stone_light", "8d847c", rough=0.85, bump=0.3, scale=8.0),
         "stone_dark": mat("stone_dark", "2b2624", rough=0.9, bump=0.4, scale=8.0),
         "moss": mat("moss", "3f6b2a", rough=0.95, bump=0.3, scale=20.0),
-        "wood": mat("wood", "8a5530", rough=0.7, bump=0.25, scale=4.0),
+        "wood": mat("wood", "7a3a22", rough=0.7, bump=0.25, scale=4.0),
         "wood_dark": mat("wood_dark", "5a3418", rough=0.75, bump=0.25, scale=4.0),
-        "steel": mat("steel", "c9d2d8", metal=1.0, rough=0.25),
+        "steel": mat("steel", "d8d2ca", metal=1.0, rough=0.22),
         "iron": mat("iron", "5a5450", metal=0.9, rough=0.45),
         "iron_dark": mat("iron_dark", "2e2a28", metal=0.85, rough=0.5),
-        "gold": mat("gold", "ffd560", metal=1.0, rough=0.32, emission=0.25),
+        "gold": mat("gold", "ffcc4a", metal=1.0, rough=0.28, emission=0.3),
         "leather": mat("leather", "5c3a22", rough=0.6, bump=0.15, scale=30.0),
         "bone": mat("bone", "efe6d2", rough=0.55, bump=0.1, scale=12.0),
         "dark": mat("dark", "120807", rough=0.8),
-        "red": mat("red", "d32f2f", rough=0.45, coat=0.4),
+        "red": mat("red", "c62020", rough=0.35, coat=0.8),
         "skin_red": mat("skin_red", "c62828", rough=0.55),
         "white": mat("white", "f4f1ea", rough=0.6),
         "straw": mat("straw", "d9b65a", rough=0.85, bump=0.4, scale=40.0),
@@ -528,16 +530,16 @@ def dummy(m):
 
 
 def cage(m):
-    iron = m["iron_dark"]
+    iron = m["iron"]
     cyl(iron, (0, 0, -0.55), 0.6, 0.12, bevel=0.03)
     ring(iron, (0, 0, 0.45), 0.57, 0.04)
     ring(iron, (0, 0, -0.05), 0.57, 0.03)
     for i in range(12):
         a = 2 * math.pi * i / 12
         x, y = math.cos(a) * 0.57, math.sin(a) * 0.57
-        cyl(m["iron"], (x, y, -0.05), 0.028, 1.0, bevel=0.0, vertices=12)
+        cyl(m["steel"], (x, y, -0.05), 0.04, 1.0, bevel=0.0, vertices=12)
         if i % 2 == 0:
-            tube(m["iron"], [(x, y, 0.45), (x * 0.7, y * 0.7, 0.75), (0, 0, 0.88)], [0.025, 0.025, 0.025])
+            tube(m["steel"], [(x, y, 0.45), (x * 0.7, y * 0.7, 0.75), (0, 0, 0.88)], [0.035, 0.035, 0.035])
     ring(m["iron"], (0, 0, 0.98), 0.09, 0.025, rot=(math.radians(90), 0, 0))
     ball(m["bone"], (-0.15, 0.1, -0.38), 0.14, scale=(1, 1, 0.9))
     ball(m["dark"], (-0.2, -0.02, -0.36), 0.035)
@@ -590,13 +592,13 @@ def spikes(m):
 def rune(m):
     g = group((0, 0, 0.05))
     g.rotation_euler = (math.radians(-12), 0, 0)
-    cyl(m["stone_dark"], (0, 0, 0), 0.82, 0.14, rot=(math.radians(90), 0, 0), bevel=0.04, parent=g)
+    cyl(m["stone"], (0, 0, 0), 0.82, 0.14, rot=(math.radians(90), 0, 0), bevel=0.04, parent=g)
     ring(m["glow_orange"], (0, -0.08, 0), 0.68, 0.035, rot=(math.radians(90), 0, 0), parent=g)
     ring(m["fire"], (0, -0.08, 0), 0.45, 0.02, rot=(math.radians(90), 0, 0), parent=g)
     star = [(math.cos(math.radians(90 + i * 144)) * 0.62, -0.085, math.sin(math.radians(90 + i * 144)) * 0.62)
             for i in range(6)]
     for a, b in zip(star, star[1:]):
-        tube(m["fire_core"], [a, b], [0.022, 0.022], parent=g)
+        tube(m["fire_core"], [a, b], [0.035, 0.035], parent=g)
     ball(m["fire_core"], (0, -0.1, 0), 0.09, parent=g)
 
 
@@ -666,11 +668,11 @@ def bolt(m):
 
 def haste(m):
     arrow = [(-0.6, 0.08), (0.2, 0.08), (0.2, 0.22), (0.62, 0.0), (0.2, -0.22), (0.2, -0.08), (-0.6, -0.08)]
-    cyan = mat("haste", "00e5ff", rough=0.2, emission=1.5)
+    cyan = mat("haste", "ff9100", rough=0.2, emission=1.5)
     for dz, dx in ((0.55, 0.15), (0.12, 0.3), (-0.31, 0.15)):
         plate(cyan, [(x + dx, z + dz) for x, z in arrow], 0.14, bevel=0.03)
         for k in range(2):
-            box(mat("haste_trail", "84ffff", emission=1.0), (-0.72 + dx - k * 0.18, 0, dz), (0.1 - k * 0.03, 0.06, 0.05),
+            box(mat("haste_trail", "ffd180", emission=1.0), (-0.72 + dx - k * 0.18, 0, dz), (0.1 - k * 0.03, 0.06, 0.05),
                 bevel=0.01)
 
 
@@ -789,14 +791,14 @@ def web(m):
     spokes = 8
     for k in range(spokes):
         a = math.radians(k * 360 / spokes + 10)
-        tube(silk, [center, (math.cos(a) * 0.82, 0, center[2] + math.sin(a) * 0.8)], [0.045, 0.035])
+        tube(silk, [center, (math.cos(a) * 0.82, 0, center[2] + math.sin(a) * 0.8)], [0.05, 0.04])
     for r in (0.22, 0.42, 0.62, 0.8):
         pts = []
         for k in range(spokes + 1):
             a = math.radians(k * 360 / spokes + 10)
             sag = 0.88 if k % 2 else 1.0
             pts.append((math.cos(a) * r * sag, -0.01, center[2] + math.sin(a) * r * sag))
-        tube(silk, pts, [0.032] * len(pts), resolution=6)
+        tube(silk, pts, [0.04] * len(pts), resolution=6)
     # Une araignée au centre, et une goutte de rosée magique.
     ball(m["dark"], (0.18, -0.08, 0.38), 0.13, scale=(1, 0.8, 1.1))
     ball(m["dark"], (0.18, -0.12, 0.2), 0.09)
@@ -986,6 +988,95 @@ def recall(m):
          scale=(0.85, 0.7, 1.15), subdiv=1, flat=True)
 
 
+
+# --- Les icônes de la colonne de gauche et du journal (comme sur la photo) -----
+
+def tools(m):
+    """Actions : le marteau et la pioche croisés, manches laqués de rouge."""
+    pick = group((0.02, 0.0, 0.16), rotation_y=0.72, scale=0.95)
+    cyl(m["red"], (0, 0, -0.1), 0.1, 1.6, parent=pick)
+    cyl(m["iron_dark"], (0, 0, -0.66), 0.115, 0.28, parent=pick, bevel=0.01)
+    tube(m["steel"], [(-0.78, 0, 0.5), (-0.4, 0, 0.72), (0, 0, 0.8), (0.4, 0, 0.72), (0.78, 0, 0.5)],
+         [0.0, 0.08, 0.13, 0.08, 0.0], parent=pick)
+    box(m["iron"], (0, 0, 0.74), (0.22, 0.22, 0.28), bevel=0.04, parent=pick)
+    ham = group((-0.02, -0.12, 0.16), rotation_y=-0.72, scale=0.95)
+    cyl(m["red"], (0, 0, -0.1), 0.1, 1.5, parent=ham)
+    cyl(m["iron_dark"], (0, 0, -0.62), 0.115, 0.28, parent=ham, bevel=0.01)
+    box(m["iron"], (0, 0, 0.72), (0.9, 0.38, 0.38), bevel=0.06, parent=ham)
+    for x in (-0.47, 0.47):
+        box(m["steel"], (x, 0, 0.72), (0.09, 0.44, 0.44), bevel=0.03, parent=ham)
+    ball(m["gold"], (0, -0.22, 0.72), 0.07, parent=ham)
+
+
+def arch(m):
+    """Salles : une arche de pierre taillée, l'intérieur rougeoie (une salle du donjon)."""
+    r_out, r_in, base, top = 0.85, 0.52, -0.7, 0.2
+    steps = 9
+    for k in range(steps):  # Les claveaux de la voûte.
+        a0, a1 = math.pi * k / steps, math.pi * (k + 1) / steps
+        pts = [(math.cos(a0) * r_in, top + math.sin(a0) * r_in), (math.cos(a0) * r_out, top + math.sin(a0) * r_out),
+               (math.cos(a1) * r_out, top + math.sin(a1) * r_out), (math.cos(a1) * r_in, top + math.sin(a1) * r_in)]
+        plate(m["stone_light"] if k % 2 else m["stone"], pts, 0.3, y=0.05, bevel=0.025)
+    for x in (-1, 1):  # Les piédroits.
+        for j in range(3):
+            z0 = base + j * 0.3
+            box(m["stone"] if (j + (x > 0)) % 2 else m["stone_light"], (x * (r_in + r_out) / 2, 0.05, z0 + 0.15),
+                (r_out - r_in - 0.02, 0.3, 0.28), bevel=0.025)
+    box(m["stone_dark"], (0, 0.05, base - 0.06), (2 * r_out + 0.1, 0.36, 0.12), bevel=0.03)
+    inside = [(-r_in, base), (r_in, base), (r_in, top)]
+    inside += [(math.cos(math.pi * k / 16) * r_in, top + math.sin(math.pi * k / 16) * r_in) for k in range(1, 16)]
+    inside += [(-r_in, top)]
+    plate(mat("arch_glow", "ff3d00", emission=2.2), inside, 0.05, y=0.2, bevel=0.0)
+    plate(m["dark"], [(x * 0.8, base + (z - base) * 0.85) for x, z in inside], 0.05, y=0.17, bevel=0.0)
+    box(m["gold"], (0, -0.12, top + r_out - 0.08), (0.16, 0.08, 0.2), bevel=0.03)  # La clé de voûte.
+
+
+def trident(m):
+    """Défenses : le trident rouge du maître, collier d'or."""
+    red_metal = mat("trident", "d50000", metal=0.6, rough=0.3, coat=0.8)
+    cyl(m["iron_dark"], (0, 0, -0.35), 0.1, 1.0)
+    ball(m["gold"], (0, 0, -0.88), 0.14)
+    cyl(m["gold"], (0, 0, 0.16), 0.15, 0.16, bevel=0.03)
+    # La traverse courbe qui porte les trois pointes.
+    tube(red_metal, [(-0.5, 0, 0.6), (-0.46, 0, 0.32), (-0.28, 0, 0.22), (0, 0, 0.2), (0.28, 0, 0.22),
+                     (0.46, 0, 0.32), (0.5, 0, 0.6)], [0.1, 0.11, 0.12, 0.13, 0.12, 0.11, 0.1], caps=True)
+    cyl(red_metal, (0, 0, 0.5), 0.12, 0.6, bevel=0.02)
+    for x, z, h in ((-0.5, 0.58, 0.36), (0.0, 0.78, 0.42), (0.5, 0.58, 0.36)):
+        plate(red_metal, [(x - 0.2, z), (x - 0.08, z - 0.08), (x + 0.08, z - 0.08), (x + 0.2, z), (x, z + h)], 0.16,
+              bevel=0.03)
+
+
+def scroll(m):
+    """Le codex : un parchemin déroulé, sceau de cire rouge."""
+    paper = mat("parchment", "e8d3a2", rough=0.8, bump=0.15, scale=12.0)
+    plate(paper, [(-0.55, 0.62), (0.55, 0.62), (0.6, 0.0), (0.55, -0.62), (-0.55, -0.62), (-0.5, 0.0)], 0.04,
+          bevel=0.01)
+    for z in (0.66, -0.66):
+        cyl(m["wood"], (0, 0, z), 0.11, 1.3, rot=(0, math.radians(90), 0), bevel=0.02)
+        for x in (-0.72, 0.72):
+            ball(m["gold"], (x, 0, z), 0.1)
+    ink = mat("ink", "4e2a1a", rough=0.6)
+    for k, z in enumerate((0.35, 0.18, 0.01, -0.16)):
+        box(ink, (-0.08 + (k % 2) * 0.05, -0.03, z), (0.7 - (k % 2) * 0.2, 0.01, 0.045), bevel=0.0)
+    cyl(m["red"], (0.28, -0.06, -0.38), 0.17, 0.06, rot=(math.radians(90), 0, 0), bevel=0.02)
+    ball(m["blood"], (0.28, -0.1, -0.38), 0.07, scale=(1, 0.5, 1))
+
+
+def _arrow(m, up):
+    sign = 1 if up else -1
+    tri = [(-0.62, -0.42 * sign), (0.62, -0.42 * sign), (0.0, 0.62 * sign)]
+    plate(m["gold"], [(x * 1.12, z * 1.12 + 0.02 * sign) for x, z in tri], 0.12, y=0.05, bevel=0.03)
+    plate(mat("arrow_red", "e53935", rough=0.25, coat=1.0, emission=0.35), tri, 0.2, y=-0.02, bevel=0.05)
+
+
+def arrow_up(m):
+    _arrow(m, True)
+
+
+def arrow_down(m):
+    _arrow(m, False)
+
+
 ICONS = {
     "pickaxe": pickaxe, "hand": hand, "hammer": hammer, "dagger": dagger,
     "chest": chest, "bed": bed, "mushroom": mushroom, "bookshelf": bookshelf, "anvil": anvil,
@@ -996,23 +1087,50 @@ ICONS = {
     "web": web, "firestorm": firestorm, "terror": terror, "collapse": collapse, "possession": possession,
     "whip": whip, "feast": feast, "eye": eye, "summon": summon, "transmute": transmute, "raise": raise_dead,
     "convert": convert, "sanctuary": sanctuary, "recall": recall,
+    "tools": tools, "arch": arch, "trident": trident, "scroll": scroll,
+    "arrow_up": arrow_up, "arrow_down": arrow_down,
 }
 
 
 def build(name):
-    """Construit une icône dans sa scène (sans la rendre) : pour la regarder dans Blender."""
+    """Construit une icône dans sa scène (sans la rendre) : pour la regarder dans Blender.
+    Plus de galet sous l'objet : il remplit la case, comme les icônes de la photo."""
     global _SCENE
     if name == "demon":
         _SCENE = demon(None)
         _SCENE.name = "lord"
+    else:
+        _SCENE = _new_scene()
         m = _palette()
-        pebble(m)
-        return _SCENE
-    _SCENE = _new_scene()
-    m = _palette()
-    ICONS[name](m)
-    pebble(m)
+        ICONS[name](m)
+    line = THIN_LINES.get(name, LINE)
+    _SCENE.render.line_thickness = line
+    for lineset in _SCENE.view_layers[0].freestyle_settings.linesets:
+        lineset.linestyle.thickness = line
+    _fit(_SCENE)
     return _SCENE
+
+
+def _fit(scene):
+    """Cadre la caméra au plus près de l'objet (vu par la caméra), avec MARGIN de marge."""
+    bpy.context.view_layer.update()
+    cam = scene.camera
+    to_cam = cam.matrix_world.inverted()
+    xs, ys = [], []
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    for obj in scene.objects:
+        if obj.type not in ("MESH", "CURVE") or obj.hide_render or not obj.visible_get():
+            continue
+        evaluated = obj.evaluated_get(depsgraph)
+        for corner in evaluated.bound_box:
+            point = to_cam @ (obj.matrix_world @ Vector(corner))
+            xs.append(point.x)
+            ys.append(point.y)
+    if not xs:
+        return
+    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    cam.location = cam.matrix_world @ Vector((cx, cy, 0))
+    cam.data.ortho_scale = max(max(xs) - min(xs), max(ys) - min(ys)) * MARGIN
 
 
 def render_one(name, out):

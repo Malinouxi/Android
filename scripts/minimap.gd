@@ -1,13 +1,13 @@
 class_name Minimap
 extends Control
-## La mini-carte, en bas à gauche : toute la carte en petit (3 pixels par case),
+## La mini-carte, en haut à droite : toute la carte en petit (4 pixels par case),
 ## tes unités en vert, les ennemis en rouge, et un cadre blanc pour la zone
 ## visible à l'écran. Toucher (ou glisser sur) la mini-carte déplace la vue.
 ##
 ## L'image de la carte est une Image de 48 x 32 pixels (un pixel par case),
 ## recalculée deux fois par seconde puis affichée agrandie.
 
-const CELL := 3 ## Taille d'une case sur la mini-carte, en pixels.
+const CELL := 4 ## Taille d'une case sur la mini-carte, en pixels.
 const COLORS := {
 	DungeonMap.Tile.EARTH: Color("6b4a2f"),
 	DungeonMap.Tile.GOLD: Color("d4a82a"),

@@ -1,14 +1,15 @@
 class_name Hud
 extends CanvasLayer
 ## L'interface affichée par-dessus le jeu (thème « Seigneur des Profondeurs » :
-## pierre volcanique, liserés de braise, polices gothiques, icônes HD) :
+## pierre taillée et fer riveté, liserés de sang, polices gothiques, icônes HD) :
 ##   - en haut, une grande barre : emblème du maître, or, mana, créatures,
 ##     ouvriers, vie du cœur, prochaine vague, ouvrier en plus, vitesse, pause ;
-##   - à gauche : les catégories d'outils (Actions, Salles, Défenses, Sorts) ;
-##   - en haut à droite : l'objectif du niveau et la recherche en cours ;
-##   - en bas à gauche : la fiche de la créature touchée ;
-##   - en bas au centre : les outils de la catégorie choisie (grandes icônes) ;
-##   - en bas à droite : le journal des messages, en couleurs.
+##   - à gauche : une colonne d'icônes, les catégories d'outils (Actions,
+##     Salles, Défenses, Sorts, Pouvoirs) ;
+##   - en haut à droite : la mini-carte, puis l'objectif et la recherche ;
+##   - en bas, une grande barre d'un seul tenant, en trois parties :
+##     la fiche de la créature touchée, les outils de la catégorie choisie
+##     (grandes icônes), et le journal des messages (flèches pour remonter).
 ## Un CanvasLayer ne bouge pas avec la caméra : parfait pour une interface.
 ## Tout est construit par code, pour que tu voies comment ça marche.
 
@@ -35,11 +36,16 @@ enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 var _top_panel: PanelContainer
 ## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
 var portrait: LordPortrait
-var _tool_panel: PanelContainer
+## La grande barre du bas (fiche, outils, journal).
+var _bottom_bar: PanelContainer
 var _category_panel: PanelContainer
 var _goal_panel: PanelContainer
-var _log_panel: PanelContainer
-var _unit_panel: PanelContainer
+var _minimap_panel: PanelContainer
+## La partie « fiche » de la barre du bas (toujours là ; vide si rien n'est choisi).
+var _unit_panel: Control
+var _unit_bars: Control
+## Le journal : une liste qui défile (les flèches remontent l'historique).
+var _log_scroll: ScrollContainer
 var _gold_label: Label
 var _treasury_label: Label
 var _workers_label: Label
@@ -74,14 +80,22 @@ var _selected: Creature = null
 var _unit_portrait: TextureRect
 var _unit_name: Label
 var _unit_hp: ProgressBar
+var _unit_hp_label: Label
+var _unit_close: Button
 var _unit_mood: ProgressBar
 var _unit_details: Label
 var _refresh_timer := 0.0
 
 const RED := Color("c62828")
-const LOG_LINES := 4 ## Nombre de messages gardés dans le journal.
+const LOG_LINES := 30 ## Nombre de messages gardés dans le journal (on remonte avec les flèches).
 const TOP_HEIGHT := 96
-const TOOL_SIZE := 96 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
+const BOTTOM_HEIGHT := 196 ## Hauteur de la barre du bas (écran de 1280 x 720).
+const TOOL_SIZE := 72 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
+const CATEGORY_SIZE := 60 ## Côté des boutons de catégorie (colonne de gauche).
+const UNIT_SECTION_WIDTH := 370 ## Largeur de la fiche de créature (barre du bas).
+const SIDE_PANEL_WIDTH := 278 ## Largeur de la mini-carte et de l'objectif (à droite).
+## Hauteur du cadre de la mini-carte : la carte (Minimap.CELL pixels par case) et le cadre.
+const MINIMAP_PANEL_HEIGHT := DungeonMap.HEIGHT * Minimap.CELL + 28
 
 ## Les icônes HD (256 x 256, modélisées dans Blender par tools/blender/icons.py).
 static func hd(icon_name: String) -> Texture2D:
@@ -104,15 +118,15 @@ const TOOL_ICON_NAMES := {
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
-	"Actions": ["pickaxe", [Tool.DIG, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
-	"Salles": ["chest", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
+	"Actions": ["tools", [Tool.DIG, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
+	"Salles": ["arch", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
 			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
-	"Défenses": ["spikes", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
+	"Défenses": ["trident", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
 	# Les sorts de combat...
 	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
 			Tool.SPELL_FIRESTORM, Tool.SPELL_TERROR, Tool.SPELL_COLLAPSE, Tool.SPELL_POSSESSION]],
 	# ... et les pouvoirs du maître sur son donjon.
-	"Pouvoirs": ["mana", [Tool.SPELL_WHIP, Tool.SPELL_FEAST, Tool.SPELL_EYE, Tool.SPELL_SUMMON,
+	"Pouvoirs": ["demon", [Tool.SPELL_WHIP, Tool.SPELL_FEAST, Tool.SPELL_EYE, Tool.SPELL_SUMMON,
 			Tool.SPELL_TRANSMUTE, Tool.SPELL_RAISE, Tool.SPELL_CONVERT, Tool.SPELL_SANCTUARY, Tool.SPELL_RECALL]],
 }
 ## Vitesses de jeu proposées par le bouton « Vitesse ».
@@ -133,11 +147,10 @@ func _ready() -> void:
 	# Le codex s'ouvre par-dessus tout (il marche aussi pendant la pause).
 	codex_pressed.connect(func() -> void: _root.add_child(Codex.new()))
 	_build_top_panel()
+	_build_minimap_panel()
 	_build_goal_panel()
-	_build_tool_panel()
+	_build_bottom_bar()
 	_build_category_panel()
-	_build_log_panel()
-	_build_unit_panel()
 	_build_portrait() # En dernier : le médaillon et sa bulle passent par-dessus.
 
 
@@ -202,18 +215,6 @@ func _build_top_panel() -> void:
 	_top_panel = _framed_panel()
 	_top_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_top_panel.offset_bottom = TOP_HEIGHT
-	# Des stalactites pendent sous la barre du haut (motif répété, tools/blender/hud.py).
-	var fringe_texture := Ui.hd_texture("fringe")
-	if fringe_texture != null:
-		var fringe := TextureRect.new()
-		fringe.texture = fringe_texture
-		fringe.stretch_mode = TextureRect.STRETCH_TILE
-		fringe.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		fringe.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-		fringe.offset_top = TOP_HEIGHT - 8
-		fringe.offset_bottom = TOP_HEIGHT - 8 + fringe_texture.get_height()
-		_root.add_child(fringe)
-		_root.move_child(fringe, _top_panel.get_index())
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	_top_panel.add_child(row)
@@ -328,23 +329,23 @@ func _build_goal_panel() -> void:
 	_goal_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_goal_panel.offset_right = -8
 	_goal_panel.offset_left = -8
-	_goal_panel.offset_top = TOP_HEIGHT + 8
+	_goal_panel.offset_top = TOP_HEIGHT + 8 + MINIMAP_PANEL_HEIGHT + 4 # Sous la mini-carte.
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
 	_goal_panel.add_child(column)
 	_goal_label = _make_label(19)
 	_goal_label.add_theme_color_override("font_color", Ui.GOLD)
-	_goal_label.custom_minimum_size = Vector2(250, 0)
+	_goal_label.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH - 28, 0)
 	_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_goal_label)
 	_research_label = _make_label(17)
 	_research_label.add_theme_color_override("font_color", Color("ce93d8"))
-	_research_label.custom_minimum_size = Vector2(250, 0)
+	_research_label.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH - 28, 0)
 	_research_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_research_label)
 	# L'assaut contre le Colosse : visible seulement quand un Colosse est réveillé... ou endormi.
 	_assault_button = Button.new()
-	_assault_button.custom_minimum_size = Vector2(250, 56)
+	_assault_button.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH - 28, 56)
 	_assault_button.add_theme_font_size_override("font_size", 20)
 	_assault_button.visible = false
 	_assault_button.pressed.connect(func() -> void:
@@ -360,7 +361,6 @@ func set_assault_button(text: String, attacking := false) -> void:
 	_assault_button.add_theme_color_override("font_color", Color("ffb74d") if attacking else Color("ff6b6b"))
 
 
-## La colonne de gauche : les catégories d'outils, en grandes icônes.
 ## Le portrait animé du Seigneur, dans son médaillon, à cheval sur la barre du haut.
 func _build_portrait() -> void:
 	portrait = LordPortrait.new()
@@ -368,28 +368,26 @@ func _build_portrait() -> void:
 	_root.add_child(portrait)
 
 
+## La colonne de gauche : les catégories d'outils, une grande icône par bouton
+## (comme sur la photo : pas de texte, le nom s'affiche en info-bulle).
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
-	_category_panel.position = Vector2(8, LordPortrait.SIZE + 18) # Sous le médaillon (et son crâne).
-	# En grille de 2 colonnes : des boutons assez hauts pour des icônes lisibles.
-	var column := GridContainer.new()
-	column.columns = 2
-	column.add_theme_constant_override("h_separation", 4)
-	column.add_theme_constant_override("v_separation", 4)
+	_category_panel.position = Vector2(6, LordPortrait.SIZE + 14) # Sous le médaillon (et son crâne).
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 4)
 	_category_panel.add_child(column)
 	var group := ButtonGroup.new()
 	for tab_name: String in TABS:
 		var button := Button.new()
 		button.toggle_mode = true
 		button.button_group = group
-		button.text = tab_name
+		button.tooltip_text = tab_name
 		button.icon = hd(TABS[tab_name][0])
 		button.expand_icon = true
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		button.custom_minimum_size = Vector2(96, 88)
-		button.add_theme_font_size_override("font_size", 16)
-		button.add_theme_constant_override("icon_max_width", 60)
+		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+		button.custom_minimum_size = Vector2(CATEGORY_SIZE, CATEGORY_SIZE)
+		button.add_theme_constant_override("icon_max_width", CATEGORY_SIZE - 10)
 		button.pressed.connect(func() -> void:
 			Sound.play("click")
 			_show_tab(tab_name))
@@ -399,36 +397,92 @@ func _build_category_panel() -> void:
 	_show_tab("Actions")
 
 
-## La barre d'outils en bas au centre : les outils de la catégorie choisie.
-func _build_tool_panel() -> void:
-	_tool_panel = _framed_panel()
-	_tool_panel.anchor_left = 0.5
-	_tool_panel.anchor_right = 0.5
-	_tool_panel.anchor_top = 1.0
-	_tool_panel.anchor_bottom = 1.0
-	_tool_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_tool_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_tool_panel.offset_bottom = -6
+## En haut à droite : la mini-carte, dans son cadre de pierre (toucher = y aller).
+func _build_minimap_panel() -> void:
+	_minimap_panel = _framed_panel()
+	_minimap_panel.anchor_left = 1.0
+	_minimap_panel.anchor_right = 1.0
+	_minimap_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_minimap_panel.offset_left = -8
+	_minimap_panel.offset_right = -8
+	_minimap_panel.offset_top = TOP_HEIGHT + 8
+	_minimap_panel.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)
+	_minimap_panel.visible = false # Visible quand main.gd donne la carte (add_minimap).
+
+
+## La barre du bas, d'un seul tenant : fiche | outils | journal.
+func _build_bottom_bar() -> void:
+	_bottom_bar = _framed_panel()
+	_bottom_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_bottom_bar.offset_top = -BOTTOM_HEIGHT
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_bottom_bar.add_child(row)
+	_build_unit_section(row)
+	row.add_child(_divider())
+	_build_tool_section(row)
+	row.add_child(_divider())
+	_build_log_section(row)
+
+
+## Un séparateur vertical : une barre de fer entre deux parties de la barre du bas.
+func _divider() -> Control:
+	var line := VSeparator.new()
+	var style := StyleBoxLine.new()
+	style.vertical = true
+	style.color = Color("4a4240")
+	style.thickness = 4
+	line.add_theme_stylebox_override("separator", style)
+	line.add_theme_constant_override("separation", 6)
+	return line
+
+
+## Un creux sombre au bord de fer (le cadre des compteurs) autour d'un contenu.
+func _slot_box(content_margin := 6.0) -> PanelContainer:
+	var slot := PanelContainer.new()
+	var hd := Ui.hd_frame("slot", content_margin)
+	if hd == null:
+		var flat := StyleBoxFlat.new()
+		flat.bg_color = Color(0.02, 0.01, 0.01, 0.9)
+		flat.border_color = Color("4a2a1e")
+		flat.set_border_width_all(2)
+		flat.set_content_margin_all(content_margin)
+		slot.add_theme_stylebox_override("panel", flat)
+	else:
+		slot.add_theme_stylebox_override("panel", hd)
+	return slot
+
+
+## Au centre de la barre du bas : les outils de la catégorie choisie (2 rangs de 5).
+func _build_tool_section(row: HBoxContainer) -> void:
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 4)
-	_tool_panel.add_child(column)
-	# En tête : l'outil choisi (son nom et son prix) et ce que tient la Main.
-	_tool_name_label = _make_label(20)
+	column.add_theme_constant_override("separation", 2)
+	row.add_child(column)
+	# En tête : l'outil choisi (son nom et son prix) ; ce que tient la Main à droite.
+	var header := HBoxContainer.new()
+	column.add_child(header)
+	_tool_name_label = _make_label(18)
 	_tool_name_label.add_theme_color_override("font_color", Ui.GOLD)
 	_tool_name_label.add_theme_font_override("font", Ui.title_font())
-	column.add_child(_tool_name_label)
+	_tool_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tool_name_label.clip_text = true
+	_tool_name_label.custom_minimum_size.x = 120
+	header.add_child(_tool_name_label)
+	_hand_label = _make_label(15)
+	_hand_label.add_theme_color_override("font_color", Color("d7ccc8"))
+	_hand_label.clip_text = true
+	_hand_label.custom_minimum_size.x = 120
+	_hand_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	header.add_child(_hand_label)
 	for tab_name: String in TABS:
 		var grid := GridContainer.new()
 		grid.columns = 5
-		grid.add_theme_constant_override("h_separation", 5)
-		grid.add_theme_constant_override("v_separation", 5)
+		grid.add_theme_constant_override("h_separation", 4)
+		grid.add_theme_constant_override("v_separation", 4)
 		for tool: int in TABS[tab_name][1]:
 			grid.add_child(_make_tool_button(tool))
 		column.add_child(grid)
 		_tabs[tab_name] = grid
-	_hand_label = _make_label(16)
-	_hand_label.add_theme_color_override("font_color", Color("d7ccc8"))
-	column.add_child(_hand_label)
 	set_hand([], 0)
 	_update_tool_name()
 
@@ -438,75 +492,127 @@ func _show_tab(tab_name: String) -> void:
 		_tabs[tab_key].visible = tab_key == tab_name
 
 
-## Le journal des messages, en bas à droite (voir show_message pour les couleurs).
-func _build_log_panel() -> void:
-	_log_panel = _framed_panel()
-	_log_panel.anchor_left = 1.0
-	_log_panel.anchor_right = 1.0
-	_log_panel.anchor_top = 1.0
-	_log_panel.anchor_bottom = 1.0
-	_log_panel.offset_left = -398
-	_log_panel.offset_right = -6
-	_log_panel.offset_top = -230
-	_log_panel.offset_bottom = -6
-	_log_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+## À droite de la barre du bas : le journal des messages (voir show_message pour
+## les couleurs), dans un creux sombre, avec deux flèches pour remonter l'historique.
+func _build_log_section(row: HBoxContainer) -> void:
+	var slot := _slot_box(10)
+	slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slot)
+	_log_scroll = ScrollContainer.new()
+	_log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_log_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	slot.add_child(_log_scroll)
 	_log_box = VBoxContainer.new()
-	_log_box.add_theme_constant_override("separation", 3)
-	_log_box.alignment = BoxContainer.ALIGNMENT_END
-	_log_panel.add_child(_log_box)
+	_log_box.add_theme_constant_override("separation", 2)
+	_log_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_log_scroll.add_child(_log_box)
+	var arrows := VBoxContainer.new()
+	arrows.add_theme_constant_override("separation", 6)
+	arrows.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(arrows)
+	for arrow: Array in [["arrow_up", -1], ["arrow_down", 1]]:
+		var button := Button.new()
+		button.icon = hd(arrow[0])
+		button.expand_icon = true
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.custom_minimum_size = Vector2(52, 72)
+		button.add_theme_constant_override("icon_max_width", 32)
+		button.tooltip_text = "Messages précédents" if arrow[1] < 0 else "Messages suivants"
+		var step: int = arrow[1]
+		button.pressed.connect(func() -> void:
+			Sound.play("click")
+			_log_scroll.scroll_vertical += step * 60)
+		arrows.add_child(button)
 
 
-## La fiche de la créature touchée, en bas à gauche (cachée au départ).
-func _build_unit_panel() -> void:
-	_unit_panel = _framed_panel()
-	_unit_panel.anchor_top = 1.0
-	_unit_panel.anchor_bottom = 1.0
-	_unit_panel.offset_left = 6
-	_unit_panel.offset_right = 400
-	_unit_panel.offset_top = -230
-	_unit_panel.offset_bottom = -6
-	_unit_panel.visible = false
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	_unit_panel.add_child(row)
+## À gauche de la barre du bas : la fiche de la créature touchée (portrait, vie,
+## humeur, tâche). Sans créature choisie, une invitation à en toucher une.
+func _build_unit_section(row: HBoxContainer) -> void:
+	_unit_panel = HBoxContainer.new()
+	_unit_panel.add_theme_constant_override("separation", 8)
+	_unit_panel.custom_minimum_size.x = UNIT_SECTION_WIDTH
+	row.add_child(_unit_panel)
+	var frame := _slot_box(8)
+	frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_unit_panel.add_child(frame)
 	_unit_portrait = TextureRect.new()
 	_unit_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_unit_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_unit_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST # Le portrait reste en pixel art.
-	_unit_portrait.custom_minimum_size = Vector2(120, 120)
-	_unit_portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(_unit_portrait)
+	_unit_portrait.custom_minimum_size = Vector2(118, 118)
+	frame.add_child(_unit_portrait)
 	var column := VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 4)
-	row.add_child(column)
+	column.add_theme_constant_override("separation", 2)
+	_unit_panel.add_child(column)
 	var title := HBoxContainer.new()
 	column.add_child(title)
 	_unit_name = _make_label(22)
 	_unit_name.add_theme_color_override("font_color", Ui.GOLD)
 	_unit_name.add_theme_font_override("font", Ui.title_font())
 	_unit_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_unit_name.clip_text = true
 	title.add_child(_unit_name)
 	var close := Button.new()
 	close.text = "X"
-	close.custom_minimum_size = Vector2(40, 36)
+	close.custom_minimum_size = Vector2(36, 32)
+	close.add_theme_font_size_override("font_size", 18)
 	close.pressed.connect(func() -> void:
 		Sound.play("click")
 		select_unit(null))
 	title.add_child(close)
-	_unit_hp = _make_bar(RED, 18)
-	column.add_child(_unit_hp)
+	_unit_close = close
+	# La vie (cœur + barre rouge avec sa valeur) et l'humeur (barre verte).
+	_unit_bars = VBoxContainer.new()
+	_unit_bars.add_theme_constant_override("separation", 4)
+	column.add_child(_unit_bars)
+	var hp_row := HBoxContainer.new()
+	hp_row.add_theme_constant_override("separation", 4)
+	_unit_bars.add_child(hp_row)
+	var heart_icon := TextureRect.new()
+	heart_icon.texture = hd("heart")
+	heart_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	heart_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	heart_icon.custom_minimum_size = Vector2(24, 24)
+	hp_row.add_child(heart_icon)
+	_unit_hp = _make_bar(RED, 22)
+	_unit_hp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_unit_hp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hp_row.add_child(_unit_hp)
+	_unit_hp_label = _make_label(15)
+	_unit_hp_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_unit_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_unit_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_unit_hp.add_child(_unit_hp_label)
 	_unit_mood = _make_bar(Color("43a047"), 12)
-	column.add_child(_unit_mood)
-	_unit_details = _make_label(17)
-	_unit_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_unit_bars.add_child(_unit_mood)
+	_unit_details = _make_label(15)
+	# Trois lignes fixes, chacune coupée « ... » si elle est trop longue : la barre du bas garde sa hauteur.
+	_unit_details.add_theme_constant_override("line_spacing", -3)
+	_unit_details.clip_text = true
+	_unit_details.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_unit_details.custom_minimum_size.x = 100
 	column.add_child(_unit_details)
+	select_unit(null)
 
 
-## Affiche la fiche d'une créature (null pour la cacher).
+## Affiche la fiche d'une créature (null : la fiche vide, qui invite à en toucher une).
 func select_unit(creature: Creature) -> void:
 	_selected = creature
-	_unit_panel.visible = creature != null
+	if creature == null:
+		_unit_portrait.texture = hd("demon")
+		_unit_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		_unit_portrait.modulate = Color(1, 1, 1, 0.35)
+		_unit_name.text = "Tes créatures"
+		_unit_bars.visible = false
+		_unit_details.text = "Touche une de tes créatures
+pour voir sa fiche :
+vie, humeur, tâche."
+		_unit_close.visible = false
+		return
+	_unit_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST # Le portrait reste en pixel art.
+	_unit_portrait.modulate = Color.WHITE
+	_unit_bars.visible = true
+	_unit_close.visible = true
 	_refresh_unit_panel()
 
 
@@ -521,13 +627,14 @@ func _refresh_unit_panel() -> void:
 	_unit_name.text = "%s  niv. %d" % [_selected.display_name(), _selected.level]
 	_unit_hp.max_value = _selected.max_hp
 	_unit_hp.value = _selected.hp
+	_unit_hp_label.text = "%d / %d" % [_selected.hp, _selected.max_hp]
 	_unit_mood.value = _selected.happiness
-	var details := "Vie %d / %d   Humeur %d %%\n" % [_selected.hp, _selected.max_hp, _selected.happiness]
+	var details := "Humeur %d %%" % _selected.happiness
 	if not _selected.is_undead():
-		details += "Faim %d %%   Énergie %d %%\n" % [_selected.hunger, _selected.energy]
+		details += "   Faim %d %%   Énergie %d %%" % [_selected.hunger, _selected.energy]
+	details += "\nTâche : %s\nSalaire %d or" % [_selected.activity_text(), _selected.salary()]
 	if not _selected.traits.is_empty():
-		details += "Traits : %s\n" % Traits.names(_selected.traits)
-	details += "Tâche : %s\nSalaire : %d or" % [_selected.activity_text(), _selected.salary()]
+		details += " · %s" % Traits.names(_selected.traits)
 	_unit_details.text = details
 
 
@@ -605,10 +712,14 @@ func set_speed(speed: float) -> void:
 	_speed_button.text = "x%d" % speed
 
 
-## La mini-carte a été retirée (place libérée pour l'objectif) : on garde la
-## fonction pour que main.gd n'ait rien à changer.
-func add_minimap(_map: DungeonMap, _camera: CameraController) -> void:
-	pass
+## La mini-carte, en haut à droite (comme sur la photo), au-dessus de l'objectif.
+func add_minimap(map: DungeonMap, camera: CameraController) -> void:
+	var minimap := Minimap.new()
+	minimap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	minimap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_minimap_panel.add_child(minimap)
+	minimap.setup(map, camera)
+	_minimap_panel.visible = true
 
 
 func set_mana(mana: float, max_mana: float) -> void:
@@ -784,16 +895,17 @@ func show_message(text: String, _duration := 3.0) -> void:
 		portrait.react(mark) # Le Seigneur réagit à ce qui se passe.
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 6)
-	var badge := _make_label(22)
+	var badge := _make_label(20)
 	badge.text = mark
 	badge.custom_minimum_size = Vector2(16, 0)
 	badge.add_theme_color_override("font_color", color)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	line.add_child(badge)
-	var label := _make_label(21)
+	var label := _make_label(19)
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(340, 0)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.custom_minimum_size = Vector2(160, 0)
 	label.add_theme_color_override("font_color", color)
 	line.add_child(label)
 	_log_box.add_child(line)
@@ -804,9 +916,16 @@ func show_message(text: String, _duration := 3.0) -> void:
 	# Les anciens messages pâlissent ; le nouveau brille un instant.
 	var count := _log_box.get_child_count()
 	for i in count:
-		(_log_box.get_child(i) as Control).modulate.a = 0.5 + 0.5 * float(i + 1) / count
+		(_log_box.get_child(i) as Control).modulate.a = 0.55 + 0.45 * clampf(float(i + 5 - count) / 4.0, 0.0, 1.0)
+	# Le journal descend tout seul jusqu'au dernier message (une fois la mise en page faite).
+	_scroll_log_to_end.call_deferred()
 	line.modulate = Color(1.6, 1.6, 1.6)
 	line.create_tween().tween_property(line, "modulate", Color.WHITE, 0.6)
+
+
+func _scroll_log_to_end() -> void:
+	await get_tree().process_frame
+	_log_scroll.scroll_vertical = int(_log_scroll.get_v_scroll_bar().max_value)
 
 
 ## Fondu au noir qui s'éclaircit au début de la partie.
@@ -828,7 +947,7 @@ func hide_message() -> void:
 ## Vrai si cette position de l'écran est sur un panneau de l'interface
 ## (pour ne pas agir sur la case cachée sous un bouton).
 func is_over_ui(screen_position: Vector2) -> bool:
-	for panel: Control in [_top_panel, _tool_panel, _category_panel, _goal_panel, _unit_panel, _log_panel, portrait]:
+	for panel: Control in [_top_panel, _bottom_bar, _category_panel, _goal_panel, _minimap_panel, portrait]:
 		if panel != null and panel.visible and panel.get_global_rect().has_point(screen_position):
 			return true
 	return false

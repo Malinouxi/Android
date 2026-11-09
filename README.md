@@ -467,6 +467,21 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
 - Les unités invoquées pour un temps (ouvrier fantôme, Revenant relevé) ne sont pas sauvegardées.
   Les vieilles sauvegardes gardent leurs découvertes (`Research.OLD_ORDER`).
 
+**Étape 43 — HUD « pierre et fer » d'après la photo de référence, refait dans Blender**
+- **Les cadres** (`tools/blender/hud.py` → `assets/ui_hd/`) ne sont plus une caverne : des **moellons
+  de pierre taillée** (deux rangs en quinconce, longueurs inégales), une **bande de fer rivetée** bordée
+  d'un **liseré de sang**, des **équerres de fer** aux coins. Plus de stalactites (`fringe.png` retiré),
+  ni de cristaux. Le médaillon garde ses cornes et son crâne, avec un anneau de **claveaux**.
+- **Les icônes** (`tools/blender/icons.py`) : plus de galet dessous, **cadrage serré** (l'objet remplit
+  la case, `_fit`), contour plus épais, lumière chaude et **contre-jour rouge**, métaux plus brillants.
+  Six nouvelles icônes : **marteau et pioche croisés**, **arche**, **trident**, **parchemin**, **flèches**.
+- **Nouvelle disposition** (`scripts/hud.gd`), comme sur la photo :
+  - à gauche, une **colonne d'icônes** sans texte (Actions, Salles, Défenses, Sorts, Pouvoirs) ;
+  - en haut à droite, la **mini-carte revient** (4 pixels par case), l'objectif juste dessous ;
+  - en bas, **une seule grande barre** : la **fiche** de la créature (portrait, cœur et barre de vie,
+    humeur, tâche, salaire ; une invitation quand rien n'est choisi), les **outils** (2 rangs de 5) et
+    le **journal**, qui garde 30 messages : les **flèches rouges** remontent l'historique.
+
 **Étape 41 — HUD « caverne » et icônes 3D, le tout fait dans Blender**
 - **Les 30 icônes** (outils, salles, défenses, sorts, compteurs) sont **modélisées en 3D** dans Blender
   (`tools/blender/icons.py` → `assets/icons_hd/`, 256 x 256) : formes lisses, métal et or qui brillent,

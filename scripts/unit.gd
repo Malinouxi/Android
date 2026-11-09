@@ -388,6 +388,9 @@ func take_damage(amount: float, source: Unit = null) -> void:
 	if _ward_left > 0.0:
 		damage_taken *= 1.0 - _ward_amount # Sanctuaire.
 	hp -= damage_taken
+	# Du sang au sol (les morts-vivants et les spectres ne saignent pas : voir bleeds()).
+	if bleeds() and map != null:
+		map.add_blood(position, damage_taken)
 	if source != null:
 		_on_damaged(source, damage_taken)
 	Fx.number(position, damage_taken, Color("ff8a80") if team == Team.DUNGEON else Color.WHITE)
@@ -397,6 +400,12 @@ func take_damage(amount: float, source: Unit = null) -> void:
 	if hp <= 0.0:
 		hp = 0.0
 		die()
+
+
+## Saigne-t-elle quand on la blesse ? (Les classes filles disent non pour les
+## morts-vivants, la pierre et les esprits.)
+func bleeds() -> bool:
+	return true
 
 
 ## Vrai si les unités du camp adverse ne doivent pas s'en prendre d'elles-mêmes à

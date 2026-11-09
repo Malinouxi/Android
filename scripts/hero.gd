@@ -459,6 +459,11 @@ func _guard(delta: float) -> void:
 # Face aux sorts du maître (voir spells.gd)
 # ---------------------------------------------------------------------------
 
+## Le Colosse (pierre) et les Spectres (esprits) ne saignent pas.
+func bleeds() -> bool:
+	return type != Heroes.Type.COLOSSUS and type != Heroes.Type.SPECTRE
+
+
 ## Insensible à ce sort ? ("immune" dans heroes.gd ; ceux qui ne fuient jamais
 ## ne craignent pas la Terreur.)
 func is_immune(spell: String) -> bool:

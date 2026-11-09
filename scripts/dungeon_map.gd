@@ -205,6 +205,16 @@ var volcanic: Dictionary = {}
 var ruins: Dictionary = {}
 ## Le sol qui brûle (combo Rune de feu) : [{ "position": Vector2, "radius", "time", "flicker" }].
 var fires: Array = []
+## Les taches de sang des combats (voir add_blood) : {"position", "cell", "wall" (côté du
+## mur, ou ZERO au sol), "kind", "angle", "size", "time"}. Elles ne sont pas sauvegardées.
+var blood: Array = []
+## Changement de la liste (la vue 3D ne reconstruit ses taches que dans ce cas).
+var blood_version := 0
+var _blood_id := 0
+const BLOOD_FLOOR := [preload("res://assets/fx/blood_floor_0.png"), preload("res://assets/fx/blood_floor_1.png"),
+		preload("res://assets/fx/blood_floor_2.png"), preload("res://assets/fx/blood_floor_3.png")]
+const BLOOD_WALL := [preload("res://assets/fx/blood_wall_0.png"), preload("res://assets/fx/blood_wall_1.png"),
+		preload("res://assets/fx/blood_wall_2.png")]
 
 
 func _ready() -> void:
@@ -217,6 +227,7 @@ func _process(delta: float) -> void:
 	_update_lava(delta)
 	_update_traps(delta)
 	_update_effects(delta)
+	_update_blood(delta)
 	_update_farms(delta)
 	_update_animation(delta)
 	for cell: Vector2i in graves:
@@ -1802,6 +1813,60 @@ func _update_fires(delta: float) -> void:
 	fires = fires.filter(func(f: Dictionary) -> bool: return f["time"] > 0.0)
 
 
+## Du sang gicle là où une unité est blessée : une tache au sol, et parfois sur un
+## mur voisin. amount : les dégâts du coup (un gros coup tache plus souvent, et plus
+## grand). Réglage « Sang » dans les Réglages (Sound.blood_enabled).
+func add_blood(world_position: Vector2, amount: float) -> void:
+	if not Sound.blood_enabled or amount <= 0.0:
+		return
+	if randf() > clampf(amount / 30.0, Rules.BLOOD_MIN_CHANCE, 0.9):
+		return
+	var cell := world_to_cell(world_position)
+	if not is_walkable(cell):
+		return
+	var size := clampf(0.35 + amount / 60.0, 0.35, 0.8) * randf_range(0.8, 1.2)
+	var jitter := Vector2(randf_range(-8, 8), randf_range(-8, 8))
+	_blood_id += 1
+	blood.append({"id": _blood_id, "position": world_position + jitter, "cell": cell, "wall": Vector2i.ZERO,
+			"kind": randi() % BLOOD_FLOOR.size(), "angle": randf() * TAU, "size": size, "time": Rules.BLOOD_TIME})
+	# Une éclaboussure sur un mur tout proche.
+	if randf() < Rules.BLOOD_WALL_CHANCE:
+		var walls: Array[Vector2i] = []
+		for direction in DIRECTIONS:
+			var tile := get_tile(cell + direction)
+			if tile == Tile.EARTH or tile == Tile.ROCK or tile == Tile.GOLD:
+				walls.append(direction)
+		if not walls.is_empty():
+			_blood_id += 1
+			blood.append({"id": _blood_id, "position": cell_to_world(cell), "cell": cell, "wall": walls.pick_random(),
+					"kind": randi() % BLOOD_WALL.size(), "angle": 0.0, "size": size * 1.1,
+					"offset": randf_range(-0.3, 0.3), "time": Rules.BLOOD_TIME})
+	while blood.size() > Rules.MAX_BLOOD:
+		blood.pop_front()
+	blood_version += 1
+	_blood_layer.queue_redraw()
+
+
+func _update_blood(delta: float) -> void:
+	if blood.is_empty():
+		return
+	var before := blood.size()
+	for stain: Dictionary in blood:
+		stain["time"] -= delta
+		# Une tache dont le sol a disparu (creusé, effondré, salle...) s'efface aussi.
+		if not is_walkable(stain["cell"]):
+			stain["time"] = 0.0
+	blood = blood.filter(func(b: Dictionary) -> bool: return b["time"] > 0.0)
+	if blood.size() != before:
+		blood_version += 1
+	_blood_layer.queue_redraw() # (Elles pâlissent doucement.)
+
+
+## L'opacité d'une tache : pleine, puis elle s'efface pendant ses BLOOD_FADE dernières secondes.
+static func blood_alpha(stain: Dictionary) -> float:
+	return clampf(float(stain["time"]) / Rules.BLOOD_FADE, 0.0, 1.0)
+
+
 ## Affiche un cercle de couleur qui grandit et s'efface (explosion, sort...).
 func add_effect(center: Vector2, radius: float, color: Color) -> void:
 	_effects.append({"position": center, "radius": radius, "time": EFFECT_TIME, "color": color})
@@ -2350,6 +2415,8 @@ func _sort_by_distance(cells: Array[Vector2i], from_cell: Vector2i) -> void:
 
 var _wall_layers: Array[Node2D] = []
 var _effects_layer: Node2D
+## Le sang, sous les personnages et les murs (vue 2D seulement).
+var _blood_layer: Node2D
 
 const WALL_SHADE_SOUTH := Color(0.78, 0.78, 0.78) ## Face avant-gauche du mur.
 const WALL_SHADE_EAST := Color(0.55, 0.55, 0.55)  ## Face avant-droite, plus sombre.
@@ -2362,6 +2429,10 @@ func _create_layers() -> void:
 		layer.draw.connect(_draw_diagonal.bind(layer, d))
 		add_child(layer)
 		_wall_layers.append(layer)
+	_blood_layer = Node2D.new()
+	_blood_layer.z_index = 1 # Juste au-dessus du sol.
+	_blood_layer.draw.connect(_draw_blood)
+	add_child(_blood_layer)
 	_effects_layer = Node2D.new()
 	_effects_layer.z_index = 1000
 	_effects_layer.draw.connect(_draw_effects)
@@ -2633,6 +2704,19 @@ func _draw_bar(layer: Node2D, y: float, ratio: float, color: Color) -> void:
 
 
 ## Les effets : un cercle au sol qui grandit et s'efface (une ellipse, en vue isométrique).
+## Le sang en vue 2D : seulement les taches au sol (les murs 2D sont trop petits).
+func _draw_blood() -> void:
+	for stain: Dictionary in blood:
+		if stain["wall"] != Vector2i.ZERO:
+			continue
+		var texture: Texture2D = BLOOD_FLOOR[stain["kind"]]
+		var side: float = TILE_SIZE * float(stain["size"]) * 1.6
+		_blood_layer.draw_set_transform(stain["position"], stain["angle"], Vector2.ONE)
+		_blood_layer.draw_texture_rect(texture, Rect2(-side / 2, -side / 2, side, side), false,
+				Color(1, 1, 1, blood_alpha(stain)))
+	_blood_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 func _draw_effects() -> void:
 	for effect in _effects:
 		var progress: float = 1.0 - effect["time"] / EFFECT_TIME

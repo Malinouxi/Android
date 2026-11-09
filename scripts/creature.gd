@@ -448,7 +448,7 @@ func _process(delta: float) -> void:
 	# Possédée : elle n'obéit plus qu'au maître.
 	if possessed_left > 0.0:
 		_process_possessed(delta)
-		queue_redraw()
+		redraw()
 		return
 	_update_combat(delta)
 
@@ -500,7 +500,7 @@ func _process(delta: float) -> void:
 			_process_going_to_catch(delta)
 		State.CARRYING:
 			_process_carrying(delta)
-	queue_redraw()
+	redraw()
 
 
 # ---------------------------------------------------------------------------
@@ -1016,8 +1016,8 @@ func alert(enemy: Unit) -> void:
 
 ## La Goule rebouteuse soigne les créatures blessées autour d'elle, même en combat.
 func _update_healer(delta: float) -> void:
-	var healer: Dictionary = Creatures.info(type).get("healer", {})
-	if healer.is_empty() or state == State.SLEEPING:
+	var healer: Variant = Creatures.info(type).get("healer")
+	if healer == null or healer.is_empty() or state == State.SLEEPING:
 		return
 	_heal_timer -= delta
 	if _heal_timer > 0.0:

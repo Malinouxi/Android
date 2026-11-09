@@ -246,6 +246,8 @@ func _update_animation(delta: float) -> void:
 		return
 	_anim_timer = 0.0
 	anim_tick += 1
+	if not is_visible_in_tree():
+		return # Vue 3D : la carte 2D est cachée (elle sera redessinée en réapparaissant).
 	for d: int in _animated_layers:
 		_wall_layers[d].queue_redraw()
 

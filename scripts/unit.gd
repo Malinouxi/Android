@@ -643,5 +643,13 @@ func draw_strike() -> void:
 		draw_line(Vector2.ZERO, Iso.to_screen_vector(_strike_offset), Color(1, 1, 0.8, 0.9), 2.0)
 
 
+## Redemande le dessin 2D, seulement si la vue 2D est affichée (en vue 3D, le monde
+## 2D est caché : inutile de programmer un dessin à chaque image pour chaque unité).
+## Godot redessine de lui-même ce qui redevient visible.
+func redraw() -> void:
+	if is_visible_in_tree():
+		queue_redraw()
+
+
 static func _group_name(unit_team: Team) -> String:
 	return "dungeon" if unit_team == Team.DUNGEON else "heroes"

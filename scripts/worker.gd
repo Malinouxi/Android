@@ -80,7 +80,7 @@ func _process(delta: float) -> void:
 			_process_building(work_delta)
 		State.DECORATING:
 			_process_decorating(work_delta)
-	queue_redraw()
+	redraw()
 
 
 func _process_idle(delta: float) -> void:

@@ -2324,10 +2324,12 @@ func _update_lighting(delta: float) -> void:
 	_heart_light.energy = 1.2 + 0.35 * sin(Time.get_ticks_msec() / 1000.0 * beat_speed)
 	if _rival_light != null and map.rival_heart_hp <= 0.0:
 		_rival_light.energy = 0.0
-	# Les flammes vacillent un peu (chaque torche à son rythme).
-	var time := Time.get_ticks_msec() / 1000.0
-	for cell: Vector2i in _torches:
-		_torches[cell].energy = 0.85 + 0.12 * sin(time * 7.0 + cell.x * 1.7 + cell.y * 2.3)
+	# Les flammes vacillent un peu (chaque torche à son rythme). En vue 3D, le monde 2D
+	# et ses lumières sont cachés : inutile de les animer.
+	if world_root.visible:
+		var time := Time.get_ticks_msec() / 1000.0
+		for cell: Vector2i in _torches:
+			_torches[cell].energy = 0.85 + 0.12 * sin(time * 7.0 + cell.x * 1.7 + cell.y * 2.3)
 	_torch_timer -= delta
 	if _torch_timer <= 0.0:
 		_torch_timer = 1.5

@@ -38,6 +38,8 @@ var _zoom := 1.0
 var _dirty := true
 var _rebuild_timer := 0.0
 var _chunks: Array[MeshInstance3D] = []
+## L'empreinte de chaque morceau (voir _chunk_key) : seuls ceux qui ont changé sont reconstruits.
+var _chunk_keys: Array[int] = []
 var _materials := {}
 var _flat_materials := {}   ## Couleur -> matériau sans ombrage (barres, cercles).
 var _cell_props := {}       ## case -> {"sig": texte, "node": Node3D, "anims": [...]}
@@ -356,12 +358,16 @@ func _make_unit(unit: Unit) -> Dictionary:
 		title.position.y = bars.position.y + 0.22
 		title.visible = false
 		holder.add_child(title)
-	var held := _make_held_props(unit, model.get_meta("rig"))
+	var rig: Dictionary = model.get_meta("rig")
+	var held := _make_held_props(unit, rig)
 	var parts: Array[MeshInstance3D] = []
 	_collect_parts(model, parts)
-	return {"holder": holder, "model": model, "rig": model.get_meta("rig"), "ring": ring, "sack": sack,
-			"bars": bars, "hp": hp_bar, "mood": mood_bar, "parts": parts, "flash": false,
-			"last": unit.position, "phase": randf() * TAU, "title": title, "held": held, "shown": ""}
+	var body: Node3D = rig["body"]
+	return {"holder": holder, "model": model, "rig": rig, "ring": ring, "sack": sack,
+			"bars": bars, "hp": hp_bar, "hp_back": hp_back, "mood": mood_bar, "mood_index": -1,
+			"parts": parts, "flash": false, "last": unit.position, "phase": randf() * TAU, "title": title,
+			"held": held, "shown": "", "head": body.get_node_or_null("head"),
+			"has_gold": "carried_gold" in unit, "has_loot": "loot" in unit}
 
 
 ## Les objets qu'une créature tient pendant certaines activités (voir _animate) :
@@ -410,6 +416,28 @@ func _make_held_props(unit: Unit, rig: Dictionary) -> Dictionary:
 	return held
 
 
+## Les plans de la vue de la caméra, recalculés à chaque image (voir _on_screen).
+var _frustum: Array[Plane] = []
+## Les matériaux de la barre d'humeur, par dixième d'humeur (0 à 10).
+var _mood_materials: Array[StandardMaterial3D] = []
+
+
+## Vrai si un point (avec une marge de « margin » cases) peut être à l'écran.
+## Hors de l'écran, on ne prend pas la peine d'animer bras, jambes et flammes.
+func _on_screen(point: Vector3, margin := 1.5) -> bool:
+	for plane in _frustum:
+		if plane.distance_to(point) > margin:
+			return false
+	return true
+
+
+func _mood_material(happy: float) -> StandardMaterial3D:
+	if _mood_materials.is_empty():
+		for i in 11:
+			_mood_materials.append(_flat_material(Color.RED.lerp(Color.GREEN, i / 10.0)))
+	return _mood_materials[clampi(roundi(snappedf(happy, 0.1) * 10.0), 0, 10)]
+
+
 func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
 	for child in node.get_children():
 		if child is MeshInstance3D:
@@ -418,6 +446,7 @@ func _collect_parts(node: Node, parts: Array[MeshInstance3D]) -> void:
 
 
 func _update_units() -> void:
+	_frustum = camera.get_frustum()
 	for root in unit_roots:
 		for node in root.get_children():
 			var unit := node as Unit
@@ -467,8 +496,9 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 	var moved: Vector2 = unit.position - data["last"]
 	data["last"] = unit.position
 	var pose := unit.pose()
+	var walking := unit.is_walking()
 	# Endormie dans son lit ou couchée à l'Infirmerie : allongée, la tête vers le chevet.
-	var resting: bool = (pose == "sleep" or pose == "lie") and rig["kind"] == "humanoid" and not unit.is_walking()
+	var resting: bool = (pose == "sleep" or pose == "lie") and rig["kind"] == "humanoid" and not walking
 	if moved.length() > 0.05:
 		model.rotation.y = lerp_angle(model.rotation.y, atan2(moved.x, moved.y), 0.3)
 	elif resting:
@@ -489,7 +519,11 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		# Sur le lit (ou la paillasse), le corps centré sur la couche.
 		var size := float(unit.sprite_info()[1])
 		model.position = Vector3(0.38 * size, 0.3 if pose == "sleep" else 0.1, 0.0)
-	_animate(unit, rig, data)
+	# Hors de l'écran : seuls la position, l'orientation et le flash sont tenus à jour
+	# (le reste n'est que décor, refait dès que l'unité revient dans la vue).
+	var visible_now := _on_screen(holder.position + Vector3(0.0, 0.5, 0.0))
+	if visible_now:
+		_animate(unit, rig, data, pose, walking)
 	# Le flash blanc quand l'unité est touchée (unit.gd met modulate à 2,5).
 	var flashing := unit.modulate.r > 1.3
 	if flashing != data["flash"]:
@@ -497,6 +531,8 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		for part: MeshInstance3D in data["parts"]:
 			part.material_overlay = _flash_material if flashing else null
 	data["ring"].visible = unit.is_hasted()
+	if not visible_now:
+		return
 	var title: Label3D = data["title"]
 	if title != null:
 		var text: String = hero.overhead_text()
@@ -504,8 +540,11 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		if title.visible:
 			title.text = text
 			title.modulate = Color("ffd54a") if hero.is_veteran() else Color.WHITE
-	var gold := int(unit.get("carried_gold") if unit.get("carried_gold") != null else 0)
-	gold += int(unit.get("loot") if unit.get("loot") != null else 0)
+	var gold := 0
+	if data["has_gold"]:
+		gold += int(unit.get("carried_gold"))
+	if data["has_loot"]:
+		gold += int(unit.get("loot"))
 	data["sack"].visible = gold > 0
 	# Les barres : la vie (si blessée), l'humeur des créatures. Elles font face à la caméra.
 	var bars: Node3D = data["bars"]
@@ -516,7 +555,7 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 		var hp_bar: MeshInstance3D = data["hp"]
 		var ratio := clampf(unit.hp / unit.max_hp, 0.0, 1.0)
 		hp_bar.visible = unit.hp < unit.max_hp
-		data["hp"].get_parent().get_child(0).visible = hp_bar.visible
+		data["hp_back"].visible = hp_bar.visible
 		hp_bar.scale.x = maxf(ratio, 0.001)
 		hp_bar.position.x = -BAR_WIDTH * 0.5 * (1.0 - ratio)
 		if creature != null:
@@ -524,13 +563,12 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 			var happy := clampf(creature.happiness / 100.0, 0.0, 1.0)
 			mood.scale.x = maxf(happy, 0.001)
 			mood.position.x = -BAR_WIDTH * 0.5 * (1.0 - happy)
-			mood.material_override = _flat_material(Color.RED.lerp(Color.GREEN, snappedf(happy, 0.1)))
+			mood.material_override = _mood_material(happy)
 
 
 ## Les mouvements : jambes et bras qui balancent en marchant, bras qui frappe,
 ## ailes qui battent, queue qui remue.
-func _animate(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
-	var walking := unit.is_walking()
+func _animate(unit: Unit, rig: Dictionary, data: Dictionary, pose: String, walking: bool) -> void:
 	var phase: float = data["phase"] + _time * 11.0
 	var legs: Array = rig["legs"]
 	var arms: Array = rig["arms"]
@@ -566,18 +604,17 @@ func _animate(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
 		rig["wings"][i].rotation.z = sin(_time * speed + data["phase"]) * 0.6 * side
 	if rig["tail"] != null:
 		rig["tail"].rotation.y = sin(_time * 4.0 + data["phase"]) * 0.4
-	_animate_pose(unit, rig, data)
+	_animate_pose(rig, data, "" if walking and pose != "tipsy" else pose, attack)
 
 
 ## Les poses des créatures selon leur activité (voir Creature.pose) : elles dorment
 ## allongées, mangent, trinquent, forgent, prient à genoux, montent la garde,
 ## méditent en lévitation... Le temps est décalé pour chaque créature (« phase »).
-func _animate_pose(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
+func _animate_pose(rig: Dictionary, data: Dictionary, pose: String, attack: float) -> void:
 	var body: Node3D = rig["body"]
 	var arms: Array = rig["arms"]
 	var legs: Array = rig["legs"]
-	var head: Node3D = body.get_node_or_null("head")
-	var pose := "" if unit.is_walking() and unit.pose() != "tipsy" else unit.pose()
+	var head: Node3D = data["head"]
 	var t: float = _time + data["phase"]
 	# On repart de la pose normale (sauf ce que _animate vient de régler).
 	body.rotation = Vector3.ZERO
@@ -601,7 +638,7 @@ func _animate_pose(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
 		else:
 			body.scale = Vector3.ONE
 		return
-	if unit.attack_progress() > 0.0:
+	if attack > 0.0:
 		return # En plein coup : on ne touche à rien.
 	match pose:
 		"sleep", "lie":
@@ -723,41 +760,112 @@ func _animate_pose(unit: Unit, rig: Dictionary, data: Dictionary) -> void:
 # Construction de la carte en 3D
 # ---------------------------------------------------------------------------
 
+## (Appelée des milliers de fois par reconstruction : on lit map.tiles directement.)
 func _is_wall(cell: Vector2i) -> bool:
-	if not map.is_inside(cell):
+	if cell.x < 0 or cell.y < 0 or cell.x >= DungeonMap.WIDTH or cell.y >= DungeonMap.HEIGHT:
 		return true
-	var tile := map.get_tile(cell)
+	var tile := map.tiles[cell.y * DungeonMap.WIDTH + cell.x]
 	return tile == DungeonMap.Tile.EARTH or tile == DungeonMap.Tile.GOLD or tile == DungeonMap.Tile.ROCK \
 			or tile == DungeonMap.Tile.GEM
 
 
 ## Reconstruit le sol, les murs et les objets. La carte est découpée en morceaux
 ## de 8 x 8 cases : chaque morceau n'est éclairé que par les lumières proches
-## (les téléphones limitent le nombre de lumières par objet).
+## (les téléphones limitent le nombre de lumières par objet). Seuls les morceaux
+## dont le contenu a changé sont refaits (un coup de pioche ne refait qu'un morceau).
 func _rebuild() -> void:
 	_dirty = false
 	_rebuild_timer = REBUILD_DELAY
-	for chunk in _chunks:
-		chunk.queue_free()
-	_chunks.clear()
+	var codes := _geometry_codes()
+	var index := 0
 	for cy in range(0, DungeonMap.HEIGHT, CHUNK):
 		for cx in range(0, DungeonMap.WIDTH, CHUNK):
-			var tools := {}
-			for y in range(cy, mini(cy + CHUNK, DungeonMap.HEIGHT)):
-				for x in range(cx, mini(cx + CHUNK, DungeonMap.WIDTH)):
-					_add_cell(tools, Vector2i(x, y))
-			var mesh := ArrayMesh.new()
-			for key: String in tools:
-				var st: SurfaceTool = tools[key][0]
-				var before := mesh.get_surface_count()
-				st.commit(mesh)
-				if mesh.get_surface_count() > before: # Rien de dessiné : pas de surface.
-					mesh.surface_set_material(mesh.get_surface_count() - 1, tools[key][1])
-			var chunk := MeshInstance3D.new()
-			chunk.mesh = mesh
-			add_child(chunk)
-			_chunks.append(chunk)
+			var key := _chunk_key(codes, cx, cy)
+			if index < _chunks.size() and _chunk_keys[index] == key:
+				index += 1
+				continue
+			var mesh := _build_chunk_mesh(cx, cy)
+			if index < _chunks.size():
+				_chunks[index].mesh = mesh
+				_chunk_keys[index] = key
+			else:
+				var chunk := MeshInstance3D.new()
+				chunk.mesh = mesh
+				add_child(chunk)
+				_chunks.append(chunk)
+				_chunk_keys.append(key)
+			index += 1
 	_rebuild_props()
+
+
+func _build_chunk_mesh(cx: int, cy: int) -> ArrayMesh:
+	var tools := {}
+	for y in range(cy, mini(cy + CHUNK, DungeonMap.HEIGHT)):
+		for x in range(cx, mini(cx + CHUNK, DungeonMap.WIDTH)):
+			_add_cell(tools, Vector2i(x, y))
+	var mesh := ArrayMesh.new()
+	for key: String in tools:
+		var st: SurfaceTool = tools[key][0]
+		var before := mesh.get_surface_count()
+		st.commit(mesh)
+		if mesh.get_surface_count() > before: # Rien de dessiné : pas de surface.
+			mesh.surface_set_material(mesh.get_surface_count() - 1, tools[key][1])
+	return mesh
+
+
+## Ce que _add_cell lit d'une case, résumé en un nombre (une case par élément,
+## dans l'ordre de map.tiles) : la tuile, les coups de pioche, la salle, le territoire,
+## le chantier de salle, la Rune, la décoration. On parcourt les dictionnaires de la
+## carte plutôt que toutes les cases : c'est bien plus rapide.
+func _geometry_codes() -> PackedInt64Array:
+	var codes := PackedInt64Array()
+	codes.resize(map.tiles.size())
+	for i in map.tiles.size():
+		codes[i] = map.tiles[i]
+	for cell: Vector2i in map.damage:
+		if map.is_inside(cell):
+			codes[_index(cell)] |= clampi(int(map.damage[cell]), 0, 1023) << 4
+	for cell: Vector2i in map.rooms:
+		if map.is_inside(cell):
+			codes[_index(cell)] |= (int(map.rooms[cell]) + 1) << 14
+	for cell: Vector2i in map.claimed:
+		if map.is_inside(cell):
+			codes[_index(cell)] |= 1 << 20
+	for cell: Vector2i in map.rival_claimed:
+		if map.is_inside(cell):
+			codes[_index(cell)] |= 1 << 21
+	for cell: Vector2i in map.construction:
+		var site: Dictionary = map.construction[cell]
+		if map.is_inside(cell) and site.get("kind") == "room":
+			codes[_index(cell)] |= (int(site["type"]) + 1) << 22
+	for cell: Vector2i in map.defenses:
+		if map.is_inside(cell) and map.defenses[cell].get("type", -1) == Defenses.Type.RUNE:
+			codes[_index(cell)] |= 1 << 28
+	for cell: Vector2i in map.decorations:
+		if not map.is_inside(cell):
+			continue
+		var deco: Dictionary = map.decorations[cell]
+		var side: Variant = deco.get("side")
+		var side_code: int = (side.x + 1) * 3 + side.y + 1 if side is Vector2i else 9
+		var kind := DungeonMap.DECORATION_KINDS.find(deco.get("kind", "")) + 1
+		codes[_index(cell)] |= (kind * 16 + side_code + 1) << 29
+	return codes
+
+
+static func _index(cell: Vector2i) -> int:
+	return cell.y * DungeonMap.WIDTH + cell.x
+
+
+## L'empreinte d'un morceau : les codes de ses cases et de la bordure d'une case
+## autour (les murs regardent leurs voisines). Deux empreintes égales donnent la
+## même géométrie (les cases hors de la carte ne changent jamais).
+func _chunk_key(codes: PackedInt64Array, cx: int, cy: int) -> int:
+	var values := PackedInt64Array()
+	var x0 := maxi(cx - 1, 0)
+	var x1 := mini(cx + CHUNK + 1, DungeonMap.WIDTH)
+	for y in range(maxi(cy - 1, 0), mini(cy + CHUNK + 1, DungeonMap.HEIGHT)):
+		values.append_array(codes.slice(y * DungeonMap.WIDTH + x0, y * DungeonMap.WIDTH + x1))
+	return hash(values)
 
 
 ## Le matériau de la lave : il brille tout seul (émission), même dans le noir.
@@ -815,14 +923,22 @@ func _material(key: String, texture: Texture2D, tint: Color, transparent: bool) 
 
 ## Un carré texturé : a = coin haut-gauche de l'image, b = haut-droit, c = bas-droit, d = bas-gauche.
 ## « uv » : la part de l'image couverte (1 x 1 = l'image entière).
+## (Deux triangles a-b-c et a-c-d ; la normale reste la même pour les 6 sommets.)
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, normal: Vector3,
 		uv := Vector2.ONE) -> void:
-	var uvs := [Vector2(0, 0), Vector2(uv.x, 0), uv, Vector2(0, uv.y)]
-	var points := [a, b, c, d]
-	for index in [0, 1, 2, 0, 2, 3]:
-		st.set_normal(normal)
-		st.set_uv(uvs[index])
-		st.add_vertex(points[index])
+	st.set_normal(normal)
+	st.set_uv(Vector2.ZERO)
+	st.add_vertex(a)
+	st.set_uv(Vector2(uv.x, 0.0))
+	st.add_vertex(b)
+	st.set_uv(uv)
+	st.add_vertex(c)
+	st.set_uv(Vector2.ZERO)
+	st.add_vertex(a)
+	st.set_uv(uv)
+	st.add_vertex(c)
+	st.set_uv(Vector2(0.0, uv.y))
+	st.add_vertex(d)
 
 
 ## Un carré à plat (sol), un peu rétréci de « inset » de chaque côté.
@@ -1062,17 +1178,18 @@ func _rebuild_props() -> void:
 		for x in DungeonMap.WIDTH:
 			var cell := Vector2i(x, y)
 			var sig := "" if _is_wall(cell) else _cell_signature(cell)
-			if sig.contains("torch"):
-				wanted_torches[cell] = _wall_side(cell)
-			if sig.contains("brazier_rival"):
-				wanted_braziers[cell] = RIVAL_FIRE
-			elif sig.contains("brazier"):
-				wanted_braziers[cell] = HEART_FIRE
-			if sig.contains("candelabra"):
-				wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
+			if sig != "":
+				if sig.contains("torch"):
+					wanted_torches[cell] = _wall_side(cell)
+				if sig.contains("brazier_rival"):
+					wanted_braziers[cell] = RIVAL_FIRE
+				elif sig.contains("brazier"):
+					wanted_braziers[cell] = HEART_FIRE
+				if sig.contains("candelabra"):
+					wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
 			if map.is_lava(cell) and posmod(x + y * 2, 3) == 0:
 				wanted_braziers[cell] = LAVA_GLOW # La lave éclaire la caverne (une lumière sur trois cases).
-			if sig.contains("ruin_lectern"):
+			if sig != "" and sig.contains("ruin_lectern"):
 				wanted_braziers[cell] = RUIN_GLOW
 			var old: Dictionary = _cell_props.get(cell, {})
 			if old.get("sig", "") == sig:
@@ -1212,8 +1329,11 @@ func _update_props() -> void:
 		var icon: Sprite3D = _dig_icons[cell]
 		icon.position.y = WALL_HEIGHT + 0.35 + 0.06 * sin(_time * 3.0 + cell.x + cell.y)
 	for cell: Vector2i in _cell_props:
+		var anims: Array = _cell_props[cell]["anims"]
+		if anims.is_empty() or not _on_screen(Vector3(cell.x + 0.5, 0.8, cell.y + 0.5), 2.5):
+			continue # Hors de l'écran, les flammes peuvent attendre.
 		var t := _time + cell.x * 1.3 + cell.y * 0.7
-		for anim: Dictionary in _cell_props[cell]["anims"]:
+		for anim: Dictionary in anims:
 			_animate_prop(anim, t)
 	_animate_prop(_throne_anim, _time)
 

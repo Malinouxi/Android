@@ -608,6 +608,27 @@ plus tard, tu attireras des créatures pour défendre ton cœur contre des héro
   d'images dans tous les tableaux (créatures, héros, salles, défenses, sorts, recherche). Les tableaux
   des salles et des défenses montrent aussi le temps de construction.
 
+## Version web (jouer dans le navigateur)
+
+À chaque push, GitHub construit aussi la **version web** du jeu (`.github/workflows/web.yml`, préréglage
+« Web » de `export_presets.cfg`) et la publie sur la branche `gh-pages`.
+
+- **Adresse** : https://malinouxi.github.io/Android/ (PC, tablette ou téléphone, rien à installer).
+- **À faire une seule fois** : sur GitHub, *Settings* > *Pages* > *Build and deployment* > Source
+  « Deploy from a branch », branche `gh-pages`, dossier `/ (root)`, puis *Save*. Une minute plus tard,
+  l'adresse marche.
+- **Dépôt privé** : GitHub Pages n'est gratuit que pour un dépôt **public** (sinon il faut GitHub Pro).
+  Sans Pages, la version web est quand même dans *Actions* > dernier build « Version web » >
+  *Artifacts* > `SeigneurDesProfondeurs-web` (un zip : le décompresser, puis le servir comme indiqué
+  plus bas).
+- La partie est **sauvegardée dans le navigateur** (toutes les 60 s, et quand tu changes d'onglet).
+  Vider les données du site efface la sauvegarde.
+- Le premier chargement télécharge environ 20 Mo (compressés), ensuite le navigateur les garde.
+  Le son démarre après le premier toucher (règle des navigateurs).
+- Sur téléphone, « Ajouter à l'écran d'accueil » l'installe comme une appli (en paysage).
+- Pour tester chez toi sans GitHub : exporte avec Godot (*Projet* > *Exporter* > *Web*), puis
+  `python3 -m http.server` dans le dossier `build/web` et ouvre http://localhost:8000.
+
 ## APK Android (construit par GitHub)
 
 À chaque push, GitHub construit l'APK tout seul (fichier `.github/workflows/android-apk.yml`,

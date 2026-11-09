@@ -1,0 +1,74 @@
+# Construit la VERSION WEB du jeu (jouable dans un navigateur) à chaque push,
+# puis la publie sur la branche « gh-pages », que GitHub Pages affiche.
+#
+# Où jouer : https://<compte>.github.io/<dépôt>/ (par exemple https://malinouxi.github.io/Android/).
+# À faire UNE FOIS sur GitHub : Settings > Pages > « Build and deployment » >
+# Source : « Deploy from a branch », branche « gh-pages », dossier « / (root) ».
+#
+# L'export utilise le préréglage « Web » de export_presets.cfg (sans threads :
+# pas besoin d'en-têtes spéciaux, GitHub Pages suffit).
+
+name: Version web
+
+on:
+  push:
+    branches: ["**", "!captures", "!gh-pages"]
+    paths-ignore: ["README.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Pour pousser la branche gh-pages.
+
+concurrency:
+  group: version-web
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le projet
+        uses: actions/checkout@v4
+
+      - name: Installer Godot et les modèles d'export web
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -sSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+          curl -sSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz 'templates/web*' 'templates/version.txt'
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+          rm -rf templates templates.tpz godot.zip
+
+      - name: Importer le projet puis exporter la version web
+        run: |
+          mkdir -p build/web
+          ./godot --headless --path . --import || true
+          ./godot --headless --path . --export-release "Web" build/web/index.html
+          ls -la build/web
+          test -f build/web/index.wasm
+          # GitHub Pages n'a pas besoin de Jekyll : on sert les fichiers tels quels.
+          touch build/web/.nojekyll
+
+      - name: Garder la version web dans les « Artifacts » du build
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeigneurDesProfondeurs-web
+          path: build/web
+
+      - name: Publier sur la branche « gh-pages » (GitHub Pages)
+        run: |
+          cd build/web
+          git init -q -b gh-pages
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Version web du build ${{ github.run_number }} (${{ github.ref_name }}, ${{ github.sha }})"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+          echo "Publié. Si Pages est activé : https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"

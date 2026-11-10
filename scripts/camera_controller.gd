@@ -75,7 +75,7 @@ func move_by(screen_relative: Vector2) -> void:
 	_clamp_position()
 
 
-## Centre la vue sur un point de la carte (utilisé par la mini-carte).
+## Centre la vue sur un point de la carte.
 func center_on(map_position: Vector2) -> void:
 	if view3d != null:
 		view3d.center_on(map_position)

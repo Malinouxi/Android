@@ -257,7 +257,6 @@ func _ready() -> void:
 
 	camera.bounds = _iso_bounds()
 	camera.paint_mode = true # L'outil de départ est « Creuser ».
-	hud.add_minimap(map, camera)
 	camera.center_on(map.cell_to_world(map.heart_cell))
 	hud.set_summon_cost(WORKER_COST)
 
@@ -2265,7 +2264,9 @@ func _on_tool_selected(tool: int) -> void:
 	# Les salles d'une case se « peignent » au doigt ; les grandes se posent d'un toucher.
 	camera.paint_mode = tool == Hud.Tool.DIG or tool == Hud.Tool.DEMOLISH \
 			or (TOOL_ROOMS.has(tool) and Rooms.footprint(TOOL_ROOMS[tool]) == Vector2i.ONE)
-	if tool == Hud.Tool.HAND:
+	if tool == Hud.Tool.MOVE:
+		hud.show_message("Glisse un doigt pour te déplacer dans le donjon, pince pour zoomer. Touche une créature pour voir sa fiche.", 5.0)
+	elif tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
 	elif TOOL_SPELLS.has(tool):
 		var spell: int = TOOL_SPELLS[tool]
@@ -2438,6 +2439,11 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 				hud.select_unit(creature) # Sa fiche s'affiche en bas à gauche.
 			else:
 				map.toggle_mark(cell)
+		Hud.Tool.MOVE:
+			# Se diriger : on ne touche à rien, sauf pour regarder une créature.
+			var creature := _creature_at(world_position)
+			if creature:
+				hud.select_unit(creature)
 		Hud.Tool.HAND:
 			_use_hand(cell, world_position)
 		Hud.Tool.SACRIFICE:

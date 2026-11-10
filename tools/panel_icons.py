@@ -47,12 +47,13 @@ BOXES = {
     "demon_statue": (790, 268, 883, 349),    # Statue démoniaque
     "arch": (936, 267, 1020, 349),           # Entrée du donjon
     "demon": (70, 507, 161, 587),            # Colère démoniaque
-    "summon": (217, 507, 304, 587),          # Invocation de créature
+    "hand": (217, 507, 304, 587),            # Invocation de créature
     "blood": (356, 505, 449, 582),           # Drain de vie
     "shield": (502, 507, 594, 588),          # Sort de protection
     "quake": (647, 503, 742, 588),           # Tremblement de terre
     "brazier": (795, 505, 888, 589),         # Explosion chaotique
     "portal": (1087, 506, 1178, 583),        # Téléportation
+    "ghost": (1234, 506, 1326, 589),         # Illusion
     "madness": (1375, 506, 1468, 587),       # Folie
     "skull": (71, 657, 164, 732),            # Malédiction
     "heal": (214, 657, 304, 732),            # Soin démoniaque

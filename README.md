@@ -44,10 +44,10 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
 - **Interface** (HUD « pierre et fer ») : en haut, le médaillon du Seigneur (il parle et donne des
   conseils quand on le touche), l'or et le Trésor, la mana, les créatures et les lits, les ouvriers, le
   cœur, la vague et la paie, **+ ouvrier** (100 or), la vitesse **x1/x2/x3** et la **pause**. À gauche,
-  les catégories d'outils : Actions, Salles, **Antres**, Défenses, **Sorts**, **Pouvoirs**. En haut à droite, la
-  mini-carte et l'objectif. En bas, la fiche de la créature touchée, les outils et le journal (30
+  les catégories d'outils : Actions, Salles, **Antres**, Défenses, **Sorts**, **Pouvoirs**. En haut à droite,
+  l'objectif. En bas, la fiche de la créature touchée, les outils et le journal (30
   messages, flèches pour remonter).
-- **Actions** : Creuser, **Main** (ramasser jusqu'à 8 unités et les déposer ailleurs ; déposée sur le
+- **Actions** : Creuser, **Se diriger** (glisser un doigt déplace la vue, sans rien toucher), **Main** (ramasser jusqu'à 8 unités et les déposer ailleurs ; déposée sur le
   portail, une créature est renvoyée), Démolir, Sacrifier.
 - **Pause** : Reprendre, Sauvegarder, Codex des règles, Sauvegarder et quitter.
 
@@ -378,7 +378,7 @@ scripts/voxel_models.gd    Chargement des modèles Blender (et modèles en blocs
 scripts/fx.gd              Effets communs 2D/3D : particules, chiffres, tremblements, éclairs
 scripts/iso.gd             La vue isométrique 2D
 scripts/art.gd             Les images du jeu (assets/)
-scripts/hud.gd             L'interface de jeu        scripts/minimap.gd   La mini-carte
+scripts/hud.gd             L'interface de jeu
 scripts/lord_portrait.gd   Le Seigneur animé du médaillon (et sa voix)
 scripts/menu.gd            Le menu principal          scripts/level_select.gd  Le choix des niveaux
 scripts/codex.gd           L'écran du codex           scripts/codex_content.gd Les textes du codex

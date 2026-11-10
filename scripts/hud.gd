@@ -32,7 +32,8 @@ enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		SPELL_WEB, SPELL_FIRESTORM, SPELL_TERROR, SPELL_COLLAPSE, SPELL_POSSESSION,
 		SPELL_WHIP, SPELL_FEAST, SPELL_EYE, SPELL_SUMMON, SPELL_TRANSMUTE,
 		SPELL_RAISE, SPELL_CONVERT, SPELL_SANCTUARY, SPELL_RECALL,
-		TAVERN, INFIRMARY, MINT, TORTURE, GUARDPOST, MANA_WELL, CRYPT }
+		TAVERN, INFIRMARY, MINT, TORTURE, GUARDPOST, MANA_WELL, CRYPT,
+		MOVE }
 
 var _top_panel: PanelContainer
 ## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
@@ -41,7 +42,6 @@ var portrait: LordPortrait
 var _bottom_bar: PanelContainer
 var _category_panel: PanelContainer
 var _goal_panel: PanelContainer
-var _minimap_panel: PanelContainer
 ## La partie « fiche » de la barre du bas (toujours là ; vide si rien n'est choisi).
 var _unit_panel: Control
 var _unit_bars: Control
@@ -90,13 +90,11 @@ var _refresh_timer := 0.0
 const RED := Color("c62828")
 const LOG_LINES := 30 ## Nombre de messages gardés dans le journal (on remonte avec les flèches).
 const TOP_HEIGHT := 96
-const BOTTOM_HEIGHT := 196 ## Hauteur de la barre du bas (écran de 1280 x 720).
-const TOOL_SIZE := 72 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
-const CATEGORY_SIZE := 52 ## Côté des boutons de catégorie (colonne de gauche : 6 catégories).
+const BOTTOM_HEIGHT := 244 ## Hauteur de la barre du bas (écran de 1280 x 720).
+const TOOL_SIZE := 92 ## Côté des boutons d'outils (en pixels, écran de 1280 x 720).
+const CATEGORY_SIZE := 76 ## Côté des boutons de catégorie (à gauche : 6 catégories, sur 2 colonnes).
 const UNIT_SECTION_WIDTH := 370 ## Largeur de la fiche de créature (barre du bas).
-const SIDE_PANEL_WIDTH := 278 ## Largeur de la mini-carte et de l'objectif (à droite).
-## Hauteur du cadre de la mini-carte : la carte (Minimap.CELL pixels par case) et le cadre.
-const MINIMAP_PANEL_HEIGHT := DungeonMap.HEIGHT * Minimap.CELL + 28
+const SIDE_PANEL_WIDTH := 278 ## Largeur du cadre de l'objectif (en haut à droite).
 
 ## Les icônes (256 x 256). On prend d'abord l'icône PEINTE, découpée dans la planche
 ## de référence (tools/panel_icons.py -> assets/icons_panel/) ; sinon l'icône
@@ -115,7 +113,7 @@ static func icon_path(icon_name: String) -> String:
 
 ## L'icône de chaque outil et sort.
 const TOOL_ICON_NAMES := {
-	Tool.DIG: "pickaxe", Tool.HAND: "move", Tool.DEMOLISH: "wrecking_ball", Tool.SACRIFICE: "blood",
+	Tool.DIG: "pickaxe", Tool.MOVE: "move", Tool.HAND: "hand", Tool.DEMOLISH: "wrecking_ball", Tool.SACRIFICE: "blood",
 	Tool.TREASURY: "chest", Tool.LAIR: "bed", Tool.FARM: "mushroom", Tool.LIBRARY: "bookshelf",
 	Tool.WORKSHOP: "anvil", Tool.TRAINING: "dummy", Tool.PRISON: "cage", Tool.TEMPLE: "demon_statue",
 	Tool.GRAVEYARD: "tomb", Tool.SPIKES: "spikes", Tool.RUNE: "pentagram", Tool.DOOR: "door",
@@ -123,7 +121,7 @@ const TOOL_ICON_NAMES := {
 	Tool.SPELL_HASTE: "fast", Tool.BRAZIER: "brazier",
 	Tool.SPELL_WEB: "chains", Tool.SPELL_FIRESTORM: "fire_rain", Tool.SPELL_TERROR: "panic",
 	Tool.SPELL_COLLAPSE: "quake", Tool.SPELL_POSSESSION: "demon", Tool.SPELL_WHIP: "whip",
-	Tool.SPELL_FEAST: "feast", Tool.SPELL_EYE: "eye", Tool.SPELL_SUMMON: "summon",
+	Tool.SPELL_FEAST: "feast", Tool.SPELL_EYE: "eye", Tool.SPELL_SUMMON: "ghost",
 	Tool.SPELL_TRANSMUTE: "gold", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "madness",
 	Tool.SPELL_SANCTUARY: "shield", Tool.SPELL_RECALL: "portal",
 	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "torture",
@@ -131,7 +129,7 @@ const TOOL_ICON_NAMES := {
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
-	"Actions": ["tools", [Tool.DIG, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
+	"Actions": ["tools", [Tool.DIG, Tool.MOVE, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
 	"Salles": ["arch", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
 			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
 	# Les antres (règles 2.7) : de quoi rendre le donjon plus vivant.
@@ -163,7 +161,6 @@ func _ready() -> void:
 	# Le codex s'ouvre par-dessus tout (il marche aussi pendant la pause).
 	codex_pressed.connect(func() -> void: _root.add_child(Codex.new()))
 	_build_top_panel()
-	_build_minimap_panel()
 	_build_goal_panel()
 	_build_bottom_bar()
 	_build_category_panel()
@@ -345,7 +342,7 @@ func _build_goal_panel() -> void:
 	_goal_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_goal_panel.offset_right = -8
 	_goal_panel.offset_left = -8
-	_goal_panel.offset_top = TOP_HEIGHT + 8 + MINIMAP_PANEL_HEIGHT + 4 # Sous la mini-carte.
+	_goal_panel.offset_top = TOP_HEIGHT + 8
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
 	_goal_panel.add_child(column)
@@ -384,13 +381,15 @@ func _build_portrait() -> void:
 	_root.add_child(portrait)
 
 
-## La colonne de gauche : les catégories d'outils, une grande icône par bouton
-## (comme sur la photo : pas de texte, le nom s'affiche en info-bulle).
+## À gauche : les catégories d'outils, une grande icône par bouton, sur 2 colonnes
+## (pas de texte, le nom s'affiche en info-bulle).
 func _build_category_panel() -> void:
 	_category_panel = _framed_panel()
 	_category_panel.position = Vector2(6, LordPortrait.SIZE + 14) # Sous le médaillon (et son crâne).
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 4)
+	var column := GridContainer.new()
+	column.columns = 2
+	column.add_theme_constant_override("h_separation", 4)
+	column.add_theme_constant_override("v_separation", 4)
 	_category_panel.add_child(column)
 	var group := ButtonGroup.new()
 	for tab_name: String in TABS:
@@ -411,19 +410,6 @@ func _build_category_panel() -> void:
 		_tab_buttons[tab_name] = button
 	_tab_buttons["Actions"].button_pressed = true
 	_show_tab("Actions")
-
-
-## En haut à droite : la mini-carte, dans son cadre de pierre (toucher = y aller).
-func _build_minimap_panel() -> void:
-	_minimap_panel = _framed_panel()
-	_minimap_panel.anchor_left = 1.0
-	_minimap_panel.anchor_right = 1.0
-	_minimap_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_minimap_panel.offset_left = -8
-	_minimap_panel.offset_right = -8
-	_minimap_panel.offset_top = TOP_HEIGHT + 8
-	_minimap_panel.custom_minimum_size = Vector2(SIDE_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)
-	_minimap_panel.visible = false # Visible quand main.gd donne la carte (add_minimap).
 
 
 ## La barre du bas, d'un seul tenant : fiche | outils | journal.
@@ -679,8 +665,8 @@ func _make_tool_button(tool: int) -> Button:
 	button.button_group = _tool_group
 	button.button_pressed = tool == Tool.DIG
 	button.custom_minimum_size = Vector2(TOOL_SIZE, TOOL_SIZE)
-	button.add_theme_font_size_override("font_size", 17)
-	button.add_theme_constant_override("icon_max_width", 64)
+	button.add_theme_font_size_override("font_size", 20)
+	button.add_theme_constant_override("icon_max_width", TOOL_SIZE - 10)
 	button.pressed.connect(func() -> void:
 		Sound.play("click")
 		_current_tool = tool
@@ -718,7 +704,7 @@ func set_tool_state(tool: int, text: String, locked: bool) -> void:
 
 
 func _update_tool_name() -> void:
-	var names := {Tool.DIG: "Creuser", Tool.HAND: "Main", Tool.DEMOLISH: "Démolir", Tool.SACRIFICE: "Sacrifier"}
+	var names := {Tool.DIG: "Creuser", Tool.MOVE: "Se diriger", Tool.HAND: "Main", Tool.DEMOLISH: "Démolir", Tool.SACRIFICE: "Sacrifier"}
 	if _tool_name_label != null:
 		_tool_name_label.text = _tool_texts.get(_current_tool, names.get(_current_tool, ""))
 
@@ -726,16 +712,6 @@ func _update_tool_name() -> void:
 func set_speed(speed: float) -> void:
 	Engine.time_scale = speed
 	_speed_button.text = "x%d" % speed
-
-
-## La mini-carte, en haut à droite (comme sur la photo), au-dessus de l'objectif.
-func add_minimap(map: DungeonMap, camera: CameraController) -> void:
-	var minimap := Minimap.new()
-	minimap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	minimap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_minimap_panel.add_child(minimap)
-	minimap.setup(map, camera)
-	_minimap_panel.visible = true
 
 
 func set_mana(mana: float, max_mana: float) -> void:
@@ -963,7 +939,7 @@ func hide_message() -> void:
 ## Vrai si cette position de l'écran est sur un panneau de l'interface
 ## (pour ne pas agir sur la case cachée sous un bouton).
 func is_over_ui(screen_position: Vector2) -> bool:
-	for panel: Control in [_top_panel, _bottom_bar, _category_panel, _goal_panel, _minimap_panel, portrait]:
+	for panel: Control in [_top_panel, _bottom_bar, _category_panel, _goal_panel, portrait]:
 		if panel != null and panel.visible and panel.get_global_rect().has_point(screen_position):
 			return true
 	return false

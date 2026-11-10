@@ -245,7 +245,7 @@ func _build_top_panel() -> void:
 	row.add_child(_treasury_label)
 	_mana_label = _make_label(26)
 	_mana_label.add_theme_color_override("font_color", Color("82b1ff"))
-	row.add_child(_counter("mana", _mana_label, 128))
+	row.add_child(_counter("mana_well", _mana_label, 128))
 	_creatures_label = _make_label(24)
 	row.add_child(_counter("skull", _creatures_label, 128))
 	_workers_label = _make_label(26)

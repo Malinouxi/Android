@@ -8,6 +8,13 @@ extends Unit
 ## À 0, elle quitte le donjon par le portail.
 ## Et quand un héros approche, elle se bat pour défendre le donjon !
 ##
+## AU COMBAT (voir « Trois fois par seconde », plus bas), elle n'est pas bête :
+##   - elle CHOISIT sa cible (_target_score) : qui frappe le cœur, les soigneurs,
+##     les pillards, les héros presque morts... et pas seulement le plus proche ;
+##   - elle APPELLE À L'AIDE ses voisines en engageant le combat (_call_for_help) ;
+##   - elle accourt quand le CŒUR est frappé, même endormie (_heart_attacker) ;
+##   - si elle se bat de loin, elle RECULE d'un pas entre deux tirs (_should_back_off).
+##
 ## Quand tout va bien, elle TRAVAILLE : elle étudie à la Bibliothèque, fabrique
 ## des pièges à l'Atelier ou s'entraîne. En combattant et en s'entraînant, elle
 ## gagne de l'EXPÉRIENCE et monte de NIVEAU (plus forte, mais mieux payée).
@@ -101,6 +108,10 @@ var _mood_timer := 0.0
 var _eat_timer := 0.0
 var _combat_timer := 0.0
 var _enemy: Unit = null
+## Secondes avant de pouvoir rappeler ses voisines à l'aide.
+var _help_cooldown := 0.0
+## Vrai pendant le pas en arrière d'une créature à distance (entre deux tirs).
+var _backing_off := false
 
 var level := 1
 ## Expérience accumulée vers le prochain niveau.
@@ -484,7 +495,12 @@ func _process(delta: float) -> void:
 			if move_along_path(delta):
 				_leave_now()
 		State.FIGHTING:
-			if not is_instance_valid(_enemy) or not fight(_enemy, delta):
+			if not is_instance_valid(_enemy):
+				_enemy = null
+				state = State.WANDER
+			elif _backing_off or _should_back_off():
+				_back_off(delta)
+			elif not fight(_enemy, delta):
 				_enemy = null
 				state = State.WANDER
 		State.GOING_TO_WORK:
@@ -998,11 +1014,14 @@ static func _nurse_on_duty(tree: SceneTree) -> bool:
 
 
 ## L'alarme du Poste de garde : elle se réveille (ou lâche son travail) et court au héros.
-func alert(enemy: Unit) -> void:
+## wake = false (l'appel à l'aide d'une voisine) : les endormies ne se réveillent pas.
+func alert(enemy: Unit, wake := true) -> void:
 	if possessed_left > 0.0 or fleeing or is_catcher() or not is_instance_valid(enemy):
 		return
 	if state != State.SLEEPING and state != State.WORKING and state != State.WANDER \
 			and state != State.GOING_TO_WORK and state != State.EATING:
+		return
+	if state == State.SLEEPING and not wake:
 		return
 	if is_patient():
 		return # Les blessés restent couchés.
@@ -1010,6 +1029,7 @@ func alert(enemy: Unit) -> void:
 	_work_room = Rooms.Type.NONE
 	_work_cell = NO_CELL
 	path.clear()
+	_backing_off = false
 	_enemy = enemy
 	state = State.FIGHTING
 
@@ -1057,6 +1077,7 @@ func _update_combat(delta: float) -> void:
 	if _combat_timer > 0.0:
 		return
 	_combat_timer = 0.3
+	_help_cooldown = maxf(0.0, _help_cooldown - 0.3)
 	# Peureuse : sous un certain seuil de vie, elle fuit le combat et va se cacher.
 	var flee_below := Traits.value(traits, "flee_below")
 	if flee_below > 0.0:
@@ -1075,6 +1096,9 @@ func _update_combat(delta: float) -> void:
 	if enemy == null and state != State.SLEEPING and is_instance_valid(assault_target) \
 			and assault_target.is_targetable() and not is_catcher():
 		enemy = assault_target
+	# Le cœur est frappé : tout le monde accourt, même de loin, même endormi.
+	if enemy == null and not is_catcher() and not is_patient():
+		enemy = _heart_attacker()
 	if enemy == null:
 		# Personne à combattre, mais le cœur du rival est tout près : à l'attaque !
 		if state == State.WANDER and map.has_rival and map.rival_heart_hp > 0.0 \
@@ -1083,10 +1107,92 @@ func _update_combat(delta: float) -> void:
 			state = State.RAIDING
 		return
 	if state != State.FIGHTING or not is_instance_valid(_enemy) or _enemy != enemy:
+		if state != State.FIGHTING:
+			_call_for_help(enemy)
 		map.release_work_spot(self)
 		path.clear()
+		_backing_off = false
 		state = State.FIGHTING
 	_enemy = enemy
+
+
+## Ses cibles préférées « comptent » comme si elles étaient plus proches (la note la
+## plus basse gagne, voir unit.gd et les réglages TARGET_* de rules.gd).
+func _target_score(enemy: Unit, distance: float) -> float:
+	var score := distance
+	if enemy == _enemy:
+		score -= Rules.TARGET_STICKY # Elle ne change pas de cible pour un rien.
+	score -= (1.0 - enemy.hp / enemy.max_hp) * Rules.TARGET_WOUNDED # On achève les blessés.
+	if is_instance_valid(_grudge_target) and enemy == _grudge_target and Traits.mult(traits, "grudge") > 1.0:
+		score -= Rules.TARGET_GRUDGE # Rancunière : elle veut SA vengeance.
+	var execute: float = Creatures.info(type).get("execute", 0.0)
+	if execute > 0.0 and enemy.hp < enemy.max_hp * execute:
+		score -= Rules.TARGET_EXECUTE # Le Bourreau flaire les héros à achever.
+	var hero := enemy as Hero
+	if hero != null:
+		if hero.type == Heroes.Type.CLERIC or hero.type == Heroes.Type.EXORCIST:
+			score -= Rules.TARGET_HEALER # Sans leur soutien, les autres tombent plus vite.
+		if hero.loot > 0:
+			score -= Rules.TARGET_LOOT # Il emporte l'or du maître !
+		if map.is_next_to_heart(hero.current_cell()):
+			score -= Rules.TARGET_HEART # Il frappe le cœur : rien n'est plus urgent.
+	return score
+
+
+## En engageant le combat, elle appelle ses voisines : celles qui travaillent, mangent
+## ou se promènent accourent (les endormies ne l'entendent pas).
+func _call_for_help(enemy: Unit) -> void:
+	if _help_cooldown > 0.0 or enemy == assault_target:
+		return
+	_help_cooldown = Rules.HELP_COOLDOWN
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var other := node as Creature
+		if other != null and other != self and other.state != State.FIGHTING \
+				and other.position.distance_to(position) <= Rules.HELP_RADIUS:
+			other._help_cooldown = Rules.HELP_COOLDOWN # (Pas d'appels en cascade.)
+			other.alert(enemy, false)
+
+
+## Le héros qui frappe le cœur en ce moment (le plus proche de nous), ou null.
+func _heart_attacker() -> Unit:
+	if Time.get_ticks_msec() - map.last_heart_hit_msec > Rules.HEART_CALL_TIME * 1000.0:
+		return null
+	var heart := map.cell_to_world(map.heart_cell)
+	var best: Unit = null
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("heroes"):
+		var hero := node as Unit
+		if hero == null or not hero.is_targetable() or hero.ignored_as_enemy() \
+				or hero.position.distance_to(heart) > Rules.HEART_CALL_RADIUS:
+			continue
+		var distance := position.distance_to(hero.position)
+		if distance < best_distance:
+			best = hero
+			best_distance = distance
+	return best
+
+
+## Une créature à distance recule quand un héros au corps à corps la colle... mais
+## d'UN SEUL pas, juste après son tir (dans les BACK_OFF_WINDOW secondes qui suivent) :
+## elle gagne du temps sans devenir intouchable, et tire de nouveau dès qu'elle le peut.
+const BACK_OFF_WINDOW := 0.3
+func _should_back_off() -> bool:
+	return is_ranged() and _attack_cooldown > attack_interval - BACK_OFF_WINDOW \
+			and _enemy.is_targetable() and not _enemy.is_ranged() \
+			and position.distance_to(_enemy.position) < Rules.KITE_DISTANCE
+
+
+## Le pas en arrière (une case). Acculée, elle se bat sur place.
+func _back_off(delta: float) -> void:
+	if not _backing_off:
+		if not step_away_from(_enemy.position):
+			if not fight(_enemy, delta):
+				_enemy = null
+				state = State.WANDER
+			return
+		_backing_off = true
+	if path.is_empty() or move_along_path(delta):
+		_backing_off = false
 
 
 ## Peureuse : elle quitte le combat et court se cacher dans son lit (où elle se soigne).

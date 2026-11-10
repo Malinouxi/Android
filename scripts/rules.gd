@@ -14,10 +14,17 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.7"
+const VERSION := "2.8"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.8", "changes": [
+		"Tes créatures choisissent mieux leur cible : d'abord les héros qui frappent le cœur, puis les Clercs et les Exorcistes, les pillards chargés d'or et les héros presque morts. Le Bourreau cherche les héros à achever, une Rancunière celui qui l'a blessée.",
+		"Les créatures à distance (Sorcier, Oracle, Nécromancien, Salamandre) reculent d'un pas entre deux tirs quand un héros les colle, au lieu de se laisser frapper.",
+		"Appel à l'aide : une créature qui engage le combat appelle ses voisines (10 cases) ; celles qui travaillent, mangent ou se promènent accourent. Les endormies ne se réveillent pas (pour cela, il faut l'alarme du Poste de garde).",
+		"Le cœur appelle : quand un héros le frappe, toutes tes créatures accourent, même celles qui dorment (sauf les blessés de l'Infirmerie et les Peureuses en fuite).",
+		"Les ouvriers ont peur : un héros à moins de 3 cases, ils lâchent leur tâche et s'enfuient, puis reprennent le travail quand le danger est passé.",
+	]},
 	{"version": "2.7", "changes": [
 		"7 nouvelles salles, nouvel onglet « Antres » (à découvrir à la Bibliothèque) : Taverne, Infirmerie, Hôtel des monnaies, Chambre de torture, Poste de garde, Puits de mana et Crypte.",
 		"Taverne : une créature de mauvaise humeur va y boire une chope (un champignon de la Champignonnière) : +humeur, et 10 % de salaire en moins à la paie suivante. Elle titube un moment en sortant.",
@@ -443,6 +450,30 @@ const NECROMANCERS_PER_CRYPT := 1.0
 const MAX_NECROMANCERS := 2
 ## Nécromancien : un héros qu'il abat se relève en Revenant pour tant de secondes.
 const NECRO_RAISE_TIME := 30.0
+
+# --- L'IA des créatures et des ouvriers (règles 2.8, voir creature.gd et worker.gd) ----
+## CHOIX DE LA CIBLE : une créature attaque le héros le plus proche, mais certaines
+## cibles « comptent » comme si elles étaient plus près, de tant de pixels (une case = 32) :
+const TARGET_STICKY := 24.0    ## ... celui qu'elle combat déjà (elle ne change pas d'avis sans cesse) ;
+const TARGET_WOUNDED := 48.0   ## ... un héros presque mort (en proportion de la vie qu'il a perdue) ;
+const TARGET_HEALER := 64.0    ## ... un Clerc ou un Exorciste (ils soutiennent les autres) ;
+const TARGET_LOOT := 64.0      ## ... un pillard qui emporte ton or ;
+const TARGET_HEART := 96.0     ## ... un héros qui frappe ton cœur ;
+const TARGET_GRUDGE := 48.0    ## ... le héros qui a blessé une Rancunière ;
+const TARGET_EXECUTE := 64.0   ## ... un héros que le Bourreau peut achever.
+## APPEL À L'AIDE : une créature qui engage le combat appelle celles qui sont à moins
+## de tant de pixels (elles lâchent leur travail ; les endormies ne se réveillent pas) ...
+const HELP_RADIUS := 320.0
+## ... et ne rappelle pas avant tant de secondes.
+const HELP_COOLDOWN := 6.0
+## LE CŒUR APPELLE : frappé depuis moins de tant de secondes, il fait accourir toutes
+## les créatures (même endormies) sur les héros à moins de tant de pixels de lui.
+const HEART_CALL_TIME := 3.0
+const HEART_CALL_RADIUS := 96.0
+## LES OUVRIERS ONT PEUR : un héros à moins de tant de pixels, ils lâchent leur tâche
+## et s'enfuient à tant de cases de là (le temps que tes créatures arrivent).
+const WORKER_FEAR_RADIUS := 96.0
+const WORKER_FLEE_CELLS := 5
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

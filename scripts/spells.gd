@@ -69,7 +69,7 @@ const INFO := {
 		"color": Color(1.0, 0.85, 0.3, 0.5), "icon": "eye", "sound": "discovery", "target": "anywhere",
 		"help": "Montre les héros de la prochaine vague, démasque les Voleuses pendant 20 s et révèle les secrets proches de l'endroit touché."},
 	Type.SUMMON: {"name": "Invocation", "mana": 40, "duration": 60.0, "max": 4, "color": Color(0.5, 1.0, 0.5, 0.6),
-		"icon": "summon", "sound": "portal", "target": "anywhere",
+		"icon": "ghost", "sound": "portal", "target": "anywhere",
 		"help": "Un ouvrier fantôme vient t'aider pendant 60 s (4 au plus à la fois)."},
 	Type.TRANSMUTE: {"name": "Transmutation", "mana": 50, "gold": 150, "color": Color(1.0, 0.85, 0.2, 0.6),
 		"icon": "gold", "sound": "gold", "target": "anywhere",

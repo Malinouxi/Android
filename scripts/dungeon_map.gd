@@ -246,6 +246,8 @@ func _update_animation(delta: float) -> void:
 		return
 	_anim_timer = 0.0
 	anim_tick += 1
+	if not is_visible_in_tree():
+		return # Vue 3D : la carte 2D est cachée (elle sera redessinée en réapparaissant).
 	for d: int in _animated_layers:
 		_wall_layers[d].queue_redraw()
 
@@ -488,16 +490,10 @@ func _setup_pathfinding() -> void:
 	hero_astar.cell_size = astar.cell_size
 	hero_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
 	hero_astar.update()
-	# On indique à A* quelles cases sont des murs (« solid »).
+	# On indique à A* quelles cases sont des murs (« solid ») et ce qui coûte à creuser.
 	for y in HEIGHT:
 		for x in WIDTH:
-			var cell := Vector2i(x, y)
-			astar.set_point_solid(cell, not is_walkable(cell))
-			var tile := get_tile(cell)
-			hero_astar.set_point_solid(cell, tile == Tile.ROCK or tile == Tile.HEART or tile == Tile.RIVAL_HEART \
-					or tile == Tile.GEM or tile == Tile.LAVA)
-			if is_diggable(cell):
-				hero_astar.set_point_weight_scale(cell, HERO_DIG_WEIGHT)
+			_refresh_pathing(Vector2i(x, y))
 	for cell: Vector2i in defenses:
 		if defenses[cell]["type"] == Defenses.Type.DOOR:
 			hero_astar.set_point_weight_scale(cell, HERO_DOOR_WEIGHT)
@@ -830,9 +826,7 @@ func dig(cell: Vector2i) -> Dictionary:
 	var finished: bool = damage[cell] >= DIG_HITS[tile]
 	if finished:
 		_set_tile(cell, Tile.FLOOR)
-		astar.set_point_solid(cell, false)
-		hero_astar.set_point_solid(cell, false)
-		hero_astar.set_point_weight_scale(cell, 1.0)
+		_refresh_pathing(cell)
 		# Une roche cache parfois un trésor : un tas d'or tombe par terre.
 		if tile == Tile.ROCK and randf() < Rules.ROCK_TREASURE_CHANCE:
 			var amount := randi_range(Rules.ROCK_TREASURE_MIN, Rules.ROCK_TREASURE_MAX)
@@ -2016,7 +2010,9 @@ func _reveal_secret(secret: Dictionary) -> void:
 	secret_revealed.emit(secret["kind"], center)
 
 
-## Met à jour les deux A* après un changement de tuile.
+## Met à jour les deux A* pour une case (après un changement de tuile). Pour les héros,
+## seuls la roche, les cœurs, les gemmes et la lave sont des murs ; la terre et l'or
+## se creusent, mais coûtent HERO_DIG_WEIGHT.
 func _refresh_pathing(cell: Vector2i) -> void:
 	astar.set_point_solid(cell, not is_walkable(cell))
 	var tile := get_tile(cell)

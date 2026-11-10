@@ -44,10 +44,10 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
 - **Interface** (HUD « pierre et fer ») : en haut, le médaillon du Seigneur (il parle et donne des
   conseils quand on le touche), l'or et le Trésor, la mana, les créatures et les lits, les ouvriers, le
   cœur, la vague et la paie, **+ ouvrier** (100 or), la vitesse **x1/x2/x3** et la **pause**. À gauche,
-  les catégories d'outils : Actions, Salles, **Antres**, Défenses, **Sorts**, **Pouvoirs**. En haut à droite, la
-  mini-carte et l'objectif. En bas, la fiche de la créature touchée, les outils et le journal (30
+  les catégories d'outils : Actions, Salles, **Antres**, Défenses, **Sorts**, **Pouvoirs**. En haut à droite,
+  l'objectif. En bas, la fiche de la créature touchée, les outils et le journal (30
   messages, flèches pour remonter).
-- **Actions** : Creuser, **Main** (ramasser jusqu'à 8 unités et les déposer ailleurs ; déposée sur le
+- **Actions** : Creuser, **Se diriger** (glisser un doigt déplace la vue, sans rien toucher), **Main** (ramasser jusqu'à 8 unités et les déposer ailleurs ; déposée sur le
   portail, une créature est renvoyée), Démolir, Sacrifier.
 - **Pause** : Reprendre, Sauvegarder, Codex des règles, Sauvegarder et quitter.
 
@@ -323,9 +323,10 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
   `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
 - **Interface** : icônes peintes, découpées dans les planches `tools/reference/hud_panel*.png` par
-  `python3 tools/panel_icons.py` (→ `assets/icons_panel/`, il faut Pillow) ; celles que la planche n'a pas
+  `python3 tools/panel_icons.py` (→ `assets/icons_panel/`, il faut Pillow) ; celles que les planches n'ont pas
   viennent de Blender (`tools/blender/icons.py` → `assets/icons_hd/`). Le jeu prend l'icône peinte si elle
-  existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et fer » : `tools/blender/hud.py` → `assets/ui_hd/`.
+  existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et braise » (pierre fissurée, liseré rouge, cornes
+  et crânes) : `python3 tools/hud_gothic.py` → `assets/ui_hd/` (numpy, sans Blender).
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
 - **Pixel art 32 × 32** (vue 2D, portraits, petites icônes) : `tools/art32.py`, lancé par
   `python3 tools/generate_art.py` (il faut Pillow et numpy) ; attention, il écrase les PNG de `assets/`.
@@ -378,7 +379,7 @@ scripts/voxel_models.gd    Chargement des modèles Blender (et modèles en blocs
 scripts/fx.gd              Effets communs 2D/3D : particules, chiffres, tremblements, éclairs
 scripts/iso.gd             La vue isométrique 2D
 scripts/art.gd             Les images du jeu (assets/)
-scripts/hud.gd             L'interface de jeu        scripts/minimap.gd   La mini-carte
+scripts/hud.gd             L'interface de jeu
 scripts/lord_portrait.gd   Le Seigneur animé du médaillon (et sa voix)
 scripts/menu.gd            Le menu principal          scripts/level_select.gd  Le choix des niveaux
 scripts/codex.gd           L'écran du codex           scripts/codex_content.gd Les textes du codex

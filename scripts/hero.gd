@@ -603,19 +603,19 @@ func _process(delta: float) -> void:
 		else:
 			position = carrier.position
 			z_index = carrier.z_index + 1
-		queue_redraw()
+		redraw()
 		return
 	# Assommé : il attend, puis meurt si personne n'est venu.
 	if knocked_out:
 		_knocked_out_timer -= delta
 		if _knocked_out_timer <= 0.0:
 			kill()
-		queue_redraw()
+		redraw()
 		return
 	if is_captured():
 		if map.get_room(prison_cell) != Rooms.Type.PRISON:
 			_escape()
-		queue_redraw()
+		redraw()
 		return
 	update_attack_cooldown(delta)
 	update_effects(delta)
@@ -630,7 +630,7 @@ func _process(delta: float) -> void:
 
 	if is_guardian():
 		_guard(delta)
-		queue_redraw()
+		redraw()
 		return
 
 	# Si notre cible a disparu (morte entre-temps), on l'oublie.
@@ -644,7 +644,7 @@ func _process(delta: float) -> void:
 	# Terrifié (sort du maître) : il ne pense qu'à s'enfuir.
 	if _terror_left > 0.0 and not fleeing:
 		_run_in_terror(delta)
-		queue_redraw()
+		redraw()
 		return
 
 	# Trois fois par seconde, on regarde s'il y a un ennemi à proximité.
@@ -681,7 +681,7 @@ func _process(delta: float) -> void:
 	if _door_cell != Vector2i(-1, -1):
 		_attack_door(_door_cell)
 		_door_cell = Vector2i(-1, -1)
-	queue_redraw()
+	redraw()
 
 
 # ---------------------------------------------------------------------------

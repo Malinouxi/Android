@@ -1,9 +1,10 @@
-"""Découpe les ICÔNES PEINTES du HUD dans la planche de référence (tools/reference/hud_panel.png).
+"""Découpe les ICÔNES PEINTES du HUD dans les planches de référence (tools/reference/).
 
-La planche range ses icônes dans des cadres de pierre, sur 5 rangées de 10. On
-découpe l'intérieur de chaque cadre utile, on l'agrandit à 256 pixels de large et
-on adoucit les bords (coins arrondis, fondu), pour que l'image se pose proprement
-dans les boutons du jeu, qui ont déjà leur propre cadre.
+hud_panel.png range ses icônes dans des cadres de pierre, sur 5 rangées de 10 : on
+découpe l'intérieur de chaque cadre utile. hud_panel_2.png pose 13 objets sur un
+fond sombre, sans cadre : on découpe un carré autour de chacun. Chaque image est
+mise à 256 pixels et ses bords sont adoucis (coins arrondis, fondu), pour qu'elle
+se pose proprement dans les boutons du jeu, qui ont déjà leur propre cadre.
 
 Résultat : assets/icons_panel/<nom>.png. Le jeu prend d'abord une icône de ce
 dossier, sinon celle d'assets/icons_hd/ (voir Hud.hd dans scripts/hud.gd).
@@ -15,10 +16,10 @@ Usage : python3 tools/panel_icons.py            (il faut Pillow)
 import os
 import sys
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PANEL = os.path.join(ROOT, "tools", "reference", "hud_panel.png")
+REFERENCE = os.path.join(ROOT, "tools", "reference")
 OUT = os.path.join(ROOT, "assets", "icons_panel")
 
 SIZE = 256      # Taille des images (comme assets/icons_hd).
@@ -68,6 +69,23 @@ BOXES = {
     "scroll": (1374, 873, 1460, 951),        # Menu
 }
 
+# La deuxième planche (hud_panel_2.png) : nom -> (gauche, haut, droite, bas), un carré par objet.
+BOXES_2 = {
+    "bed": (15, 28, 335, 348),
+    "mushroom": (328, 45, 618, 335),
+    "bookshelf": (596, 12, 926, 342),
+    "anvil": (922, 40, 1232, 350),
+    "dummy": (1226, 22, 1536, 352),
+    "tomb": (5, 362, 325, 682),
+    "mug": (322, 378, 622, 678),
+    "salve": (578, 368, 878, 678),
+    "coin_press": (862, 362, 1198, 698),
+    "sarcophagus": (1200, 372, 1530, 702),
+    "whip": (15, 690, 345, 1020),
+    "feast": (366, 672, 752, 1024),
+    "raise": (810, 688, 1146, 1024),
+}
+
 
 def _mask(width, height):
     """Le masque des bords : coins arrondis, puis un léger fondu vers la transparence."""
@@ -89,12 +107,13 @@ def cut(panel, box):
 
 
 def main():
-    panel = Image.open(PANEL).convert("RGB")
     os.makedirs(OUT, exist_ok=True)
     icons = {}
-    for name, box in BOXES.items():
-        icons[name] = cut(panel, box)
-        icons[name].save(os.path.join(OUT, name + ".png"), optimize=True)
+    for file_name, boxes in (("hud_panel.png", BOXES), ("hud_panel_2.png", BOXES_2)):
+        panel = Image.open(os.path.join(REFERENCE, file_name)).convert("RGB")
+        for name, box in boxes.items():
+            icons[name] = cut(panel, box)
+            icons[name].save(os.path.join(OUT, name + ".png"), optimize=True)
     print("%d icônes dans %s" % (len(icons), OUT))
     if len(sys.argv) > 1:  # Planche de contrôle : toutes les icônes sur un fond de bouton.
         columns = 8

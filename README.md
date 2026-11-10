@@ -122,6 +122,13 @@ Faim, fatigue, lit manquant ou salaire impayé font baisser l'**humeur** ; à z�
 par le portail. Les créatures prient au Temple, étudient, fabriquent ou s'entraînent quand tout va bien,
 et fréquentent les antres (Taverne, Infirmerie, Poste de garde...).
 
+**Au combat** (règles 2.8), elles choisissent leur cible (d'abord qui frappe le cœur, puis Clercs et
+Exorcistes, pillards chargés d'or, héros presque morts), **appellent à l'aide** leurs voisines à 10 cases,
+accourent toutes quand le **cœur** est frappé (même endormies), et les tireurs (Sorcier, Oracle,
+Nécromancien, Salamandre) **reculent** d'un pas après chaque tir quand on les colle. Les **ouvriers**
+fuient un héros à moins de 3 cases, puis reprennent le travail. Réglages : `TARGET_*`, `HELP_*`,
+`HEART_CALL_*` et `WORKER_*` dans `rules.gd` ; test sans écran : `godot --headless --path . -s res://tools/ai_test.gd`.
+
 En 3D, chaque activité a sa **pose** (`Creature.pose()`, animée par `_animate_pose` dans `view_3d.gd`) :
 elles dorment allongées dans leur lit, se couchent à l'Infirmerie, croquent un champignon, trinquent
 (chope en main) puis titubent, lisent un grimoire, forgent, prient à genoux, fouettent au chevalet,
@@ -364,8 +371,8 @@ scenes/                    menu.tscn (première scène), main.tscn (la partie), 
 scripts/main.gd            Chef d'orchestre : outils, portail, paie, vagues et escouades, sorts, sauvegarde
 scripts/dungeon_map.gd     La grille : creusage, salles, or, pièges et combos, feux, sang, secrets, chemins
 scripts/unit.gd            Base de tout ce qui marche : chemins, vie, combat, effets des sorts
-scripts/worker.gd          Un ouvrier : creuse, porte l'or, construit, revendique, décore
-scripts/creature.gd        Une créature : besoins, humeur, travail, combat, Attrapeur, Possession
+scripts/worker.gd          Un ouvrier : creuse, porte l'or, construit, revendique, décore, fuit les héros
+scripts/creature.gd        Une créature : besoins, humeur, travail, combat (cible, entraide, recul), Attrapeur
 scripts/hero.gd            Un héros : marche, creuse, missions, fuite, vétérans, Exorciste, gardien
 scripts/creatures.gd       Catalogue des créatures      scripts/heroes.gd    Catalogue des héros
 scripts/rooms.gd           Catalogue des salles         scripts/defenses.gd  Catalogue des défenses
@@ -442,3 +449,5 @@ Résumé des étapes (les détails des règles de chaque version sont dans *Code
 45. Les antres (2.7) : Taverne, Infirmerie, Hôtel des monnaies, Chambre de torture, Poste de garde, Puits de
     mana et Crypte, modélisés dans Blender ; 7 créatures (Gobelin brasseur, Goule rebouteuse, Diablotin
     argentier, Bourreau, Gargouille, Oracle des ombres, Nécromancien) ; poses animées pour chaque activité.
+46. L'IA de tes créatures (2.8) : choix de la cible, appel à l'aide, défense du cœur, tireurs qui reculent,
+    ouvriers qui fuient les héros ; test sans écran `tools/ai_test.gd`.

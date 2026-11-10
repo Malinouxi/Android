@@ -443,24 +443,58 @@ func update_attack_cooldown(delta: float) -> void:
 	_strike_timer -= delta
 
 
-## L'ennemi vivant le plus proche dans un rayon (en pixels), ou null.
+## Le meilleur ennemi vivant à combattre dans un rayon (en pixels), ou null.
+## C'est le plus proche, sauf si la classe fille a ses préférences (voir _target_score).
 func find_nearest_enemy(radius: float) -> Unit:
 	var enemy_group := _group_name(Team.HEROES if team == Team.DUNGEON else Team.DUNGEON)
 	var best: Unit = null
-	var best_distance := radius
+	var best_score := INF
 	for node in get_tree().get_nodes_in_group(enemy_group):
 		var unit := node as Unit
 		if unit == null or unit.is_dead():
 			continue
 		var distance := position.distance_to(unit.position)
+		if distance > radius:
+			continue
 		if unit.is_stealthy() and not keen_nose and distance > Rules.STEALTH_RADIUS:
 			continue # Trop discrète pour être repérée d'ici.
 		if unit.ignored_as_enemy():
 			continue # Le Colosse endormi : on ne l'attaque que sur ordre du maître.
-		if distance <= best_distance:
+		var score := _target_score(unit, distance)
+		if score <= best_score:
 			best = unit
-			best_distance = distance
+			best_score = score
 	return best
+
+
+## La note d'un ennemi à combattre : la plus BASSE gagne. Par défaut, sa distance
+## (le plus proche). creature.gd y retranche des points pour ses cibles préférées.
+func _target_score(_enemy: Unit, distance: float) -> float:
+	return distance
+
+
+## Fait un pas (une case voisine) pour s'éloigner d'un point. Renvoie false si
+## l'unité est acculée : aucune case libre ne l'en éloigne.
+func step_away_from(danger: Vector2) -> bool:
+	var here := current_cell()
+	var best := here
+	var best_distance := position.distance_to(danger)
+	for direction in DungeonMap.DIRECTIONS:
+		var cell: Vector2i = here + direction
+		if map.is_walkable(cell) and not _is_blocked(cell):
+			var distance := map.cell_to_world(cell).distance_to(danger)
+			if distance > best_distance + 4.0:
+				best = cell
+				best_distance = distance
+	if best == here:
+		return false
+	path.assign([best])
+	return true
+
+
+## Une unité qui se bat de loin (Sorcier, Archer...).
+func is_ranged() -> bool:
+	return attack_range > 50.0
 
 
 ## Poursuit une cible et la frappe dès qu'elle est à portée.

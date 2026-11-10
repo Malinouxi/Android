@@ -11,6 +11,9 @@ extends Unit
 ##
 ## Son travail (« job ») est un petit dictionnaire :
 ##   { "type": "dig", "deposit", "pickup", "build" ou "claim", "target": case visée, "path": chemin }
+##
+## Il ne se bat pas : quand un héros s'approche, il lâche tout et S'ENFUIT (FLEEING),
+## puis reprend le travail une fois le danger passé (voir « La peur des héros »).
 
 enum State {
 	IDLE,    ## Ne fait rien : cherche du travail ou se promène.
@@ -19,6 +22,7 @@ enum State {
 	CLAIMING, ## Revendique une case de sol pour le donjon.
 	BUILDING, ## Construit une salle, un piège ou une porte (un chantier).
 	DECORATING, ## Fabrique une décoration (rien d'autre à faire).
+	FLEEING, ## Un héros est tout près : il court se mettre à l'abri.
 }
 
 const DIG_INTERVAL := 0.45   ## Secondes entre deux coups de pioche.
@@ -36,6 +40,8 @@ var _dig_timer := 0.0
 var _swing := 0.0
 ## Secondes de travail restantes sur la décoration en cours.
 var _craft_left := 0.0
+## Secondes avant de regarder de nouveau si un héros approche.
+var _danger_timer := 0.0
 
 
 ## On complète la fonction setup() de Unit : super() appelle la version d'origine.
@@ -67,6 +73,7 @@ func _process(delta: float) -> void:
 		return # Un ouvrier invoqué vient de s'effacer (voir vanish).
 	# Le Fouet du maître : il creuse, construit et revendique plus vite.
 	var work_delta := delta * work_factor()
+	_watch_for_danger(delta)
 	match state:
 		State.IDLE:
 			_process_idle(delta)
@@ -80,7 +87,70 @@ func _process(delta: float) -> void:
 			_process_building(work_delta)
 		State.DECORATING:
 			_process_decorating(work_delta)
+		State.FLEEING:
+			_process_fleeing(delta)
 	redraw()
+
+
+# ---------------------------------------------------------------------------
+# La peur des héros
+# ---------------------------------------------------------------------------
+
+## Deux fois par seconde : un héros est-il trop près ? Si oui, on lâche tout et on file.
+## (Une Voleuse discrète passe inaperçue, et le Colosse endormi ne fait peur à personne :
+## find_nearest_enemy s'en occupe.)
+func _watch_for_danger(delta: float) -> void:
+	_danger_timer -= delta
+	if _danger_timer > 0.0:
+		return
+	_danger_timer = 0.5
+	var threat := find_nearest_enemy(Rules.WORKER_FEAR_RADIUS)
+	if threat == null:
+		return
+	# Déjà en fuite et encore en route : on continue, sauf si le héros nous a rattrapés.
+	if state == State.FLEEING and not path.is_empty() \
+			and position.distance_to(threat.position) > DungeonMap.TILE_SIZE * 1.5:
+		return
+	var route := _escape_route(threat.position)
+	if route.is_empty():
+		return # Acculé : autant continuer à travailler.
+	_stop_job()
+	follow_path(route)
+	state = State.FLEEING
+
+
+## Le chemin vers un abri : parmi les cases à WORKER_FLEE_CELLS cases d'ici (dans les
+## 8 directions), celle qui est la plus loin du héros et qu'on atteint sans détour.
+## Vide s'il n'y en a pas.
+func _escape_route(danger: Vector2) -> Array[Vector2i]:
+	var here := current_cell()
+	var reach := Rules.WORKER_FLEE_CELLS
+	var best_path: Array[Vector2i] = []
+	var best_distance := position.distance_to(danger)
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var route := map.find_path(here, here + Vector2i(dx, dy) * reach)
+			# (Un chemin trop long fait un détour : il repasserait peut-être devant le héros.)
+			if route.size() < 2 or route.size() > reach * 3:
+				continue
+			# Le premier pas ne doit pas nous jeter dans ses bras.
+			if map.cell_to_world(route[1]).distance_to(danger) < position.distance_to(danger) - 4.0:
+				continue
+			var distance := map.cell_to_world(route[-1]).distance_to(danger)
+			if distance > best_distance:
+				best_distance = distance
+				best_path = route
+	return best_path
+
+
+## En fuite : il court jusqu'à l'abri, puis retourne au travail (_watch_for_danger le
+## fera repartir si le héros le suit).
+func _process_fleeing(delta: float) -> void:
+	if move_along_path(delta):
+		state = State.IDLE
+		_think_timer = 0.6
 
 
 func _process_idle(delta: float) -> void:
@@ -324,6 +394,8 @@ func sprite_info() -> Array:
 
 func _draw() -> void:
 	draw_sprite("worker", 0.85)
+	if state == State.FLEEING: # Un « ! » au-dessus de la tête : il a peur.
+		draw_string(ThemeDB.fallback_font, Vector2(8, -14), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("ff5252"))
 	if is_whipped(): # Le Fouet : des gouttes de sueur.
 		draw_circle(Vector2(-7, -16), 2.0, Color("80d8ff"))
 	# Un petit sac doré quand il transporte de l'or.

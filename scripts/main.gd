@@ -123,6 +123,8 @@ var _wave_interval := WAVE_INTERVAL
 var _goal_timer := 0.0
 var _rival_timer := 80.0
 var _rival_squads := 0
+## Le rival opportuniste : secondes avant qu'il juge l'état de tes créatures (-1 : rien à juger).
+var _rival_opportunity := -1.0
 
 var _wave_timer := FIRST_WAVE_DELAY
 var _next_wave := 1
@@ -241,6 +243,8 @@ func _ready() -> void:
 	hud.next_level_pressed.connect(_on_next_level_pressed)
 	map.door_destroyed.connect(func(_cell: Vector2i) -> void:
 		hud.show_message("Les héros ont enfoncé une porte !", 3.0))
+	map.room_wrecked.connect(func(room_type: int, _cell: Vector2i) -> void:
+		hud.show_message("Les héros ont détruit une salle : %s !" % Rooms.display_name(room_type), 4.0))
 	hud.pause_pressed.connect(_on_pause_pressed)
 	hud.resume_pressed.connect(_on_resume_pressed)
 	hud.save_pressed.connect(func() -> void:
@@ -323,6 +327,10 @@ func _process(delta: float) -> void:
 	# On dit aux créatures s'il reste quelque chose à chercher ou à fabriquer.
 	Creature.research_needed = not research.is_done()
 	Creature.workshop_needed = _workshop_target() >= 0
+	# ... et de quoi choisir le travail le plus utile (règles 2.9, voir Creature._job_scores).
+	Creature.workshop_urgency = _workshop_urgency()
+	Creature.mana_ratio = mana / maxf(1.0, _max_mana())
+	Creature.wave_soon = _wave_timer <= Rules.RALLY_WAVE_SOON or _invader_count() > 0
 	# Les prisonniers interrogés font avancer la recherche.
 	research.add_points(map.prisoners.size() * PRISONER_RESEARCH * delta)
 
@@ -483,6 +491,21 @@ func _workshop_target() -> int:
 		if best < 0 or trap_stock[type] < trap_stock[best]:
 			best = type
 	return best
+
+
+## L'urgence de l'Atelier pour les créatures : 1 s'il manque un autel ou si le stock de
+## pièges est vide, 0 s'il est plein (ou qu'il n'y a rien à fabriquer).
+func _workshop_urgency() -> float:
+	var target := _workshop_target()
+	if target < 0:
+		return 0.0
+	if target == Defenses.Type.ALTAR:
+		return 1.0
+	var total := 0
+	for type: int in trap_stock:
+		if type != Defenses.Type.ALTAR:
+			total += trap_stock[type]
+	return clampf(1.0 - float(total) / MAX_TRAP_STOCK, 0.0, 1.0)
 
 
 func _add_workshop_points(amount: float) -> void:
@@ -1127,6 +1150,7 @@ func _update_waves(delta: float) -> void:
 		# Plus aucun héros vivant : la vague est repoussée.
 		_wave_in_progress = false
 		_waves_survived += 1
+		_rival_opportunity = Rules.RIVAL_OPPORTUNITY_DELAY # Le rival guette tes blessés.
 		Sound.play("discovery")
 		hud.show_message("Vague repoussée ! Bravo, ton donjon tient bon.", 5.0)
 
@@ -1376,6 +1400,8 @@ const OBJECTIVE_TEXTS := {
 	"treasury": "piller ton Trésor",
 	"prison": "libérer tes prisonniers",
 	"library": "saccager ta Bibliothèque",
+	"infirmary": "détruire ton Infirmerie",
+	"guardpost": "abattre ton Poste de garde",
 	"workers": "massacrer tes ouvriers",
 	"assassinate": "abattre ta meilleure créature",
 }
@@ -1403,6 +1429,10 @@ func _form_squads(wave_heroes: Array[int], wave: int) -> int:
 				"scouted": _scout_report.duplicate()}
 	# L'objectif est confié aux flanqueurs (au gros de la troupe s'il est seul).
 	_squads[ids[1 if squad_count > 1 else 0]]["objective"] = objective
+	# L'embuscade : certaines vagues attendent à l'entrée que tes créatures s'endorment.
+	var ambush := wave >= Rules.AMBUSH_FROM_WAVE and (wave - Rules.AMBUSH_FROM_WAVE) % Rules.AMBUSH_EVERY == 0
+	for id in ids:
+		_squads[id]["ambush"] = ambush
 	# Les flanqueurs évitent le chemin du gros de la troupe.
 	if squad_count > 1:
 		var main_gate := SaveGame.array_to_cell(_squads[ids[0]]["entrance"])
@@ -1449,6 +1479,8 @@ func _form_squads(wave_heroes: Array[int], wave: int) -> int:
 		hud.show_message("Les héros arrivent en %d escouades — %s." % [squad_count, ", ".join(parts)], 6.0)
 	if objective != "":
 		hud.show_message("Leur objectif : %s !" % OBJECTIVE_TEXTS[objective], 6.0)
+	if ambush:
+		hud.show_message("Ils sont rusés : ils vont attendre à l'entrée que tes créatures s'endorment...", 6.0)
 	if not _scout_report.is_empty():
 		hud.show_message("Grâce à leur éclaireur, ils connaissent %d de tes pièges et vont les éviter." %
 				_scout_report.size(), 5.0)
@@ -1468,6 +1500,11 @@ func _choose_objective(wave: int) -> String:
 		options.append("prison")
 	if map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
 		options.append("library")
+	# Ils ont compris : sans Infirmerie ni guetteur, tes créatures sont plus faibles.
+	if map.count_room_tiles(Rooms.Type.INFIRMARY) > 0:
+		options.append_array(["infirmary", "infirmary"])
+	if map.count_room_tiles(Rooms.Type.GUARDPOST) > 0:
+		options.append_array(["guardpost", "guardpost"])
 	if creatures_root.get_child_count() > 0:
 		options.append("assassinate")
 	return options.pick_random()
@@ -1493,6 +1530,8 @@ func _join_squad(hero: Hero, squad_id: int) -> void:
 	hero.learn_traps(scouted)
 	var waiting := _pending_squads.count(squad_id)
 	hero.hold_left = waiting * HERO_SPAWN_GAP + Rules.REGROUP_TIME
+	if squad.get("ambush", false) and not info.get("boss", false):
+		hero.ambush_left = Rules.AMBUSH_MAX_WAIT
 
 
 ## Un héros d'une escouade est tombé (mort, assommé ou capturé). Si la moitié de
@@ -1872,11 +1911,33 @@ func _on_next_level_pressed() -> void:
 	get_tree().reload_current_scene()
 
 
+## La vie moyenne de tes créatures (0 à 1 ; 0 si tu n'en as aucune).
+func _creatures_health() -> float:
+	var total := 0.0
+	var count := 0
+	for creature: Creature in creatures_root.get_children():
+		if not creature.is_dead() and not creature.in_hand:
+			total += creature.hp / creature.max_hp
+			count += 1
+	return total / count if count > 0 else 0.0
+
+
 ## Le maître rival envoie régulièrement des troupes de plus en plus nombreuses.
+## Opportuniste (règles 2.9) : juste après une vague, si tes créatures sont blessées,
+## il n'attend pas son heure.
 func _update_rival(delta: float) -> void:
 	if not map.has_rival or map.rival_heart_hp <= 0.0:
 		return
 	_rival_timer -= delta
+	var bonus := 0
+	if _rival_opportunity >= 0.0:
+		_rival_opportunity -= delta
+		if _rival_opportunity < 0.0 and _rival_timer > Rules.RIVAL_OPPORTUNITY_MIN_TIMER \
+				and _creatures_health() < Rules.RIVAL_OPPORTUNITY_HP:
+			# Tes créatures pansent leurs plaies : le rival en profite.
+			_rival_timer = 0.0
+			bonus = Rules.RIVAL_OPPORTUNITY_BONUS
+			hud.show_message("Le maître rival a vu tes blessés : il attaque sans attendre !", 5.0)
 	if _rival_timer > 0.0:
 		return
 	_rival_timer = level.get("rival_interval", 80.0)
@@ -1892,7 +1953,7 @@ func _update_rival(delta: float) -> void:
 			spawn_cells.append(map.rival_heart_cell + direction)
 	if spawn_cells.is_empty():
 		return
-	var count := mini(1 + int(_rival_squads * 0.5), 6)
+	var count := mini(1 + int(_rival_squads * 0.5), 6) + bonus
 	for i in count:
 		_add_hero(types.pick_random(), spawn_cells.pick_random())
 	Sound.play("portal", map.cell_to_world(map.rival_heart_cell))
@@ -1989,6 +2050,7 @@ func save_game() -> bool:
 			"portal_connected": _portal_connected,
 			"rival_timer": _rival_timer,
 			"rival_squads": _rival_squads,
+			"rival_opportunity": _rival_opportunity,
 			"champions_defeated": _champions_defeated,
 			"pending_veterans": _pending_veterans,
 			"wave_plan": _wave_plan,
@@ -2032,6 +2094,7 @@ func _load_game(data: Dictionary) -> bool:
 			hero.role = String(values.get("role", "main"))
 			hero.objective = String(values.get("objective", ""))
 			hero.hold_left = float(values.get("hold", 0.0))
+			hero.ambush_left = float(values.get("ambush", 0.0))
 		elif values.get("scout", false):
 			hero.objective = "scout"
 		for key in ["flank_avoid", "scouted_traps", "seen_traps"]:
@@ -2057,6 +2120,7 @@ func _load_game(data: Dictionary) -> bool:
 	var state: Dictionary = data["state"]
 	_rival_timer = float(state.get("rival_timer", level.get("rival_interval", 80.0)))
 	_rival_squads = int(state.get("rival_squads", 0))
+	_rival_opportunity = float(state.get("rival_opportunity", -1.0))
 	_champions_defeated = int(state.get("champions_defeated", 0))
 	_pending_veterans = state.get("pending_veterans", []).duplicate(true)
 	_wave_plan = state.get("wave_plan", {}).duplicate(true)
@@ -2244,6 +2308,8 @@ func _refresh_tools() -> void:
 			unlocked = research.is_unlocked("room", Rooms.Type.WORKSHOP) # L'Atelier le fabrique.
 		_set_tool(tool, text, Defenses.display_name(defense), unlocked)
 	_set_tool(Hud.Tool.SACRIFICE, "Sacrifier", "Sacrifier", research.is_unlocked("room", Rooms.Type.WORKSHOP))
+	_set_tool(Hud.Tool.RALLY, "Poste de défense (%d/%d)" % [map.rally_flags.size(), Rules.MAX_RALLY_FLAGS],
+			"Poste de défense", true)
 	for tool: int in TOOL_SPELLS:
 		var spell: int = TOOL_SPELLS[tool]
 		var text := "%s (%d)" % [Spells.display_name(spell), Spells.mana_cost(spell)]
@@ -2268,6 +2334,8 @@ func _on_tool_selected(tool: int) -> void:
 		hud.show_message("Glisse un doigt pour te déplacer dans le donjon, pince pour zoomer. Touche une créature pour voir sa fiche.", 5.0)
 	elif tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
+	elif tool == Hud.Tool.RALLY:
+		hud.show_message("Plante un étendard dans un couloir (%d au plus) : tes créatures désœuvrées y montent la garde, et y accourent toutes à l'approche d'une vague. Touche un étendard pour l'arracher." % Rules.MAX_RALLY_FLAGS, 6.0)
 	elif TOOL_SPELLS.has(tool):
 		var spell: int = TOOL_SPELLS[tool]
 		var help: String = Spells.INFO[spell]["help"]
@@ -2450,6 +2518,8 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 			_use_hand(cell, world_position)
 		Hud.Tool.SACRIFICE:
 			_request_sacrifice(world_position)
+		Hud.Tool.RALLY:
+			_toggle_rally_flag(cell)
 		Hud.Tool.DEMOLISH:
 			_demolish(cell)
 		_:
@@ -2459,6 +2529,24 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 				_place_defense(cell, TOOL_DEFENSES[current_tool])
 			elif TOOL_SPELLS.has(current_tool):
 				_cast_spell(TOOL_SPELLS[current_tool], world_position)
+
+
+## Plante un étendard (Poste de défense), ou l'arrache s'il y en a déjà un.
+func _toggle_rally_flag(cell: Vector2i) -> void:
+	if map.rally_flags.has(cell):
+		map.set_rally_flag(cell, false)
+		Sound.play("build", map.cell_to_world(cell), -6.0)
+		hud.show_message("Étendard arraché.", 2.0)
+	else:
+		var refusal := map.rally_flag_refusal(cell)
+		if refusal != "":
+			_fail(refusal)
+			return
+		map.set_rally_flag(cell, true)
+		Sound.play("horn", map.cell_to_world(cell), -10.0)
+		Fx.burst("sparks", map.cell_to_world(cell), Color("ff5252"))
+		hud.show_message("Étendard planté : tes créatures désœuvrées viendront y monter la garde.", 3.0)
+	_refresh_tools()
 
 
 func _creature_at(world_position: Vector2) -> Creature:

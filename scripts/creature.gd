@@ -13,7 +13,10 @@ extends Unit
 ##     les pillards, les héros presque morts... et pas seulement le plus proche ;
 ##   - elle APPELLE À L'AIDE ses voisines en engageant le combat (_call_for_help) ;
 ##   - elle accourt quand le CŒUR est frappé, même endormie (_heart_attacker) ;
-##   - si elle se bat de loin, elle RECULE d'un pas entre deux tirs (_should_back_off).
+##   - si elle se bat de loin, elle RECULE d'un pas entre deux tirs (_should_back_off) ;
+##   - gravement blessée, elle SE REPLIE vers l'Infirmerie ou son lit (_retreat_below).
+## Hors combat, elle choisit le travail le plus UTILE (_job_scores), ou monte la garde
+## à un POSTE DE DÉFENSE, l'étendard planté par le maître (« Les postes de défense »).
 ##
 ## Quand tout va bien, elle TRAVAILLE : elle étudie à la Bibliothèque, fabrique
 ## des pièges à l'Atelier ou s'entraîne. En combattant et en s'entraînant, elle
@@ -39,9 +42,15 @@ static var workshop_needed := false
 ## L'ASSAUT ordonné par le maître (bouton « Attaquer le Colosse ») : toutes les
 ## créatures disponibles marchent sur cette cible (un gardien des profondeurs), ou null.
 static var assault_target = null
+## main.gd les met à jour pour aider les créatures à choisir leur travail (_job_scores) :
+## l'urgence de l'Atelier (0 : stock de pièges plein, 1 : vide), la mana du maître
+## (0 à 1), et « une vague arrive bientôt (ou est en cours) ».
+static var workshop_urgency := 0.0
+static var mana_ratio := 1.0
+static var wave_soon := false
 
 enum State { WANDER, GOING_TO_SLEEP, SLEEPING, GOING_TO_EAT, EATING, LEAVING, FIGHTING,
-		GOING_TO_WORK, WORKING, RAIDING, GOING_TO_CATCH, CARRYING }
+		GOING_TO_WORK, WORKING, RAIDING, GOING_TO_CATCH, CARRYING, RALLYING }
 
 const STATE_NAMES := {
 	State.WANDER: "se promène",
@@ -56,6 +65,7 @@ const STATE_NAMES := {
 	State.GOING_TO_CATCH: "va chercher un héros",
 	State.CARRYING: "porte un héros",
 	State.WORKING: "travaille",
+	State.RALLYING: "monte la garde à l'étendard",
 }
 const WORK_NAMES := {
 	Rooms.Type.LIBRARY: "étudie",
@@ -112,6 +122,9 @@ var _enemy: Unit = null
 var _help_cooldown := 0.0
 ## Vrai pendant le pas en arrière d'une créature à distance (entre deux tirs).
 var _backing_off := false
+## Le Poste de défense où elle monte la garde (son étendard), et le temps qu'il lui reste.
+var _rally_cell := NO_CELL
+var _rally_timer := 0.0
 
 var level := 1
 ## Expérience accumulée vers le prochain niveau.
@@ -338,8 +351,8 @@ func receive_pay(paid: bool) -> void:
 func activity_text() -> String:
 	if possessed_left > 0.0:
 		return "possédée par le maître"
-	if fleeing and state != State.SLEEPING:
-		return "fuit, apeurée"
+	if fleeing and state != State.SLEEPING and not is_patient():
+		return "fuit, apeurée" if Traits.value(traits, "flee_below") > 0.0 else "se replie, blessée"
 	if state == State.WORKING:
 		return _work_name()
 	if state == State.WANDER and _guarded_room() != Rooms.Type.NONE:
@@ -391,6 +404,8 @@ func pose() -> String:
 					return "meditate"
 				Rooms.Type.CRYPT:
 					return "cast"
+	if state == State.RALLYING and path.is_empty():
+		return "guard" # Plantée près de l'étendard, elle scrute les couloirs.
 	if tipsy_left > 0.0 and state != State.FIGHTING:
 		return "tipsy"
 	return ""
@@ -472,10 +487,10 @@ func _process(delta: float) -> void:
 			elif move_along_path(delta):
 				state = State.SLEEPING
 		State.SLEEPING:
-			energy += ENERGY_GAIN * Traits.mult(traits, "sleep") * delta
+			energy = minf(100.0, energy + ENERGY_GAIN * Traits.mult(traits, "sleep") * delta)
 			hp = minf(max_hp, hp + HEAL_WHILE_SLEEPING * delta)
-			if energy >= 100.0 or not _has_bed():
-				energy = minf(energy, 100.0)
+			# (Une blessée qui s'est repliée reste couchée jusqu'à être guérie.)
+			if (energy >= 100.0 and not fleeing) or not _has_bed():
 				state = State.WANDER
 		State.GOING_TO_EAT:
 			if move_along_path(delta):
@@ -516,6 +531,8 @@ func _process(delta: float) -> void:
 			_process_going_to_catch(delta)
 		State.CARRYING:
 			_process_carrying(delta)
+		State.RALLYING:
+			_process_rallying(delta)
 	redraw()
 
 
@@ -882,7 +899,9 @@ func _process_working(delta: float) -> void:
 		_stop_work()
 
 
-## Choisit un travail utile et part vers un poste libre. Renvoie false si rien à faire.
+## Choisit le travail le plus utile (voir _job_scores) et part vers un poste libre.
+## Si le meilleur n'a plus de poste libre, elle essaie le suivant. Renvoie false si
+## rien ne vaut la peine.
 func _start_work() -> bool:
 	if _guarded_room() != Rooms.Type.NONE:
 		return false # Un gardien ne quitte pas son poste pour travailler.
@@ -890,25 +909,16 @@ func _start_work() -> bool:
 	# La Gargouille ne fait qu'une chose : monter la garde.
 	if info.get("sentinel", false):
 		return _go_to_room(Rooms.Type.GUARDPOST)
-	var options: Array[int] = []
-	_add_den_options(options, info)
-	if research_needed and map.count_room_tiles(Rooms.Type.LIBRARY) > 0:
-		options.append(Rooms.Type.LIBRARY)
-		if type == Creatures.Type.WARLOCK:
-			options.append_array([Rooms.Type.LIBRARY, Rooms.Type.LIBRARY]) # Il adore étudier.
-	if workshop_needed and type != Creatures.Type.WARLOCK and map.count_room_tiles(Rooms.Type.WORKSHOP) > 0:
-		options.append(Rooms.Type.WORKSHOP)
-	if level < MAX_LEVEL and map.count_room_tiles(Rooms.Type.TRAINING) > 0:
-		options.append(Rooms.Type.TRAINING)
-	if map.count_room_tiles(Rooms.Type.TEMPLE) > 0:
-		options.append(Rooms.Type.TEMPLE)
-		if happiness < 60.0:
-			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Mécontente : elle va prier.
-		if Traits.mult(traits, "prayer") > 1.0:
-			options.append_array([Rooms.Type.TEMPLE, Rooms.Type.TEMPLE]) # Pieuse : elle adore prier.
-	if options.is_empty():
-		return false
-	return _go_to_room(options.pick_random())
+	var scores := _job_scores(info)
+	var jobs: Array = scores.keys()
+	jobs.sort_custom(func(a: int, b: int) -> bool: return scores[a] > scores[b])
+	for job: int in jobs:
+		if job == RALLY_JOB:
+			if _start_rally():
+				return true
+		elif _go_to_room(job):
+			return true
+	return false
 
 
 ## Part vers un poste libre d'une salle de travail. Renvoie false s'il n'y en a pas.
@@ -926,39 +936,153 @@ func _go_to_room(room: int) -> bool:
 	return true
 
 
-## Les antres (règles 2.7) : ce que la créature peut y faire, selon son humeur et ses goûts.
-func _add_den_options(options: Array[int], info: Dictionary) -> void:
+## L'intérêt de chaque travail possible pour CETTE créature : {salle (ou RALLY_JOB): note}.
+## La note mêle l'utilité pour le donjon (recherche à faire, stock de pièges, mana...),
+## ses besoins (humeur, blessures), son talent (espèce, traits) ; elle baisse quand
+## d'autres créatures font déjà ce travail, et un peu de hasard départage les ex aequo.
+## Un travail impossible n'est pas dans la liste.
+const RALLY_JOB := -2
+func _job_scores(info: Dictionary) -> Dictionary:
+	var scores := {}
+	var has := func(room: int) -> bool: return map.count_room_tiles(room) > 0
+	var prayer := Traits.mult(traits, "prayer")
+	# La Bibliothèque : tant qu'il reste à découvrir (le Sorcier y excelle).
+	if research_needed and has.call(Rooms.Type.LIBRARY):
+		var study := 3.0 if type == Creatures.Type.WARLOCK else 1.0
+		scores[Rooms.Type.LIBRARY] = study * Traits.mult(traits, "research")
+	# L'Atelier : d'autant plus utile que le stock de pièges est bas (l'Orque y excelle).
+	if workshop_needed and type != Creatures.Type.WARLOCK and has.call(Rooms.Type.WORKSHOP):
+		var craft := 1.5 if type == Creatures.Type.ORC else 1.0
+		scores[Rooms.Type.WORKSHOP] = (0.4 + 0.8 * workshop_urgency) * craft * Traits.mult(traits, "craft") \
+				* _talent(Rooms.Type.WORKSHOP)
+	# L'Entraînement : surtout pour les jeunes recrues.
+	if level < MAX_LEVEL and has.call(Rooms.Type.TRAINING):
+		scores[Rooms.Type.TRAINING] = 0.45 + 0.15 * (MAX_LEVEL - level)
+	# Le Temple : quand elle est malheureuse ou blessée (les Pieuses adorent prier).
+	if has.call(Rooms.Type.TEMPLE):
+		var need := maxf(0.0, 70.0 - happiness) / 30.0 + 0.5 * (1.0 - hp / max_hp)
+		scores[Rooms.Type.TEMPLE] = (0.25 + need) * prayer
 	# La Taverne : quand l'humeur baisse (une Gourmande, toujours), s'il reste des champignons.
-	if map.count_room_tiles(Rooms.Type.TAVERN) > 0 and not is_undead() and map.has_food() \
+	if has.call(Rooms.Type.TAVERN) and not is_undead() and map.has_food() \
 			and (happiness < Rules.TAVERN_MOOD_BELOW or Traits.value(traits, "meal_mood") > 0.0):
-		options.append(Rooms.Type.TAVERN)
-		if happiness < 45.0 or info.get("brewer", false):
-			options.append_array([Rooms.Type.TAVERN, Rooms.Type.TAVERN])
-	# L'Hôtel des monnaies : frapper des pièces (le Diablotin adore ça).
-	if map.count_room_tiles(Rooms.Type.MINT) > 0 and type != Creatures.Type.WARLOCK:
-		options.append(Rooms.Type.MINT)
-		if type == Creatures.Type.IMP:
-			options.append_array([Rooms.Type.MINT, Rooms.Type.MINT, Rooms.Type.MINT])
+		var thirst := 0.4 + maxf(0.0, Rules.TAVERN_MOOD_BELOW - happiness) / 25.0
+		scores[Rooms.Type.TAVERN] = thirst * (2.0 if info.get("brewer", false) else 1.0)
+	# L'Hôtel des monnaies : un peu d'or (le Diablotin y excelle).
+	if has.call(Rooms.Type.MINT) and type != Creatures.Type.WARLOCK:
+		scores[Rooms.Type.MINT] = 0.35 * _talent(Rooms.Type.MINT) * Traits.mult(traits, "craft")
 	# La Chambre de torture : seulement s'il y a des prisonniers (les Pieuses refusent).
-	if map.count_room_tiles(Rooms.Type.TORTURE) > 0 and not map.prisoners.is_empty() \
-			and Traits.mult(traits, "prayer") <= 1.0:
-		options.append(Rooms.Type.TORTURE)
-		if type == Creatures.Type.EXECUTIONER:
-			options.append_array([Rooms.Type.TORTURE, Rooms.Type.TORTURE, Rooms.Type.TORTURE])
-	# Le Poste de garde : quelqu'un doit bien guetter.
-	if map.count_room_tiles(Rooms.Type.GUARDPOST) > 0:
-		options.append(Rooms.Type.GUARDPOST)
-	# Le Puits de mana : méditer (l'Oracle y passe sa vie).
-	if map.count_room_tiles(Rooms.Type.MANA_WELL) > 0:
-		options.append(Rooms.Type.MANA_WELL)
-		if type == Creatures.Type.ORACLE or type == Creatures.Type.WARLOCK:
-			options.append_array([Rooms.Type.MANA_WELL, Rooms.Type.MANA_WELL])
+	if has.call(Rooms.Type.TORTURE) and not map.prisoners.is_empty() and prayer <= 1.0:
+		scores[Rooms.Type.TORTURE] = 0.8 * _talent(Rooms.Type.TORTURE)
+	# Le Poste de garde : indispensable s'il n'y a personne au guet, inutile sinon.
+	if has.call(Rooms.Type.GUARDPOST):
+		scores[Rooms.Type.GUARDPOST] = 0.2 if _crowd(Rooms.Type.GUARDPOST) > 0 else 1.2
+	# Le Puits de mana : d'autant plus utile que la mana du maître est basse (l'Oracle y excelle).
+	if has.call(Rooms.Type.MANA_WELL):
+		var thirst_mana := 0.25 + 0.9 * (1.0 - mana_ratio)
+		var gift := 1.5 if type == Creatures.Type.WARLOCK else _talent(Rooms.Type.MANA_WELL)
+		scores[Rooms.Type.MANA_WELL] = thirst_mana * gift * prayer
 	# La Crypte : seul le Nécromancien veille les morts.
-	if type == Creatures.Type.NECROMANCER and map.count_room_tiles(Rooms.Type.CRYPT) > 0:
-		options.append_array([Rooms.Type.CRYPT, Rooms.Type.CRYPT, Rooms.Type.CRYPT])
+	if type == Creatures.Type.NECROMANCER and has.call(Rooms.Type.CRYPT):
+		scores[Rooms.Type.CRYPT] = 1.5
 	# L'Infirmerie : la Goule va au chevet des blessés.
 	if info.get("nurse", false) and _patients() > 0:
-		options.append_array([Rooms.Type.INFIRMARY, Rooms.Type.INFIRMARY, Rooms.Type.INFIRMARY])
+		scores[Rooms.Type.INFIRMARY] = 2.5
+	# Moins intéressant quand d'autres s'en occupent déjà ; un peu de hasard pour départager.
+	for room: int in scores:
+		scores[room] *= randf_range(1.0 - Rules.WORK_JITTER, 1.0 + Rules.WORK_JITTER) \
+				/ (1.0 + Rules.WORK_CROWD_PENALTY * _crowd(room))
+	# Les Postes de défense : peu d'intérêt en temps calme, mais une vague arrive...
+	if not map.rally_flags.is_empty() and not is_catcher():
+		var guard := Rules.RALLY_WAVE_SCORE if wave_soon else Rules.RALLY_SCORE
+		if Traits.value(traits, "fight_mood") > 0.0:
+			guard *= 1.5 # Une Bagarreuse aime être aux avant-postes.
+		scores[RALLY_JOB] = guard * randf_range(1.0 - Rules.WORK_JITTER, 1.0 + Rules.WORK_JITTER)
+	return scores
+
+
+## Le talent de l'espèce pour un travail (catalogue : "work_bonus").
+func _talent(room: int) -> float:
+	return Creatures.info(type).get("work_bonus", {}).get(room, 1.0)
+
+
+## Le nombre d'AUTRES créatures qui font déjà ce travail (ou y vont).
+func _crowd(room: int) -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var other := node as Creature
+		if other != null and other != self and other._work_room == room \
+				and (other.state == State.WORKING or other.state == State.GOING_TO_WORK):
+			count += 1
+	return count
+
+
+# ---------------------------------------------------------------------------
+# Les postes de défense (règles 2.9)
+# ---------------------------------------------------------------------------
+## Le maître plante des étendards (map.rally_flags). Une créature qui n'a rien de
+## plus utile à faire (voir _job_scores) va monter la garde près de l'un d'eux
+## (RALLYING) : elle y reste RALLY_DURATION secondes, plantée comme une lance, et
+## repère les héros RALLY_AGGRO_BONUS fois plus loin. Les étendards se partagent :
+## chacun préfère celui qui a le moins de gardes, puis le plus proche.
+
+## Part monter la garde au meilleur étendard. Renvoie false s'il n'y en a aucun d'accessible.
+func _start_rally() -> bool:
+	var flags: Array = map.rally_flags.keys()
+	flags.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return _rally_cost(a) < _rally_cost(b))
+	for flag: Vector2i in flags:
+		if _go_near_flag(flag):
+			_rally_cell = flag
+			_rally_timer = Rules.RALLY_DURATION
+			state = State.RALLYING
+			return true
+	return false
+
+
+## Le « coût » d'un étendard : sa distance (en cases), plus 6 cases par garde déjà là.
+func _rally_cost(flag: Vector2i) -> float:
+	var guards := 0
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var other := node as Creature
+		if other != null and other != self and other.state == State.RALLYING and other._rally_cell == flag:
+			guards += 1
+	return position.distance_to(map.cell_to_world(flag)) / DungeonMap.TILE_SIZE + 6.0 * guards
+
+
+## Va sur une case libre à côté de l'étendard (ou dessus). Renvoie false si c'est impossible.
+func _go_near_flag(flag: Vector2i) -> bool:
+	var r := Rules.RALLY_RADIUS
+	for attempt in 4:
+		var spot := flag + Vector2i(randi_range(-r, r), randi_range(-r, r))
+		if attempt == 3:
+			spot = flag
+		if map.is_walkable(spot) and go_to(spot):
+			return true
+	return false
+
+
+func _process_rallying(delta: float) -> void:
+	if not map.rally_flags.has(_rally_cell):
+		_stop_rally() # L'étendard a été arraché.
+		return
+	_rally_timer -= delta
+	if _rally_timer <= 0.0 or hunger >= HUNGRY_LEVEL or energy <= TIRED_LEVEL or _needs_care():
+		_stop_rally() # Relève de la garde : elle a mieux à faire.
+		return
+	if not move_along_path(delta):
+		return
+	# Arrivée : elle reste plantée là, et change un peu de place de temps en temps.
+	_think_timer -= delta
+	if _think_timer <= 0.0:
+		_think_timer = randf_range(4.0, 8.0)
+		if randf() < 0.3:
+			_go_near_flag(_rally_cell)
+
+
+func _stop_rally() -> void:
+	_rally_cell = NO_CELL
+	path.clear()
+	if state == State.RALLYING:
+		state = State.WANDER
 
 
 ## Arrivée au poste de travail.
@@ -1019,7 +1143,7 @@ func alert(enemy: Unit, wake := true) -> void:
 	if possessed_left > 0.0 or fleeing or is_catcher() or not is_instance_valid(enemy):
 		return
 	if state != State.SLEEPING and state != State.WORKING and state != State.WANDER \
-			and state != State.GOING_TO_WORK and state != State.EATING:
+			and state != State.GOING_TO_WORK and state != State.EATING and state != State.RALLYING:
 		return
 	if state == State.SLEEPING and not wake:
 		return
@@ -1078,19 +1202,22 @@ func _update_combat(delta: float) -> void:
 		return
 	_combat_timer = 0.3
 	_help_cooldown = maxf(0.0, _help_cooldown - 0.3)
-	# Peureuse : sous un certain seuil de vie, elle fuit le combat et va se cacher.
-	var flee_below := Traits.value(traits, "flee_below")
-	if flee_below > 0.0:
-		if not fleeing and hp < max_hp * flee_below and state == State.FIGHTING:
-			_flee()
+	# Gravement blessée, elle se replie (voir _retreat_below) et ne revient au combat
+	# qu'une fois soignée (FLEE_RECOVER de sa vie).
+	var flee_below := _retreat_below()
+	if not fleeing and flee_below > 0.0 and hp < max_hp * flee_below and state == State.FIGHTING:
+		_flee()
+		return
+	if fleeing:
+		if hp >= max_hp * FLEE_RECOVER or not _has_refuge():
+			fleeing = false # Guérie (ou plus aucun abri où se soigner : elle se bat).
+		else:
 			return
-		if fleeing:
-			if hp >= max_hp * FLEE_RECOVER:
-				fleeing = false
-			else:
-				return
-	# Une créature endormie ne remarque que les héros tout proches.
+	# Une créature endormie ne remarque que les héros tout proches ; une créature de
+	# garde à un étendard les voit de plus loin.
 	var radius := WAKE_RADIUS if state == State.SLEEPING else AGGRO_RADIUS * Traits.mult(traits, "aggro")
+	if state == State.RALLYING:
+		radius *= Rules.RALLY_AGGRO_BONUS
 	var enemy := find_nearest_enemy(radius)
 	# Assaut du maître : sans ennemi plus proche, on marche sur le Colosse (même de loin).
 	if enemy == null and state != State.SLEEPING and is_instance_valid(assault_target) \
@@ -1208,13 +1335,45 @@ func call_back() -> void:
 func _flee() -> void:
 	fleeing = true
 	_enemy = null
+	_backing_off = false
 	path.clear()
 	state = State.WANDER
-	if _has_bed() and go_to(bed_cell):
-		state = State.GOING_TO_SLEEP
-	elif not go_to(map.heart_cell + Vector2i(randi_range(-2, 2), randi_range(-2, 2))):
+	if not _go_heal() and not go_to(map.heart_cell + Vector2i(randi_range(-2, 2), randi_range(-2, 2))):
 		go_to(current_cell() + Vector2i(randi_range(-4, 4), randi_range(-4, 4)))
 	Fx.burst("sparks", position, Color("80deea"))
+
+
+## Part se soigner : à l'Infirmerie s'il y en a une (on y guérit vite), sinon dans son lit.
+## Renvoie false si elle n'a nulle part où aller.
+func _go_heal() -> bool:
+	if _needs_care() and _go_to_room(Rooms.Type.INFIRMARY):
+		_patient = true
+		return true
+	if _has_bed() and go_to(bed_cell):
+		state = State.GOING_TO_SLEEP
+		return true
+	return false
+
+
+## La part de sa vie sous laquelle elle se replie (0 : jamais).
+func _retreat_below() -> float:
+	if possessed_left > 0.0 or is_undead():
+		return 0.0 # Possédée, le maître décide ; un mort-vivant ne connaît pas la peur.
+	var timid := Traits.value(traits, "flee_below")
+	if timid > 0.0:
+		return timid # Peureuse : elle fuit tôt, quoi qu'il arrive.
+	if Traits.value(traits, "fight_mood") > 0.0:
+		return 0.0 # Bagarreuse : elle ne recule jamais.
+	if Time.get_ticks_msec() - map.last_heart_hit_msec < Rules.HEART_CALL_TIME * 1000.0:
+		return 0.0 # Le cœur est frappé : c'est le dernier carré, personne ne recule.
+	if not _has_refuge():
+		return 0.0 # Nulle part où se soigner : autant se battre.
+	return Rules.CREATURE_RETREAT_BELOW
+
+
+## A-t-elle un endroit où se soigner (une Infirmerie, ou son lit) ?
+func _has_refuge() -> bool:
+	return _has_bed() or (not is_undead() and map.count_room_tiles(Rooms.Type.INFIRMARY) > 0)
 
 
 func _process_wander(delta: float) -> void:
@@ -1226,7 +1385,11 @@ func _process_wander(delta: float) -> void:
 		return
 	_think_timer = 0.5
 
-	# Priorité 0 (Attrapeurs) : ramasser les héros assommés, conduire les sacrifiés.
+	# Priorité 0 : blessée et repliée, elle retourne se soigner (réveillée trop tôt...).
+	if fleeing and _go_heal():
+		return
+
+	# Priorité 0 bis (Attrapeurs) : ramasser les héros assommés, conduire les sacrifiés.
 	if is_catcher() and _start_catch():
 		return
 

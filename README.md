@@ -129,6 +129,12 @@ Nécromancien, Salamandre) **reculent** d'un pas après chaque tir quand on les 
 fuient un héros à moins de 3 cases, puis reprennent le travail. Réglages : `TARGET_*`, `HELP_*`,
 `HEART_CALL_*` et `WORKER_*` dans `rules.gd` ; test sans écran : `godot --headless --path . -s res://tools/ai_test.gd`.
 
+Règles 2.9 : sous 25 % de vie, une créature **se replie** vers l'Infirmerie ou son lit (pas les
+Bagarreuses, ni quand le cœur est frappé) ; elle choisit le **travail le plus utile** (recherche, stock de
+pièges, mana, humeur...) selon ses talents ; et le maître plante jusqu'à 3 **étendards** (onglet Défenses,
+**Postes de défense**) où les créatures désœuvrées montent la garde, et où elles accourent toutes à
+l'approche d'une vague. Réglages : `CREATURE_RETREAT_BELOW`, `RALLY_*`, `WORK_*` dans `rules.gd`.
+
 En 3D, chaque activité a sa **pose** (`Creature.pose()`, animée par `_animate_pose` dans `view_3d.gd`) :
 elles dorment allongées dans leur lit, se couchent à l'Infirmerie, croquent un champignon, trinquent
 (chope en main) puis titubent, lisent un grimoire, forgent, prient à genoux, fouettent au chevalet,
@@ -142,6 +148,10 @@ montent la garde en scrutant les couloirs, méditent en lévitation, incantent a
   la vague 3, une vague sur deux a un **objectif** (piller le Trésor, libérer les prisonniers, saccager la
   Bibliothèque, chasser les ouvriers, abattre ta meilleure créature). À la vague 5, une **seconde entrée**
   s'ouvre. Un **éclaireur** vient parfois repérer tes pièges.
+- Les héros **s'adaptent** (règles 2.9) : ils visent d'abord tes tireurs et ta Goule, peuvent vouloir
+  détruire ton Infirmerie ou ton Poste de garde, et dès la vague 6 une vague sur deux attend en
+  **embuscade** à l'entrée qu'un quart de tes créatures dorment. Le **maître rival** est opportuniste :
+  juste après une vague, si tes créatures sont blessées, il lance ses troupes aussitôt.
 - Sous 25 % de vie, un héros **fuit** ; s'il s'échappe, il revient une ou deux vagues plus tard en
   **vétéran** nommé, plus fort, qui se souvient de tes pièges.
 - Dès la vague 4, les héros **résistent à la magie** (+4 % par vague, 40 % au plus, +10 % par rang de vétéran).
@@ -170,6 +180,7 @@ sa rançon) ou **converti**. Les profondeurs cachent aussi un **Colosse endormi*
 
 Les pièges, portes et autels sont **fabriqués à l'Atelier** (9 en stock au plus, 2 autels) puis posés
 par un ouvrier sur le sol d'un couloir ; le Brasero s'achète en or.
+L'**étendard** (Poste de défense, gratuit, 3 au plus) se plante directement : les créatures y montent la garde.
 
 | Défense | Coût | Effet |
 |---------|------|-------|
@@ -327,6 +338,9 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   `lowpoly.py` et les textures peintes de `textures.py`. Tout reconstruire :
   `blender --background --python tools/blender/build_all.py` (les effets : `spell_fx.build_all(...)`).
   Ils marchent aussi avec le module Python `bpy` (`pip install bpy`) au lieu de Blender.
+  Sans carte graphique (serveur, conteneur), les icônes se rendent quand même avec Mesa : installer
+  `libegl1 libgl1-mesa-dri`, puis lancer Python avec `EGL_PLATFORM=surfaceless` (importer `bpy` avant
+  les scripts : `import bpy, sys; sys.path.insert(0, "tools/blender"); import icons; icons.render_one(...)`).
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
   `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
 - **Interface** : icônes peintes, découpées dans les planches `tools/reference/hud_panel*.png` par
@@ -451,3 +465,5 @@ Résumé des étapes (les détails des règles de chaque version sont dans *Code
     argentier, Bourreau, Gargouille, Oracle des ombres, Nécromancien) ; poses animées pour chaque activité.
 46. L'IA de tes créatures (2.8) : choix de la cible, appel à l'aide, défense du cœur, tireurs qui reculent,
     ouvriers qui fuient les héros ; test sans écran `tools/ai_test.gd`.
+47. L'IA, suite (2.9) : repli des blessés, travail le plus utile, Postes de défense (étendard modélisé dans
+    Blender, modèle 3D et icône), héros qui s'adaptent (cibles, objectifs, embuscade), rival opportuniste.

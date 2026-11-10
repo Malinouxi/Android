@@ -25,6 +25,10 @@ extends Unit
 ## et parfois un OBJECTIF (piller le Trésor, libérer les prisonniers, saccager la
 ## Bibliothèque, chasser les ouvriers, abattre ta meilleure créature, ou explorer
 ## pour l'éclaireur). Main.gd forme les escouades et gère leur retraite.
+##
+## ILS S'ADAPTENT (règles 2.9) : ils visent d'abord tes tireurs et ta Goule
+## (_target_score), peuvent vouloir détruire ton Infirmerie ou ton Poste de garde, et
+## certaines vagues attendent en EMBUSCADE à l'entrée que tes créatures s'endorment.
 
 ## Émis quand le héros arrive en prison.
 signal captured(hero: Hero)
@@ -103,6 +107,10 @@ var role := "main"
 var objective := ""
 ## Secondes pendant lesquelles il attend son escouade à l'entrée.
 var hold_left := 0.0
+## L'embuscade : secondes pendant lesquelles il peut encore attendre, après le
+## regroupement, que tes créatures s'endorment (0 : il n'attend pas).
+var ambush_left := 0.0
+var _ambush_check := 0.0
 ## Le chemin de l'escouade principale, que les flanqueurs évitent : case -> true.
 var flank_avoid: Dictionary = {}
 ## Les pièges signalés par un éclaireur (il les évite) : case -> true.
@@ -160,6 +168,8 @@ func to_save() -> Dictionary:
 		data["role"] = role
 		data["objective"] = objective
 		data["hold"] = hold_left
+		if ambush_left > 0.0:
+			data["ambush"] = ambush_left
 	for key in ["flank_avoid", "scouted_traps", "seen_traps"]:
 		var cells: Dictionary = get(key)
 		if not cells.is_empty():
@@ -674,6 +684,10 @@ func _process(delta: float) -> void:
 		# Il attend son escouade à l'entrée avant d'avancer.
 		hold_left -= delta
 		path.clear()
+	elif ambush_left > 0.0 and not _ambush_sprung(delta):
+		# En embuscade : il attend, tapi à l'entrée, que tes créatures s'endorment.
+		ambush_left -= delta
+		path.clear()
 	elif not _do_mission(delta):
 		_march(delta)
 
@@ -703,7 +717,11 @@ func _do_mission(delta: float) -> bool:
 		"prison":
 			return _liberator_mission(delta)
 		"library":
-			return _wreck_mission(delta)
+			return _wreck_mission(delta, Rooms.Type.LIBRARY)
+		"infirmary":
+			return _wreck_mission(delta, Rooms.Type.INFIRMARY)
+		"guardpost":
+			return _wreck_mission(delta, Rooms.Type.GUARDPOST)
 		"workers", "assassinate":
 			return _hunt_mission(delta)
 		"scout":
@@ -814,6 +832,45 @@ func _liberator_mission(delta: float) -> bool:
 # ---------------------------------------------------------------------------
 # Escouades, objectifs et tactiques
 # ---------------------------------------------------------------------------
+
+## Les cibles qu'il préfère (la note la plus BASSE gagne, voir unit.gd) : tes tireurs
+## et ta Goule d'abord, les créatures presque mortes, et il ne change pas de cible pour un rien.
+func _target_score(enemy: Unit, distance: float) -> float:
+	var score := distance
+	if enemy == _target:
+		score -= Rules.HERO_TARGET_STICKY
+	score -= (1.0 - enemy.hp / enemy.max_hp) * Rules.HERO_TARGET_WOUNDED
+	var creature := enemy as Creature
+	if creature != null:
+		if creature.is_ranged():
+			score -= Rules.HERO_TARGET_RANGED
+		if Creatures.info(creature.type).has("healer"):
+			score -= Rules.HERO_TARGET_HEALER
+	return score
+
+
+## L'embuscade est-elle lancée ? Oui quand assez de tes créatures dorment (deux
+## vérifications par seconde) : il cesse alors d'attendre.
+func _ambush_sprung(delta: float) -> bool:
+	_ambush_check -= delta
+	if _ambush_check > 0.0:
+		return false
+	_ambush_check = 0.5
+	var living := 0
+	var asleep := 0
+	for node in get_tree().get_nodes_in_group("dungeon"):
+		var creature := node as Creature
+		if creature == null or creature.is_undead():
+			continue
+		living += 1
+		if creature.state == Creature.State.SLEEPING:
+			asleep += 1
+	if living == 0 or asleep >= living * Rules.AMBUSH_SLEEP_SHARE:
+		ambush_left = 0.0
+		Fx.text(position, "À l'attaque !", Color("ffd54a"))
+		return true
+	return false
+
 
 ## Les cases que ce héros préfère éviter en cherchant son chemin, avec leur
 ## surcoût : le chemin de l'escouade principale (flanqueurs), les pièges signalés
@@ -939,18 +996,19 @@ func _raid_mission(delta: float) -> bool:
 	return _go_toward(_mission_cell, delta)
 
 
-## Objectif « saccager la Bibliothèque » : il frappe la salle jusqu'à la détruire.
-func _wreck_mission(delta: float) -> bool:
-	if map.get_room(current_cell()) == Rooms.Type.LIBRARY:
+## Objectifs « saccager la Bibliothèque », « détruire l'Infirmerie », « abattre le Poste
+## de garde » : il frappe la salle jusqu'à la détruire.
+func _wreck_mission(delta: float, room: int) -> bool:
+	if map.get_room(current_cell()) == room:
 		_mission_cell = current_cell()
-	if map.get_room(_mission_cell) != Rooms.Type.LIBRARY:
+	if map.get_room(_mission_cell) != room:
 		_objective_timer -= delta
 		if _objective_timer > 0.0:
 			return false
 		_objective_timer = 1.0
 		var cells: Array = []
 		for cell: Vector2i in map.rooms:
-			if map.rooms[cell] == Rooms.Type.LIBRARY:
+			if map.rooms[cell] == room:
 				cells.append(cell)
 		_mission_cell = _nearest_cell(cells)
 		path.clear()

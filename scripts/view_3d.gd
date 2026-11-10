@@ -1119,6 +1119,8 @@ func _cell_signature(cell: Vector2i) -> String:
 			and posmod(cell.x * 3 + cell.y * 5, 7) == 0 and _wall_side(cell) != Vector2i.ZERO \
 			and maxi(absi(cell.x - map.heart_cell.x), absi(cell.y - map.heart_cell.y)) > 2:
 		parts.append("banner") # Une bannière au trident, de temps en temps, le long des couloirs.
+	if map.rally_flags.has(cell):
+		parts.append("rally_flag") # L'étendard d'un Poste de défense (règles 2.9).
 	if map.defenses.has(cell):
 		var defense: Dictionary = map.defenses[cell]
 		match int(defense["type"]):
@@ -1185,6 +1187,8 @@ func _rebuild_props() -> void:
 					wanted_braziers[cell] = RIVAL_FIRE
 				elif sig.contains("brazier"):
 					wanted_braziers[cell] = HEART_FIRE
+				if sig.contains("rally_flag"):
+					wanted_braziers[cell] = HEART_FIRE # Son petit brasero éclaire l'étendard.
 				if sig.contains("candelabra"):
 					wanted_torches[cell] = map.candelabras[cell] # Le chandelier éclaire aussi.
 			if map.is_lava(cell) and posmod(x + y * 2, 3) == 0:

@@ -14,10 +14,17 @@ class_name Rules
 ## le codex du jeu les affiche automatiquement.
 
 ## Version des règles (affichée dans le codex).
-const VERSION := "2.8"
+const VERSION := "2.9"
 
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
+	{"version": "2.9", "changes": [
+		"Repli des blessés : sous 25 % de vie, une créature quitte le combat pour l'Infirmerie (ou son lit) et revient à 70 %. Les Bagarreuses ne reculent jamais, les morts-vivants non plus, et personne ne recule quand ton cœur est frappé.",
+		"Postes de défense (onglet Défenses, gratuits, 3 au plus) : plante un étendard dans un couloir. Les créatures sans travail utile y montent la garde, voient les héros de plus loin, et y accourent toutes à l'approche d'une vague.",
+		"Le travail est mieux choisi : chaque créature fait ce qui est le plus utile (recherche en retard, Atelier quand le stock de pièges est bas, Puits de mana quand la mana manque, Temple quand elle est malheureuse...), selon ses talents et ses traits, et sans s'entasser au même endroit.",
+		"Les héros s'adaptent : ils visent d'abord tes tireurs et ta Goule, peuvent vouloir détruire ton Infirmerie ou ton Poste de garde, et dès la vague 6 certaines vagues attendent à l'entrée que tes créatures s'endorment.",
+		"Le maître rival est opportuniste : juste après une vague, si tes créatures sont blessées, il lance ses troupes aussitôt (avec une créature de plus).",
+	]},
 	{"version": "2.8", "changes": [
 		"Tes créatures choisissent mieux leur cible : d'abord les héros qui frappent le cœur, puis les Clercs et les Exorcistes, les pillards chargés d'or et les héros presque morts. Le Bourreau cherche les héros à achever, une Rancunière celui qui l'a blessée.",
 		"Les créatures à distance (Sorcier, Oracle, Nécromancien, Salamandre) reculent d'un pas entre deux tirs quand un héros les colle, au lieu de se laisser frapper.",
@@ -474,6 +481,51 @@ const HEART_CALL_RADIUS := 96.0
 ## et s'enfuient à tant de cases de là (le temps que tes créatures arrivent).
 const WORKER_FEAR_RADIUS := 96.0
 const WORKER_FLEE_CELLS := 5
+
+# --- Règles 2.9 : repli des blessés, postes de défense, travail, héros et rival -------
+## LE REPLI : sous tant de vie, une créature blessée quitte le combat pour l'Infirmerie
+## (ou son lit) et n'y revient qu'à FLEE_RECOVER (70 %) de sa vie. Pas les Bagarreuses,
+## ni les morts-vivants, ni quand le cœur est frappé (le dernier carré). Les Peureuses,
+## elles, fuient dès 35 % (leur trait), même quand le cœur est frappé.
+const CREATURE_RETREAT_BELOW := 0.25
+## LES POSTES DE DÉFENSE : au plus tant d'étendards (gratuits). Une créature y monte
+## la garde (à tant de cases au plus de l'étendard) pendant tant de secondes, et y voit
+## les héros tant de fois plus loin.
+const MAX_RALLY_FLAGS := 3
+const RALLY_RADIUS := 1
+const RALLY_DURATION := 30.0
+const RALLY_AGGRO_BONUS := 1.5
+## L'intérêt de la garde, comparé aux travaux (voir « Le travail » ci-dessous) : faible en
+## temps calme, très fort quand une vague arrive dans moins de RALLY_WAVE_SOON secondes
+## (ou qu'elle est en cours).
+const RALLY_SCORE := 0.35
+const RALLY_WAVE_SCORE := 3.0
+const RALLY_WAVE_SOON := 30.0
+## LE TRAVAIL : la créature fait le travail le plus UTILE pour elle (voir creature.gd,
+## _job_scores), pas un travail tiré au sort. Chaque créature déjà sur ce travail en
+## réduit l'intérêt (1 / (1 + tant x leur nombre)), et un peu de hasard (± tant) départage.
+const WORK_CROWD_PENALTY := 0.5
+const WORK_JITTER := 0.15
+## LES HÉROS CHOISISSENT LEUR CIBLE (comme tes créatures, voir TARGET_*) : ces cibles
+## comptent comme si elles étaient plus proches de tant de pixels.
+const HERO_TARGET_STICKY := 24.0   ## ... celle qu'ils combattent déjà ;
+const HERO_TARGET_WOUNDED := 32.0  ## ... une créature presque morte ;
+const HERO_TARGET_RANGED := 48.0   ## ... tes tireurs (Sorcier, Oracle, Salamandre...) ;
+const HERO_TARGET_HEALER := 64.0   ## ... la Goule rebouteuse.
+## L'EMBUSCADE : dès la vague AMBUSH_FROM_WAVE, une vague sur AMBUSH_EVERY attend à
+## l'entrée que tant de tes créatures (en proportion) dorment, au plus tant de secondes.
+const AMBUSH_FROM_WAVE := 6
+const AMBUSH_EVERY := 2
+const AMBUSH_SLEEP_SHARE := 0.25
+const AMBUSH_MAX_WAIT := 25.0
+## LE RIVAL OPPORTUNISTE : tant de secondes après une vague repoussée, si tes créatures
+## n'ont plus en moyenne que tant de leur vie, il lance ses troupes tout de suite (avec
+## tant de créatures en plus), sauf si son attaque était déjà prévue dans moins de
+## RIVAL_OPPORTUNITY_MIN_TIMER secondes.
+const RIVAL_OPPORTUNITY_DELAY := 6.0
+const RIVAL_OPPORTUNITY_HP := 0.7
+const RIVAL_OPPORTUNITY_BONUS := 1
+const RIVAL_OPPORTUNITY_MIN_TIMER := 15.0
 
 # --- Atelier ----------------------------------------------------------------------
 ## L'Atelier arrête de fabriquer des pièges quand le stock total atteint ce nombre.

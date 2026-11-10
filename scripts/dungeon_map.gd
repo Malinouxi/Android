@@ -167,6 +167,10 @@ const DECORATION_KINDS := ["rug", "painting", "tapestry"]
 var candelabras: Dictionary = {}
 ## Les braseros violets du maître rival : case -> true (voir _place_rival).
 var rival_braziers: Dictionary = {}
+## Les POSTES DE DÉFENSE (règles 2.9) : les étendards plantés par le maître, case -> true.
+## Les créatures désœuvrées y montent la garde (voir creature.gd, « Les postes de défense »).
+var rally_flags: Dictionary = {}
+const RALLY_ICON := preload("res://assets/icons_hd/rally_flag.png")
 const DECORATION_SIDES := [Vector2i.ZERO, Vector2i.UP, Vector2i.LEFT]
 ## Les tapis ne se posent que dans ces salles.
 const RUG_ROOMS := [Rooms.Type.TREASURY, Rooms.Type.LAIR, Rooms.Type.LIBRARY, Rooms.Type.WORKSHOP,
@@ -545,6 +549,7 @@ func to_save() -> Dictionary:
 		"decorations": _decorations_to_list(),
 		"candelabras": _candelabras_to_list(),
 		"rival_braziers": _cells_to_array_list(rival_braziers),
+		"rally_flags": _cells_to_array_list(rally_flags),
 		"secrets": _secrets_to_list(),
 		"lava": _cells_to_list(lava),
 		"lava_queue": _cells_to_array_list_ordered(_lava_queue),
@@ -591,6 +596,9 @@ func load_save(data: Dictionary) -> bool:
 	rival_braziers.clear()
 	for values in data.get("rival_braziers", []):
 		rival_braziers[SaveGame.array_to_cell(values)] = true
+	rally_flags.clear()
+	for values in data.get("rally_flags", []):
+		rally_flags[SaveGame.array_to_cell(values)] = true
 	candelabras.clear()
 	for values in data.get("candelabras", []):
 		candelabras[SaveGame.array_to_cell(values)] = DIRECTIONS[int(values[2])]
@@ -1169,6 +1177,7 @@ func start_room_block(origin: Vector2i, size: Vector2i, type: int) -> int:
 	for cell in _block_cells(id):
 		construction[cell] = {"kind": "room", "type": type, "left": total, "total": total,
 				"worker": null, "block": id, "done": false}
+		rally_flags.erase(cell) # Une salle à la place d'un étendard : il est arraché.
 	_redraw_all()
 	return id
 
@@ -1542,6 +1551,7 @@ func can_place_defense(cell: Vector2i) -> bool:
 
 
 func place_defense(cell: Vector2i, type: int) -> void:
+	rally_flags.erase(cell)
 	defenses[cell] = {
 		"type": type,
 		"hp": Defenses.INFO[type].get("hp", 0.0),
@@ -2197,6 +2207,26 @@ func find_sapper_path(from_cell: Vector2i) -> Array[Vector2i]:
 	return find_hero_path(from_cell, [], weights)
 
 
+## Peut-on planter un étendard (Poste de défense) ici ? Renvoie "" si oui, sinon la raison.
+func rally_flag_refusal(cell: Vector2i) -> String:
+	if not claimed.has(cell) or get_tile(cell) != Tile.FLOOR:
+		return "Plante l'étendard sur ton territoire (le sol revendiqué)."
+	if rooms.has(cell) or defenses.has(cell) or construction.has(cell) or cell == heart_cell:
+		return "Plante l'étendard dans un couloir, pas dans une salle ni sur un piège."
+	if rally_flags.size() >= Rules.MAX_RALLY_FLAGS:
+		return "Tu as déjà %d étendards : touche-en un pour l'arracher." % Rules.MAX_RALLY_FLAGS
+	return ""
+
+
+## Plante ou arrache un étendard (sans vérifier : voir rally_flag_refusal).
+func set_rally_flag(cell: Vector2i, planted: bool) -> void:
+	if planted:
+		rally_flags[cell] = true
+	else:
+		rally_flags.erase(cell)
+	_redraw_all()
+
+
 ## Les héros frappent une salle (objectif « saccager ») : à 0 PV, elle est détruite.
 ## Renvoie true si elle vient d'être détruite.
 func damage_room(cell: Vector2i, amount: float) -> bool:
@@ -2702,6 +2732,9 @@ func _draw_standing_objects(layer: Node2D, cell: Vector2i) -> void:
 
 	if defenses.has(cell) and defenses[cell]["type"] == Defenses.Type.ALTAR:
 		_billboard(layer, _animated("sacrifice_altar", cell), center, 1.1)
+
+	if rally_flags.has(cell):
+		_billboard(layer, RALLY_ICON, center, 1.0) # L'étendard d'un Poste de défense.
 
 	if has_door(cell):
 		_billboard(layer, Art.DOOR, center, 1.1)

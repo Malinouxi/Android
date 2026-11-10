@@ -30,7 +30,7 @@ from mathutils import Vector
 SIZE = 256           # Taille des images.
 ORTHO = 2.2         # Largeur vue par la caméra (mètres).
 LINE = 3.4           # Épaisseur du contour (pixels de l'image).
-THIN_LINES = {"pincers": 2.4, "web": 1.3, "cage": 1.6, "rune": 1.6, "bookshelf": 2.0, "recall": 2.2}  # Contour plus fin : objets ajourés.
+THIN_LINES = {"pincers": 2.4, "web": 1.3, "cage": 1.6, "rune": 1.6, "bookshelf": 2.0, "recall": 2.2, "rally_flag": 2.4}  # Contour plus fin : objets ajourés.
 MARGIN = 1.1         # Le cadrage serré : l'objet remplit la case, avec 10 % de marge.
 
 
@@ -1137,6 +1137,32 @@ def watch_horn(m):
     tube(m["leather"], [(-0.4, 0, -0.45), (-0.2, 0, -0.75), (0.2, 0, -0.65), (0.35, 0, 0.05)], [0.03] * 4)
 
 
+def rally_flag(m):
+    """Poste de défense (règles 2.9) : l'étendard de guerre du maître, planté dans un socle de
+    pierre. Hampe de fer noir à pointe d'or, bannière rouge à queue d'aronde, trident d'or."""
+    cloth = mat("rally_cloth", "c62020", rough=0.6, bump=0.15, scale=30.0, coat=0.3)
+    # Le socle et la hampe, à gauche : la bannière flotte vers la droite.
+    cyl(m["stone_light"], (-0.55, 0, -0.72), 0.3, 0.16, bevel=0.04, vertices=8)
+    cyl(m["stone"], (-0.55, 0, -0.6), 0.19, 0.1, bevel=0.03, vertices=8)
+    cyl(m["iron_dark"], (-0.55, 0, 0.22), 0.065, 1.62)
+    for z in (0.93, -0.12):
+        cyl(m["gold"], (-0.55, 0, z), 0.09, 0.07, bevel=0.02)
+    ball(m["gold"], (-0.55, 0, 1.06), 0.09)
+    plate(m["gold"], [(-0.66, 1.12), (-0.55, 1.08), (-0.44, 1.12), (-0.55, 1.42)], 0.1, bevel=0.02)
+    # La bannière (un peu tournée : elle prend le vent).
+    banner = group((0.0, -0.02, 0.0), rotation_y=math.radians(-4))
+    plate(cloth, [(-0.5, 0.9), (0.72, 0.86), (0.44, 0.36), (0.72, -0.14), (-0.5, -0.1)], 0.07, bevel=0.015,
+          parent=banner)
+    plate(m["gold"], [(-0.5, 0.92), (0.73, 0.88), (0.69, 0.8), (-0.5, 0.82)], 0.09, bevel=0.01, parent=banner)
+    # Le trident d'or, brodé d'une seule pièce (sa silhouette reste nette en petit).
+    thread = mat("rally_thread", "ffd54f", metal=0.3, rough=0.35, emission=0.8)
+    half = [(0.07, -0.36), (0.07, 0.03), (0.2, 0.07), (0.27, 0.18), (0.27, 0.3), (0.35, 0.3), (0.22, 0.56),
+            (0.15, 0.3), (0.15, 0.17), (0.07, 0.15), (0.07, 0.34), (0.14, 0.34), (0.0, 0.62)]
+    outline = half + [(-x, z) for x, z in reversed(half[:-1])]
+    s = 0.82
+    plate(thread, [(0.04 + x * s, 0.36 + z * s) for x, z in outline], 0.05, y=-0.045, bevel=0.008, parent=banner)
+
+
 def mana_crystal(m):
     """Puits de mana : un grand cristal bleu qui flotte au-dessus d'une margelle runique."""
     lathe(m["glow_blue"], [(0.05, 0.0), (0.45, 0.32), (0.95, 0.0)], center=(0, 0, 0.0))
@@ -1177,7 +1203,7 @@ ICONS = {
     "tools": tools, "arch": arch, "trident": trident, "scroll": scroll,
     "arrow_up": arrow_up, "arrow_down": arrow_down,
     "mug": mug, "salve": salve, "coin_press": coin_press, "pincers": pincers, "watch_horn": watch_horn,
-    "mana_crystal": mana_crystal, "sarcophagus": sarcophagus,
+    "mana_crystal": mana_crystal, "sarcophagus": sarcophagus, "rally_flag": rally_flag,
 }
 
 

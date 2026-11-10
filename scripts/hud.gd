@@ -33,7 +33,7 @@ enum Tool { DIG, TREASURY, LAIR, FARM, DEMOLISH, HAND, SPIKES, RUNE, DOOR,
 		SPELL_WHIP, SPELL_FEAST, SPELL_EYE, SPELL_SUMMON, SPELL_TRANSMUTE,
 		SPELL_RAISE, SPELL_CONVERT, SPELL_SANCTUARY, SPELL_RECALL,
 		TAVERN, INFIRMARY, MINT, TORTURE, GUARDPOST, MANA_WELL, CRYPT,
-		MOVE }
+		MOVE, RALLY }
 
 var _top_panel: PanelContainer
 ## Le portrait animé du Seigneur, en haut à gauche (voir lord_portrait.gd).
@@ -129,6 +129,7 @@ const TOOL_ICON_NAMES := {
 	Tool.SPELL_SANCTUARY: "shield", Tool.SPELL_RECALL: "portal",
 	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "torture",
 	Tool.GUARDPOST: "tower", Tool.MANA_WELL: "mana_well", Tool.CRYPT: "sarcophagus",
+	Tool.RALLY: "rally_flag",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
@@ -138,7 +139,7 @@ const TABS := {
 	# Les antres (règles 2.7) : de quoi rendre le donjon plus vivant.
 	"Antres": ["sarcophagus", [Tool.TAVERN, Tool.INFIRMARY, Tool.MINT, Tool.TORTURE, Tool.GUARDPOST,
 			Tool.MANA_WELL, Tool.CRYPT]],
-	"Défenses": ["wall", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
+	"Défenses": ["wall", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER, Tool.RALLY]],
 	# Les sorts de combat...
 	"Sorts": ["spell_room", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
 			Tool.SPELL_FIRESTORM, Tool.SPELL_TERROR, Tool.SPELL_COLLAPSE, Tool.SPELL_POSSESSION]],

@@ -4,7 +4,8 @@ taillée, bois, or, fer, lueurs colorées.
 
 Objets d'une case (centrés sur la case, 1 m de côté) :
   bed (Repaire), mushrooms_1..3 (Champignonnière), prison (une cellule),
-  tomb_empty, tomb_full (Cimetière), wall_torch, torch, banner (bannière murale).
+  tomb_empty, tomb_full (Cimetière), wall_torch, torch, banner (bannière murale),
+  rally_flag (Poste de défense, règles 2.9 : l'étendard planté où les créatures montent la garde).
   Les objets muraux (wall_torch, banner) ont le mur du côté +Y.
 Objets de plusieurs cases, centrés sur leur milieu, le côté LONG le long de Y
 (le jeu les tourne d'un quart de tour s'ils sont posés dans l'autre sens) :
@@ -245,6 +246,49 @@ def _banner(ctx):
         part.loft([((0.2 * side, 0.08, 1.12), 0.01, 0.01), ((0.2 * side, 0.08, 1.2), 0.01, 0.01)],
                   ctx.iron(), sides=4)
     _banner_cloth(ctx, part, 0.0, 0.045, 1.1, 0.42, 0.78)
+
+
+def _rally_flag(ctx):
+    """Le Poste de défense : un étendard de guerre planté dans un socle de pierre. Hampe de
+    bois cerclée de fer, trident d'or au sommet, bannière rouge au trident (pivot sway_0,
+    elle flotte), deux crânes sur le socle et un petit brasero devant (flame_0)."""
+    part = ctx.base
+    stone = ctx.stone("5d5550")
+    dark = ctx.wood("3e2723")
+    iron = ctx.iron("37474f")
+    gold = ctx.mat("trim", "e0a526")
+    # Le socle : deux gradins octogonaux.
+    part.loft([((0, 0, 0.0), 0.3, 0.3), ((0, 0, 0.1), 0.3, 0.3), ((0, 0, 0.12), 0.26, 0.26)], stone, sides=8)
+    part.loft([((0, 0, 0.12), 0.19, 0.19), ((0, 0, 0.2), 0.19, 0.19), ((0, 0, 0.22), 0.15, 0.15)], stone, sides=8)
+    # La hampe, ses colliers de fer, et la traverse qui porte la bannière.
+    part.loft([((0, 0, 0.18), 0.045, 0.045), ((0, 0, 0.3), 0.045, 0.045)], iron, sides=6)
+    part.loft([((0, 0, 0.2), 0.03, 0.03), ((0, 0, 1.78), 0.025, 0.025)], dark, sides=6)
+    for z in (0.7, 1.2):
+        part.loft([((0, 0, z), 0.034, 0.034), ((0, 0, z + 0.04), 0.034, 0.034)], iron, sides=6)
+    part.loft([((-0.27, -0.03, 1.6), 0.016, 0.016), ((0.27, -0.03, 1.6), 0.016, 0.016)], dark, sides=5)
+    for side in (-1, 1):
+        part.loft([((0.27 * side, -0.03, 1.6), 0.026, 0.026), ((0.285 * side, -0.03, 1.6), 0.0, 0.0)],
+                  gold, sides=5, cap_end=False)
+    # Le trident d'or au sommet.
+    part.loft([((0, 0, 1.78), 0.035, 0.035), ((0, 0, 1.82), 0.035, 0.035)], gold, sides=6)
+    part.box((0, 0, 1.85), (0.2, 0.03, 0.03), gold)
+    for x, h in ((-0.09, 0.14), (0.0, 0.2), (0.09, 0.14)):
+        part.box((x, 0, 1.85 + h / 2 - 0.01), (0.022, 0.022, h), gold)
+        part.cone((x, 0, 1.84 + h), (x, 0, 1.9 + h), 0.02, gold, sides=4)
+    # La bannière, qui flotte sous la traverse (dessinée des deux côtés).
+    cloth = ctx.animated("sway", (0, -0.035, 1.59))
+    _banner_cloth(ctx, cloth, 0.0, -0.006, 0.0, 0.44, 0.74, facing=-1)
+    _banner_cloth(ctx, cloth, 0.0, 0.006, 0.0, 0.44, 0.74, facing=1)
+    # Deux crânes sur le socle, de part et d'autre de la hampe.
+    for x in (-0.13, 0.13):
+        _skull(ctx, part, (x, -0.11, 0.22), size=0.55)
+    # Un petit brasero devant : la flamme du maître veille.
+    bx, by = 0.0, -0.21
+    part.loft([((bx, by, 0.12), 0.05, 0.05), ((bx, by, 0.17), 0.07, 0.07), ((bx, by, 0.2), 0.08, 0.08)],
+              iron, sides=8, cap_end=False)
+    part.loft([((bx, by, 0.17), 0.065, 0.065), ((bx, by, 0.185), 0.04, 0.04)],
+              ctx.mat("embers", "bf360c", emission=1.5), sides=8)
+    _flame(ctx, (bx, by, 0.18), 0.05)
 
 
 def _wall_torch(ctx):
@@ -1346,6 +1390,7 @@ BUILDERS = {
     "wall_torch": _wall_torch,
     "torch": _torch,
     "banner": _banner,
+    "rally_flag": _rally_flag,
     "treasury_0": lambda ctx: _treasury(ctx, 0),
     "treasury_1": lambda ctx: _treasury(ctx, 1),
     "treasury_2": lambda ctx: _treasury(ctx, 2),

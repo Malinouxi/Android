@@ -62,6 +62,9 @@ func _run() -> void:
 	await _frames(60)
 	_game = current_scene
 	_map = _game.get_node("World/DungeonMap")
+	# Nos fouilles ne doivent réveiller aucun secret des profondeurs (Colosse, lave, ou
+	# ruine dont les spectres marcheraient sur le cœur en plein test).
+	_map.secrets.clear()
 	var heart: Vector2i = _map.heart_cell
 	for dy in range(-4, 5):
 		for dx in range(2, 24):
@@ -137,14 +140,20 @@ func _run() -> void:
 	while t < 14.0:
 		await process_frame
 		t += root.get_process_delta_time()
+		if not is_instance_valid(warlock) or not is_instance_valid(brute):
+			break
 		if warlock._backing_off:
 			backed += 1
 	print("  frames en recul=", backed, " dégâts infligés=", shots_hp - brute.hp, " reçus=", 5000.0 - warlock.hp,
 			" pos=", warlock.current_cell() - heart)
 	_check("le Sorcier recule", backed > 10)
 	_check("le Sorcier tire à son rythme (>= 8 tirs en 14 s)", shots_hp - brute.hp >= 18.0 * 8)
-	_check("le Chevalier finit quand même par le toucher", warlock.hp < warlock.max_hp)
-	warlock.queue_free(); brute.queue_free()
+	_check("le Sorcier a survécu au test", is_instance_valid(warlock) and is_instance_valid(brute))
+	if is_instance_valid(warlock):
+		_check("le Chevalier finit quand même par le toucher", warlock.hp < warlock.max_hp)
+		warlock.queue_free()
+	if is_instance_valid(brute):
+		brute.queue_free()
 	await _frames(5)
 
 	# 5. Les ouvriers fuient.

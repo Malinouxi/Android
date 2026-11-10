@@ -98,26 +98,36 @@ const SIDE_PANEL_WIDTH := 278 ## Largeur de la mini-carte et de l'objectif (à d
 ## Hauteur du cadre de la mini-carte : la carte (Minimap.CELL pixels par case) et le cadre.
 const MINIMAP_PANEL_HEIGHT := DungeonMap.HEIGHT * Minimap.CELL + 28
 
-## Les icônes HD (256 x 256, modélisées dans Blender par tools/blender/icons.py).
+## Les icônes (256 x 256). On prend d'abord l'icône PEINTE, découpée dans la planche
+## de référence (tools/panel_icons.py -> assets/icons_panel/) ; sinon l'icône
+## modélisée dans Blender (tools/blender/icons.py -> assets/icons_hd/).
 static func hd(icon_name: String) -> Texture2D:
-	return load("res://assets/icons_hd/%s.png" % icon_name)
+	return load(icon_path(icon_name))
+
+
+## Le chemin du fichier d'une icône (voir hd).
+static func icon_path(icon_name: String) -> String:
+	var painted := "res://assets/icons_panel/%s.png" % icon_name
+	if ResourceLoader.exists(painted):
+		return painted
+	return "res://assets/icons_hd/%s.png" % icon_name
 
 
 ## L'icône de chaque outil et sort.
 const TOOL_ICON_NAMES := {
-	Tool.DIG: "pickaxe", Tool.HAND: "hand", Tool.DEMOLISH: "hammer", Tool.SACRIFICE: "dagger",
+	Tool.DIG: "pickaxe", Tool.HAND: "move", Tool.DEMOLISH: "wrecking_ball", Tool.SACRIFICE: "blood",
 	Tool.TREASURY: "chest", Tool.LAIR: "bed", Tool.FARM: "mushroom", Tool.LIBRARY: "bookshelf",
-	Tool.WORKSHOP: "anvil", Tool.TRAINING: "dummy", Tool.PRISON: "cage", Tool.TEMPLE: "temple",
-	Tool.GRAVEYARD: "tomb", Tool.SPIKES: "spikes", Tool.RUNE: "rune", Tool.DOOR: "door",
-	Tool.ALTAR: "sacrifice_altar", Tool.SPELL_HEAL: "heal", Tool.SPELL_LIGHTNING: "bolt",
-	Tool.SPELL_HASTE: "haste", Tool.BRAZIER: "brazier",
-	Tool.SPELL_WEB: "web", Tool.SPELL_FIRESTORM: "firestorm", Tool.SPELL_TERROR: "terror",
-	Tool.SPELL_COLLAPSE: "collapse", Tool.SPELL_POSSESSION: "possession", Tool.SPELL_WHIP: "whip",
+	Tool.WORKSHOP: "anvil", Tool.TRAINING: "dummy", Tool.PRISON: "cage", Tool.TEMPLE: "demon_statue",
+	Tool.GRAVEYARD: "tomb", Tool.SPIKES: "spikes", Tool.RUNE: "pentagram", Tool.DOOR: "door",
+	Tool.ALTAR: "sacrifice_altar", Tool.SPELL_HEAL: "heal", Tool.SPELL_LIGHTNING: "storm",
+	Tool.SPELL_HASTE: "fast", Tool.BRAZIER: "brazier",
+	Tool.SPELL_WEB: "chains", Tool.SPELL_FIRESTORM: "fire_rain", Tool.SPELL_TERROR: "panic",
+	Tool.SPELL_COLLAPSE: "quake", Tool.SPELL_POSSESSION: "demon", Tool.SPELL_WHIP: "whip",
 	Tool.SPELL_FEAST: "feast", Tool.SPELL_EYE: "eye", Tool.SPELL_SUMMON: "summon",
-	Tool.SPELL_TRANSMUTE: "transmute", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "convert",
-	Tool.SPELL_SANCTUARY: "sanctuary", Tool.SPELL_RECALL: "recall",
-	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "pincers",
-	Tool.GUARDPOST: "watch_horn", Tool.MANA_WELL: "mana_crystal", Tool.CRYPT: "sarcophagus",
+	Tool.SPELL_TRANSMUTE: "gold", Tool.SPELL_RAISE: "raise", Tool.SPELL_CONVERT: "madness",
+	Tool.SPELL_SANCTUARY: "shield", Tool.SPELL_RECALL: "portal",
+	Tool.TAVERN: "mug", Tool.INFIRMARY: "salve", Tool.MINT: "coin_press", Tool.TORTURE: "torture",
+	Tool.GUARDPOST: "tower", Tool.MANA_WELL: "mana_well", Tool.CRYPT: "sarcophagus",
 }
 ## Les catégories d'outils (colonne de gauche) : nom -> [icône, outils].
 const TABS := {
@@ -127,12 +137,12 @@ const TABS := {
 	# Les antres (règles 2.7) : de quoi rendre le donjon plus vivant.
 	"Antres": ["sarcophagus", [Tool.TAVERN, Tool.INFIRMARY, Tool.MINT, Tool.TORTURE, Tool.GUARDPOST,
 			Tool.MANA_WELL, Tool.CRYPT]],
-	"Défenses": ["trident", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
+	"Défenses": ["wall", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER]],
 	# Les sorts de combat...
-	"Sorts": ["bolt", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
+	"Sorts": ["spell_room", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
 			Tool.SPELL_FIRESTORM, Tool.SPELL_TERROR, Tool.SPELL_COLLAPSE, Tool.SPELL_POSSESSION]],
 	# ... et les pouvoirs du maître sur son donjon.
-	"Pouvoirs": ["demon", [Tool.SPELL_WHIP, Tool.SPELL_FEAST, Tool.SPELL_EYE, Tool.SPELL_SUMMON,
+	"Pouvoirs": ["throne", [Tool.SPELL_WHIP, Tool.SPELL_FEAST, Tool.SPELL_EYE, Tool.SPELL_SUMMON,
 			Tool.SPELL_TRANSMUTE, Tool.SPELL_RAISE, Tool.SPELL_CONVERT, Tool.SPELL_SANCTUARY, Tool.SPELL_RECALL]],
 }
 ## Vitesses de jeu proposées par le bouton « Vitesse ».

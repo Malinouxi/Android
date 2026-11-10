@@ -163,7 +163,7 @@ func _room_img(type: int) -> String:
 		Rooms.Type.PRISON:
 			texture = Art.PRISON_BARS
 	if texture == null and Rooms.ICONS.has(type):
-		return _img("res://assets/icons_hd/%s.png" % Rooms.ICONS[type], TABLE_IMAGE_SIZE)
+		return _img(Hud.icon_path(Rooms.ICONS[type]), TABLE_IMAGE_SIZE)
 	if texture == null:
 		return "" # Pas d'image pour cette salle : on laisse la case vide.
 	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
@@ -171,13 +171,13 @@ func _room_img(type: int) -> String:
 
 func _defense_img(type: int) -> String:
 	if type == Defenses.Type.BRAZIER:
-		return _img("res://assets/icons_hd/brazier.png", TABLE_IMAGE_SIZE)
+		return _img(Hud.icon_path("brazier"), TABLE_IMAGE_SIZE)
 	var texture: Texture2D = [Art.SPIKES_UP, Art.RUNE, Art.DOOR, Art.SACRIFICE_ALTAR][type]
 	return _img(texture.resource_path, TABLE_IMAGE_SIZE)
 
 
 func _spell_img(type: int) -> String:
-	return _img("res://assets/icons_hd/%s.png" % Spells.icon(type), TABLE_IMAGE_SIZE)
+	return _img(Hud.icon_path(Spells.icon(type)), TABLE_IMAGE_SIZE)
 
 
 # ---------------------------------------------------------------------------

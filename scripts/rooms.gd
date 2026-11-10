@@ -78,9 +78,9 @@ const MODEL_NAMES := {Type.LIBRARY: "library", Type.WORKSHOP: "workshop", Type.T
 		Type.TEMPLE: "temple", Type.TAVERN: "tavern", Type.INFIRMARY: "infirmary", Type.MINT: "mint",
 		Type.TORTURE: "torture", Type.GUARDPOST: "guardpost", Type.MANA_WELL: "mana_well"}
 
-## L'icône HD des antres (assets/icons_hd/, faites dans Blender par tools/blender/icons.py).
-const ICONS := {Type.TAVERN: "mug", Type.INFIRMARY: "salve", Type.MINT: "coin_press", Type.TORTURE: "pincers",
-		Type.GUARDPOST: "watch_horn", Type.MANA_WELL: "mana_crystal", Type.CRYPT: "sarcophagus"}
+## L'icône des antres (voir Hud.hd : peinte dans assets/icons_panel/, sinon assets/icons_hd/).
+const ICONS := {Type.TAVERN: "mug", Type.INFIRMARY: "salve", Type.MINT: "coin_press", Type.TORTURE: "torture",
+		Type.GUARDPOST: "tower", Type.MANA_WELL: "mana_well", Type.CRYPT: "sarcophagus"}
 
 ## Or que peut contenir une case de trésor.
 const TREASURY_CAPACITY := 400

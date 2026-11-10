@@ -322,8 +322,10 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   Ils marchent aussi avec le module Python `bpy` (`pip install bpy`) au lieu de Blender.
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
   `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
-- **Interface** : icônes (`tools/blender/icons.py` → `assets/icons_hd/`) et cadres « pierre et fer »
-  (`tools/blender/hud.py` → `assets/ui_hd/`), rendus dans Blender.
+- **Interface** : icônes peintes, découpées dans la planche `tools/reference/hud_panel.png` par
+  `python3 tools/panel_icons.py` (→ `assets/icons_panel/`, il faut Pillow) ; celles que la planche n'a pas
+  viennent de Blender (`tools/blender/icons.py` → `assets/icons_hd/`). Le jeu prend l'icône peinte si elle
+  existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et fer » : `tools/blender/hud.py` → `assets/ui_hd/`.
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
 - **Pixel art 32 × 32** (vue 2D, portraits, petites icônes) : `tools/art32.py`, lancé par
   `python3 tools/generate_art.py` (il faut Pillow et numpy) ; attention, il écrase les PNG de `assets/`.

@@ -9,13 +9,13 @@ class_name Combos
 ## de feu). Les chiffres sont dans rules.gd (« Combos »).
 
 const INFO := {
-	"rune_feu": {"name": "Rune de feu", "images": ["res://assets/props/rune.png", "res://assets/icons_hd/brazier.png"],
+	"rune_feu": {"name": "Rune de feu", "images": ["res://assets/props/rune.png", "res://assets/icons_panel/brazier.png"],
 		"hint": "Une rune n'aime pas la chaleur...",
 		"text": "Une Rune qui explose à moins de 2 cases d'un Brasero : explosion 50 % plus large, et le sol brûle 6 s. Les héros qui y passent prennent feu."},
 	"reaction_chaine": {"name": "Réaction en chaîne", "images": ["res://assets/props/rune.png", "res://assets/props/rune.png"],
 		"hint": "Une explosion peut en cacher une autre.",
 		"text": "L'explosion d'une Rune fait sauter les autres Runes qu'elle touche, chacune 25 % plus fort que la précédente."},
-	"pointes_ardentes": {"name": "Pointes ardentes", "images": ["res://assets/props/spikes_up.png", "res://assets/icons_hd/brazier.png"],
+	"pointes_ardentes": {"name": "Pointes ardentes", "images": ["res://assets/props/spikes_up.png", "res://assets/icons_panel/brazier.png"],
 		"hint": "Le fer chauffé au rouge mord plus fort.",
 		"text": "Des Pointes à moins de 2 cases d'un Brasero : +50 % de dégâts, et le héros prend feu pendant 3 s."},
 	"empalement": {"name": "Empalement", "images": ["res://assets/props/spikes_up.png", "res://assets/units/spider_idle_0.png"],
@@ -30,13 +30,13 @@ const INFO := {
 	"porte_electrifiee": {"name": "Porte électrifiée", "images": ["res://assets/icons/bolt.png", "res://assets/props/door.png"],
 		"hint": "Le bois mouillé conduit bien la foudre...",
 		"text": "Un Éclair lancé sur une Porte la charge pendant 20 s : chaque héros qui la frappe prend une décharge de 12 dégâts."},
-	"rune_engluee": {"name": "Rune engluée", "images": ["res://assets/icons_hd/web.png", "res://assets/props/rune.png"],
+	"rune_engluee": {"name": "Rune engluée", "images": ["res://assets/icons_panel/chains.png", "res://assets/props/rune.png"],
 		"hint": "Un héros collé au sol ne s'écarte pas de ce qui va exploser.",
 		"text": "Un héros pris dans la Toile du maître qui déclenche une Rune prend 60 % de dégâts en plus."},
-	"brasier_runique": {"name": "Brasier runique", "images": ["res://assets/icons_hd/firestorm.png", "res://assets/props/rune.png"],
+	"brasier_runique": {"name": "Brasier runique", "images": ["res://assets/icons_panel/fire_rain.png", "res://assets/props/rune.png"],
 		"hint": "Les runes craignent le feu... même celui du maître.",
 		"text": "Le sort Brasier fait exploser les Runes de sa zone en Runes de feu : explosion plus large, et le sol brûle."},
-	"trainee_de_feu": {"name": "Traînée de feu", "images": ["res://assets/icons/haste.png", "res://assets/icons_hd/demon.png"],
+	"trainee_de_feu": {"name": "Traînée de feu", "images": ["res://assets/icons/haste.png", "res://assets/icons_panel/demon.png"],
 		"hint": "Un démon pressé laisse des traces brûlantes.",
 		"text": "Un Démon sous Hâte enflamme le sol derrière lui : les héros qui le suivent prennent feu."},
 }

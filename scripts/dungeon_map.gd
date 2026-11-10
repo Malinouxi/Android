@@ -637,6 +637,9 @@ func load_save(data: Dictionary) -> bool:
 	for values in data.get("secrets", []):
 		secrets.append({"kind": String(values[2]), "center": SaveGame.array_to_cell(values),
 				"hinted": bool(values[3]), "revealed": bool(values[4])})
+	for secret: Dictionary in secrets: # Les cavernes murées par un coin (ancien bug).
+		if secret["revealed"] and secret["kind"] != "lava":
+			_open_cave_mouth(secret["center"], false)
 	lava.clear()
 	for values in data.get("lava", []):
 		lava[SaveGame.array_to_cell(values)] = float(values[2])
@@ -2006,8 +2009,45 @@ func _reveal_secret(secret: Dictionary) -> void:
 					ruins[center + corner] = "column"
 		"colossus":
 			drop_gold(center + Vector2i(1, 1), Rules.COLOSSUS_HOARD)
+	if secret["kind"] != "lava":
+		_open_cave_mouth(center, true)
 	_redraw_all()
 	secret_revealed.emit(secret["kind"], center)
+
+
+## La caverne (3 x 3) doit toucher le donjon par un CÔTÉ : les créatures ne marchent pas
+## en diagonale (A* sans diagonales). Si le coup de pioche qui l'a réveillée était
+## dans un coin (à ±2, ±2 du centre), la caverne ne touche le couloir que par un angle :
+## elle est inaccessible, et les ouvriers n'osent plus creuser près du Colosse pour
+## l'ouvrir. On creuse donc nous-mêmes la case qui relie ce coin à la caverne.
+## (Appelé au réveil du secret, et au chargement pour réparer les anciennes parties.)
+func _open_cave_mouth(center: Vector2i, refresh: bool) -> void:
+	var corners: Array[Vector2i] = []
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			if maxi(absi(dx), absi(dy)) != 2:
+				continue
+			var cell := center + Vector2i(dx, dy)
+			if not is_walkable(cell):
+				continue
+			if absi(dx) == 2 and absi(dy) == 2:
+				corners.append(cell)
+			else:
+				return # Déjà reliée par un côté : rien à faire.
+	for corner in corners:
+		var offset := corner - center
+		# Les deux cases qui touchent à la fois ce coin et la caverne.
+		for bridge: Vector2i in [center + Vector2i(offset.x, signi(offset.y)),
+				center + Vector2i(signi(offset.x), offset.y)]:
+			if not is_diggable(bridge) or get_tile(bridge) == Tile.GEM:
+				continue
+			_set_tile(bridge, Tile.FLOOR)
+			marked.erase(bridge)
+			reserved.erase(bridge)
+			damage.erase(bridge)
+			if refresh:
+				_refresh_pathing(bridge)
+			return
 
 
 ## Met à jour les deux A* pour une case (après un changement de tuile). Pour les héros,

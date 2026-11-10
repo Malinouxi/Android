@@ -323,9 +323,10 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :
   `blender --background --python tools/blender/build_dens.py -- --preview <dossier>`.
 - **Interface** : icônes peintes, découpées dans les planches `tools/reference/hud_panel*.png` par
-  `python3 tools/panel_icons.py` (→ `assets/icons_panel/`, il faut Pillow) ; celles que la planche n'a pas
+  `python3 tools/panel_icons.py` (→ `assets/icons_panel/`, il faut Pillow) ; celles que les planches n'ont pas
   viennent de Blender (`tools/blender/icons.py` → `assets/icons_hd/`). Le jeu prend l'icône peinte si elle
-  existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et fer » : `tools/blender/hud.py` → `assets/ui_hd/`.
+  existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et braise » (pierre fissurée, liseré rouge, cornes
+  et crânes) : `python3 tools/hud_gothic.py` → `assets/ui_hd/` (numpy, sans Blender).
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
 - **Pixel art 32 × 32** (vue 2D, portraits, petites icônes) : `tools/art32.py`, lancé par
   `python3 tools/generate_art.py` (il faut Pillow et numpy) ; attention, il écrase les PNG de `assets/`.

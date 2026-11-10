@@ -6,7 +6,7 @@ extends CanvasLayer
 ##     ouvriers, vie du cœur, prochaine vague, ouvrier en plus, vitesse, pause ;
 ##   - à gauche : une colonne d'icônes, les catégories d'outils (Actions,
 ##     Salles, Défenses, Sorts, Pouvoirs) ;
-##   - en haut à droite : la mini-carte, puis l'objectif et la recherche ;
+##   - en haut à droite : l'objectif et la recherche ;
 ##   - en bas, une grande barre d'un seul tenant, en trois parties :
 ##     la fiche de la créature touchée, les outils de la catégorie choisie
 ##     (grandes icônes), et le journal des messages (flèches pour remonter).
@@ -56,6 +56,7 @@ var _heart_bar: ProgressBar
 var _heart_label: Label
 var _wave_label: Label
 var _summon_button: Button
+var _summon_price: Label
 var _mana_label: Label
 var _research_label: Label
 var _goal_label: Label
@@ -95,6 +96,8 @@ const TOOL_SIZE := 92 ## Côté des boutons d'outils (en pixels, écran de 1280 
 const CATEGORY_SIZE := 76 ## Côté des boutons de catégorie (à gauche : 6 catégories, sur 2 colonnes).
 const UNIT_SECTION_WIDTH := 370 ## Largeur de la fiche de créature (barre du bas).
 const SIDE_PANEL_WIDTH := 278 ## Largeur du cadre de l'objectif (en haut à droite).
+## Marge entre le cadre d'un bouton et son icône : petite, pour que l'icône soit grande.
+const ICON_PADDING := 3.0
 
 ## Les icônes (256 x 256). On prend d'abord l'icône PEINTE, découpée dans la planche
 ## de référence (tools/panel_icons.py -> assets/icons_panel/) ; sinon l'icône
@@ -179,7 +182,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _frame_style(border := Ui.EMBER, alpha := 0.95) -> StyleBox:
-	var hd := Ui.hd_frame("panel", 14) # Le cadre HD de Blender (tools/blender/hud.py).
+	var hd := Ui.hd_frame("panel", 14) # Le cadre HD (tools/hud_gothic.py).
 	if hd != null:
 		return hd
 	var box := StyleBoxFlat.new()
@@ -220,7 +223,7 @@ func _counter(icon_name: String, label: Label, min_width := 0.0) -> PanelContain
 		hd.content_margin_bottom = 4
 	slot.add_theme_stylebox_override("panel", hd if hd != null else style)
 	slot.custom_minimum_size.x = min_width
-	slot.add_child(_with_icon(hd(icon_name), label, 54))
+	slot.add_child(_with_icon(hd(icon_name), label, 58))
 	return slot
 
 
@@ -258,14 +261,14 @@ func _build_top_panel() -> void:
 	var heart_icon := TextureRect.new()
 	heart_icon.texture = hd("heart")
 	heart_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	heart_icon.custom_minimum_size = Vector2(48, 48)
+	heart_icon.custom_minimum_size = Vector2(50, 50)
 	heart_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	heart_box.add_child(heart_icon)
 	_heart_bar = _make_bar(RED, 30)
 	_heart_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_heart_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	heart_box.add_child(_heart_bar)
-	_heart_label = _make_label(18)
+	_heart_label = _make_label(16)
 	_heart_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_heart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_heart_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -282,11 +285,28 @@ func _build_top_panel() -> void:
 	times.add_child(_payday_label)
 	row.add_child(times)
 
+	# Un ouvrier de plus : sa grande icône, et le prix en petit dessous.
 	_summon_button = Button.new()
-	_summon_button.custom_minimum_size = Vector2(0, 60)
-	_summon_button.add_theme_font_size_override("font_size", 20)
-	_summon_button.icon = hd("worker")
-	_summon_button.expand_icon = true
+	_summon_button.custom_minimum_size = Vector2(76, 70)
+	_tight(_summon_button)
+	var summon_box := VBoxContainer.new()
+	summon_box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	summon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_theme_constant_override("separation", -6)
+	summon_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	var summon_icon := TextureRect.new()
+	summon_icon.texture = hd("worker")
+	summon_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	summon_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	summon_icon.custom_minimum_size = Vector2(62, 50)
+	summon_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_child(summon_icon)
+	_summon_price = _make_label(14)
+	_summon_price.add_theme_color_override("font_color", Ui.GOLD)
+	_summon_price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_summon_price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon_box.add_child(_summon_price)
+	_summon_button.add_child(summon_box)
 	_summon_button.pressed.connect(func() -> void:
 		Sound.play("click")
 		summon_pressed.emit())
@@ -402,7 +422,8 @@ func _build_category_panel() -> void:
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 		button.custom_minimum_size = Vector2(CATEGORY_SIZE, CATEGORY_SIZE)
-		button.add_theme_constant_override("icon_max_width", CATEGORY_SIZE - 10)
+		button.add_theme_constant_override("icon_max_width", CATEGORY_SIZE)
+		_tight(button)
 		button.pressed.connect(func() -> void:
 			Sound.play("click")
 			_show_tab(tab_name))
@@ -425,6 +446,18 @@ func _build_bottom_bar() -> void:
 	_build_tool_section(row)
 	row.add_child(_divider())
 	_build_log_section(row)
+	# Le crâne cornu, à cheval sur le bord du bas (tools/hud_gothic.py).
+	var ornament := TextureRect.new()
+	ornament.texture = Ui.hd_texture("ornament_skull")
+	if ornament.texture != null:
+		ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ornament.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		ornament.offset_left = -32
+		ornament.offset_right = 32
+		ornament.offset_top = -36
+		ornament.offset_bottom = 28
+		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_root.add_child(ornament)
 
 
 ## Un séparateur vertical : une barre de fer entre deux parties de la barre du bas.
@@ -518,7 +551,8 @@ func _build_log_section(row: HBoxContainer) -> void:
 		button.expand_icon = true
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.custom_minimum_size = Vector2(52, 72)
-		button.add_theme_constant_override("icon_max_width", 32)
+		button.add_theme_constant_override("icon_max_width", 46)
+		_tight(button)
 		button.tooltip_text = "Messages précédents" if arrow[1] < 0 else "Messages suivants"
 		var step: int = arrow[1]
 		button.pressed.connect(func() -> void:
@@ -645,6 +679,17 @@ func _refresh_unit_panel() -> void:
 # ---------------------------------------------------------------------------
 
 ## Une icône suivie d'un texte (pour les compteurs du haut).
+## Des marges intérieures réduites (ICON_PADDING) : l'icône occupe presque tout le
+## bouton au lieu de flotter au milieu d'un grand cadre.
+func _tight(button: Button) -> void:
+	var frames := {"normal": "button_normal", "hover": "button_hover", "pressed": "button_pressed",
+			"hover_pressed": "button_pressed", "disabled": "button_disabled"}
+	for state: String in frames:
+		var box := Ui.hd_frame(frames[state], ICON_PADDING)
+		if box != null:
+			button.add_theme_stylebox_override(state, box)
+
+
 func _with_icon(texture: Texture2D, label: Label, icon_size := 32) -> HBoxContainer:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
@@ -666,7 +711,8 @@ func _make_tool_button(tool: int) -> Button:
 	button.button_pressed = tool == Tool.DIG
 	button.custom_minimum_size = Vector2(TOOL_SIZE, TOOL_SIZE)
 	button.add_theme_font_size_override("font_size", 20)
-	button.add_theme_constant_override("icon_max_width", TOOL_SIZE - 10)
+	button.add_theme_constant_override("icon_max_width", TOOL_SIZE)
+	_tight(button)
 	button.pressed.connect(func() -> void:
 		Sound.play("click")
 		_current_tool = tool
@@ -842,7 +888,7 @@ func _make_big_button(text: String, on_pressed: Signal) -> Button:
 
 
 func set_summon_cost(cost: int) -> void:
-	_summon_button.text = "+%d" % cost
+	_summon_price.text = "%d" % cost
 	_summon_button.tooltip_text = "Un ouvrier de plus (%d or)" % cost
 
 

@@ -10,6 +10,8 @@ Le jeu s'affiche en **3D** (vue de dessus inclinée, modèles low-poly faits dan
 Les chiffres ci-dessous viennent du code ; en cas de doute, la référence est le **codex** du jeu (menu
 principal ou pause), dont les tableaux sont tirés automatiquement des catalogues.
 
+<p align="center"><img src="docs/readme/menu.jpg" width="720" alt="Le menu principal : le Seigneur sur son trône"></p>
+
 ## Sommaire
 
 - [Le jeu en bref](#le-jeu-en-bref)
@@ -35,6 +37,9 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
 4. **Défendre** : les héros entrent par l'**entrée grise** et marchent sur ton cœur (1000 PV), en
    creusant s'il le faut. Tes créatures, tes pièges et tes sorts les arrêtent. Cœur détruit : partie perdue.
 
+<p align="center"><img src="docs/readme/donjon.jpg" width="720" alt="Un donjon bâti : Trésor, Bibliothèque, Atelier, Temple, Entraînement, et l'interface"><br>
+<em>Un donjon en pleine activité : en haut, l'or, la mana, les créatures et le cœur ; à gauche, les catégories d'outils ; en bas, la fiche, les outils et le journal.</em></p>
+
 ## Commandes
 
 - **Un doigt** : toucher (grandes salles, Main, sorts, pièges) ou peindre en glissant (Creuser, Démolir,
@@ -59,29 +64,29 @@ principal ou pause), dont les tableaux sont tirés automatiquement des catalogue
   creuse lentement et cache parfois un trésor (100 à 300 or).
 - **Jour de paie** toutes les 90 s : les salaires sont prélevés, et ton territoire rapporte 1 or par case.
 
-| Salle | Prix (salle entière) | Taille | À quoi elle sert |
-|-------|----------------------|--------|------------------|
-| Trésor | 50 | 1 x 2 | range 400 or par case |
-| Repaire | 40 | 1 x 1 | un lit (une créature) |
-| Champignonnière | 50 | 1 x 1 | des champignons poussent (nourriture) |
-| Bibliothèque | 300 | 2 x 3 | les créatures étudient : la **recherche** avance |
-| Atelier | 260 | 2 x 2 | fabrique pièges, portes et autels |
-| Entraînement | 320 | 2 x 4 | les créatures gagnent de l'expérience (niveau 1 à 5) |
-| Prison | 200 | 2 x 2 | 4 cellules : héros capturés (rançon, recherche, sacrifice) |
-| Temple | 450 | 2 x 3 | prière : humeur, soins et mana |
-| Cimetière | 70 | 1 x 1 | un héros mort y est enterré et se relève en Revenant 60 s plus tard |
+|   | Salle | Prix (salle entière) | Taille | À quoi elle sert |
+|:-:|-------|----------------------|--------|------------------|
+| <img src="assets/icons_panel/chest.png" width="40" alt=""> | Trésor | 50 | 1 x 2 | range 400 or par case |
+| <img src="assets/icons_panel/bed.png" width="40" alt=""> | Repaire | 40 | 1 x 1 | un lit (une créature) |
+| <img src="assets/icons_panel/mushroom.png" width="40" alt=""> | Champignonnière | 50 | 1 x 1 | des champignons poussent (nourriture) |
+| <img src="assets/icons_panel/bookshelf.png" width="40" alt=""> | Bibliothèque | 300 | 2 x 3 | les créatures étudient : la **recherche** avance |
+| <img src="assets/icons_panel/anvil.png" width="40" alt=""> | Atelier | 260 | 2 x 2 | fabrique pièges, portes et autels |
+| <img src="assets/icons_panel/dummy.png" width="40" alt=""> | Entraînement | 320 | 2 x 4 | les créatures gagnent de l'expérience (niveau 1 à 5) |
+| <img src="assets/icons_panel/cage.png" width="40" alt=""> | Prison | 200 | 2 x 2 | 4 cellules : héros capturés (rançon, recherche, sacrifice) |
+| <img src="assets/icons_panel/demon_statue.png" width="40" alt=""> | Temple | 450 | 2 x 3 | prière : humeur, soins et mana |
+| <img src="assets/icons_panel/tomb.png" width="40" alt=""> | Cimetière | 70 | 1 x 1 | un héros mort y est enterré et se relève en Revenant 60 s plus tard |
 
 **Les antres** (onglet Antres, règles 2.7, tout à découvrir par la recherche) : chacune attire sa créature.
 
-| Antre | Prix | Taille | À quoi elle sert |
-|-------|------|--------|------------------|
-| Taverne | 220 | 2 x 2 | sous 75 d'humeur, une créature boit une chope (un champignon) : +5 humeur/s, -10 % sur sa paie suivante, elle titube 25 s |
-| Infirmerie | 240 | 2 x 2 | sous 60 % de vie, une créature s'y couche : 10 PV/s (20 avec une Goule au chevet) |
-| Hôtel des monnaies | 400 | 2 x 2 | toutes les 30 s, 2 % d'intérêts sur le Trésor (50 or au plus par Hôtel) ; on y frappe 1 or/s |
-| Chambre de torture | 300 | 2 x 2 | avec des prisonniers : 1,5 point de recherche/s, la vague suivante avouée (une fois par vague), prisonnier converti après 45 s |
-| Poste de garde | 150 | 1 x 2 | le guetteur voit à 8 cases : démasque les Voleuses, chasse l'éclaireur sans rapport, alarme (10 cases) |
-| Puits de mana | 500 | 2 x 2 | +50 mana maximum par puits (3 au plus) ; méditer donne 0,6 mana/s |
-| Crypte | 280 | 2 x 2 | 2 places : une créature morte se relève 60 s plus tard pour 60 mana, un niveau plus bas, trait « Revenue » |
+|   | Antre | Prix | Taille | À quoi elle sert |
+|:-:|-------|------|--------|------------------|
+| <img src="assets/icons_panel/mug.png" width="40" alt=""> | Taverne | 220 | 2 x 2 | sous 75 d'humeur, une créature boit une chope (un champignon) : +5 humeur/s, -10 % sur sa paie suivante, elle titube 25 s |
+| <img src="assets/icons_panel/salve.png" width="40" alt=""> | Infirmerie | 240 | 2 x 2 | sous 60 % de vie, une créature s'y couche : 10 PV/s (20 avec une Goule au chevet) |
+| <img src="assets/icons_panel/coin_press.png" width="40" alt=""> | Hôtel des monnaies | 400 | 2 x 2 | toutes les 30 s, 2 % d'intérêts sur le Trésor (50 or au plus par Hôtel) ; on y frappe 1 or/s |
+| <img src="assets/icons_panel/torture.png" width="40" alt=""> | Chambre de torture | 300 | 2 x 2 | avec des prisonniers : 1,5 point de recherche/s, la vague suivante avouée (une fois par vague), prisonnier converti après 45 s |
+| <img src="assets/icons_panel/tower.png" width="40" alt=""> | Poste de garde | 150 | 1 x 2 | le guetteur voit à 8 cases : démasque les Voleuses, chasse l'éclaireur sans rapport, alarme (10 cases) |
+| <img src="assets/icons_panel/mana_well.png" width="40" alt=""> | Puits de mana | 500 | 2 x 2 | +50 mana maximum par puits (3 au plus) ; méditer donne 0,6 mana/s |
+| <img src="assets/icons_panel/sarcophagus.png" width="40" alt=""> | Crypte | 280 | 2 x 2 | 2 places : une créature morte se relève 60 s plus tard pour 60 mana, un niveau plus bas, trait « Revenue » |
 
 Seules les salles « Trésor, Repaire, Champignonnière, Bibliothèque » sont là dès le départ ; les autres
 se découvrent par la recherche. Les ouvriers désœuvrés décorent (tapis, tableaux, tapisseries,
@@ -94,33 +99,36 @@ Pieuse, Gourmande, Insomniaque, Studieuse, Paresseuse, Coquette, Solitaire, Robu
 Le portail préfère la variété. Les conditions comptent des **salles entières** (un lit = une salle de
 Repaire, une Bibliothèque 2 x 3 = une salle).
 
-| Créature | Il faut au moins | Salaire | Particularité |
-|----------|------------------|---------|---------------|
-| Kobold | 1 Repaire | 15 | rapide, bon marché |
-| Chauve-souris | 2 Repaire + 2 Champignonnière | 10 | très rapide, fragile |
-| Orque | 4 Repaire + 4 Champignonnière | 40 | solide ; le meilleur artisan de l'Atelier |
-| Attrapeur de cauchemar | 2 Repaire + 1 Prison | 25 | porte les héros assommés en prison (ou à l'autel) |
-| Araignée | 3 Repaire + 1 Prison | 30 | ses morsures ralentissent |
-| Cerbère | 2 Repaire + 3 Trésor | 35 | garde le Trésor, flaire les Voleuses (1 pour 3 Trésors, 3 au plus) |
-| Golem | 4 Repaire + 1 Atelier | 50 | armure (-35 % de dégâts), lent |
-| Salamandre | 4 Repaire + 1 Entraînement | 45 | souffle de feu à distance, touche autour de la cible |
-| Sorcier | 6 Repaire + 1 Bibliothèque | 70 | attaque à distance, étudie 3 fois plus vite (2 par Bibliothèque, 6 au plus) |
-| Vampire | 6 Repaire + 2 Prison | 85 | vol de vie (2 par Prison, 4 au plus) |
-| Démon | 8 Repaire + 1 Temple + 1 Entraînement | 120 | le plus fort (1 par Temple, 3 au plus) |
-| Revenant | un Cimetière (héros enterré) | 10 | mort-vivant : ni lit, ni faim, ni sommeil (6 au plus) |
-| Colosse ancien | vaincre le Colosse endormi | 60 | géant de pierre, unique |
-| Renégat | sort Conversion sur un prisonnier | 20 | garde l'allure du héros qu'il était |
-| Gobelin brasseur | 2 Repaire + 1 Taverne | 20 | la Taverne lui fait deux fois plus d'effet ; bon artisan |
-| Goule rebouteuse | 3 Repaire + 1 Infirmerie | 45 | soigne ses voisines (8 PV toutes les 3 s), double les soins de l'Infirmerie (2 par Infirmerie, 4 au plus) |
-| Diablotin argentier | 2 Repaire + 1 Hôtel des monnaies | 25 | vole 3 or par coup porté, frappe la monnaie 3 fois plus vite (3 par Hôtel, 6 au plus) |
-| Bourreau | 4 Repaire + 1 Chambre de torture | 75 | dégâts doublés contre un héros sous 30 % de vie, torture 2 fois plus vite (2 par Chambre, 3 au plus) |
-| Gargouille | 1 Repaire + 1 Poste de garde | 35 | pierre (ni lit, ni faim), armure, flaire les Voleuses, monte toujours la garde (2 par Poste, 4 au plus) |
-| Oracle des ombres | 4 Repaire + 1 Puits de mana | 80 | attaque à distance, médite 3 fois mieux (2 par Puits, 3 au plus) |
-| Nécromancien | 5 Repaire + 1 Crypte | 90 | attaque à distance ; les héros qu'il abat se relèvent 30 s pour toi ; veille la Crypte (1 par Crypte, 2 au plus) |
+|   | Créature | Il faut au moins | Salaire | Particularité |
+|:-:|----------|------------------|---------|---------------|
+| <img src="docs/readme/creatures/kobold.png" width="64" alt=""> | Kobold | 1 Repaire | 15 | rapide, bon marché |
+| <img src="docs/readme/creatures/bat.png" width="64" alt=""> | Chauve-souris | 2 Repaire + 2 Champignonnière | 10 | très rapide, fragile |
+| <img src="docs/readme/creatures/orc.png" width="64" alt=""> | Orque | 4 Repaire + 4 Champignonnière | 40 | solide ; le meilleur artisan de l'Atelier |
+| <img src="docs/readme/creatures/catcher.png" width="64" alt=""> | Attrapeur de cauchemar | 2 Repaire + 1 Prison | 25 | porte les héros assommés en prison (ou à l'autel) |
+| <img src="docs/readme/creatures/spider.png" width="64" alt=""> | Araignée | 3 Repaire + 1 Prison | 30 | ses morsures ralentissent |
+| <img src="docs/readme/creatures/cerberus.png" width="64" alt=""> | Cerbère | 2 Repaire + 3 Trésor | 35 | garde le Trésor, flaire les Voleuses (1 pour 3 Trésors, 3 au plus) |
+| <img src="docs/readme/creatures/golem.png" width="64" alt=""> | Golem | 4 Repaire + 1 Atelier | 50 | armure (-35 % de dégâts), lent |
+| <img src="docs/readme/creatures/salamander.png" width="64" alt=""> | Salamandre | 4 Repaire + 1 Entraînement | 45 | souffle de feu à distance, touche autour de la cible |
+| <img src="docs/readme/creatures/warlock.png" width="64" alt=""> | Sorcier | 6 Repaire + 1 Bibliothèque | 70 | attaque à distance, étudie 3 fois plus vite (2 par Bibliothèque, 6 au plus) |
+| <img src="docs/readme/creatures/vampire.png" width="64" alt=""> | Vampire | 6 Repaire + 2 Prison | 85 | vol de vie (2 par Prison, 4 au plus) |
+| <img src="docs/readme/creatures/demon.png" width="64" alt=""> | Démon | 8 Repaire + 1 Temple + 1 Entraînement | 120 | le plus fort (1 par Temple, 3 au plus) |
+| <img src="docs/readme/creatures/revenant.png" width="64" alt=""> | Revenant | un Cimetière (héros enterré) | 10 | mort-vivant : ni lit, ni faim, ni sommeil (6 au plus) |
+| <img src="docs/readme/creatures/colossus.png" width="64" alt=""> | Colosse ancien | vaincre le Colosse endormi | 60 | géant de pierre, unique |
+| <img src="docs/readme/creatures/renegade.png" width="64" alt=""> | Renégat | sort Conversion sur un prisonnier | 20 | garde l'allure du héros qu'il était |
+| <img src="docs/readme/creatures/goblin.png" width="64" alt=""> | Gobelin brasseur | 2 Repaire + 1 Taverne | 20 | la Taverne lui fait deux fois plus d'effet ; bon artisan |
+| <img src="docs/readme/creatures/ghoul.png" width="64" alt=""> | Goule rebouteuse | 3 Repaire + 1 Infirmerie | 45 | soigne ses voisines (8 PV toutes les 3 s), double les soins de l'Infirmerie (2 par Infirmerie, 4 au plus) |
+| <img src="docs/readme/creatures/imp.png" width="64" alt=""> | Diablotin argentier | 2 Repaire + 1 Hôtel des monnaies | 25 | vole 3 or par coup porté, frappe la monnaie 3 fois plus vite (3 par Hôtel, 6 au plus) |
+| <img src="docs/readme/creatures/executioner.png" width="64" alt=""> | Bourreau | 4 Repaire + 1 Chambre de torture | 75 | dégâts doublés contre un héros sous 30 % de vie, torture 2 fois plus vite (2 par Chambre, 3 au plus) |
+| <img src="docs/readme/creatures/gargoyle.png" width="64" alt=""> | Gargouille | 1 Repaire + 1 Poste de garde | 35 | pierre (ni lit, ni faim), armure, flaire les Voleuses, monte toujours la garde (2 par Poste, 4 au plus) |
+| <img src="docs/readme/creatures/oracle.png" width="64" alt=""> | Oracle des ombres | 4 Repaire + 1 Puits de mana | 80 | attaque à distance, médite 3 fois mieux (2 par Puits, 3 au plus) |
+| <img src="docs/readme/creatures/necromancer.png" width="64" alt=""> | Nécromancien | 5 Repaire + 1 Crypte | 90 | attaque à distance ; les héros qu'il abat se relèvent 30 s pour toi ; veille la Crypte (1 par Crypte, 2 au plus) |
 
 Faim, fatigue, lit manquant ou salaire impayé font baisser l'**humeur** ; à zéro, la créature repart
 par le portail. Les créatures prient au Temple, étudient, fabriquent ou s'entraînent quand tout va bien,
 et fréquentent les antres (Taverne, Infirmerie, Poste de garde...).
+
+<p align="center"><img src="docs/readme/antres.jpg" width="720" alt="Les antres : Puits de mana, Crypte, Champignonnière, Infirmerie, Taverne"><br>
+<em>Les antres : chaque créature y prend la pose de son activité (méditer, soigner, trinquer, veiller les morts...).</em></p>
 
 **Au combat** (règles 2.8), elles choisissent leur cible (d'abord qui frappe le cœur, puis Clercs et
 Exorcistes, pillards chargés d'or, héros presque morts), **appellent à l'aide** leurs voisines à 10 cases,
@@ -156,25 +164,32 @@ montent la garde en scrutant les couloirs, méditent en lévitation, incantent a
   **vétéran** nommé, plus fort, qui se souvient de tes pièges.
 - Dès la vague 4, les héros **résistent à la magie** (+4 % par vague, 40 % au plus, +10 % par rang de vétéran).
 
-| Héros | Dès la vague | Particularité |
-|-------|--------------|---------------|
-| Aventurier | 1 | équilibré |
-| Voleuse | 2 | discrète, vole l'or du Trésor puis s'enfuit |
-| Nain | 2 | creuse 3 fois plus vite ; se tire des éboulements |
-| Clerc | 3 | soigne ses alliés et les libère de la Toile et de la Terreur |
-| Archer | 3 | tire de loin |
-| Moine libérateur | 3 | ouvre les cellules de la Prison ; insensible à la Terreur |
-| Chevalier | 4 | très résistant |
-| Magicienne | 4 | boules de feu en zone ; insensible à la Toile |
-| Exorciste | 5 | dissipe tes sorts autour de lui (au moins un par vague dès la 8) |
-| Paladin | 6 | armure, se soigne ; insensible à la Terreur |
-| Géant | 8 | 520 PV, défonce les portes ; insensible à la Toile |
-| Champion du royaume | une vague sur 5 | chef des héros, cri de guerre, ne fuit jamais |
+|   | Héros | Dès la vague | Particularité |
+|:-:|-------|--------------|---------------|
+| <img src="docs/readme/heroes/adventurer.png" width="64" alt=""> | Aventurier | 1 | équilibré |
+| <img src="docs/readme/heroes/thief.png" width="64" alt=""> | Voleuse | 2 | discrète, vole l'or du Trésor puis s'enfuit |
+| <img src="docs/readme/heroes/dwarf.png" width="64" alt=""> | Nain | 2 | creuse 3 fois plus vite ; se tire des éboulements |
+| <img src="docs/readme/heroes/cleric.png" width="64" alt=""> | Clerc | 3 | soigne ses alliés et les libère de la Toile et de la Terreur |
+| <img src="docs/readme/heroes/archer.png" width="64" alt=""> | Archer | 3 | tire de loin |
+| <img src="docs/readme/heroes/monk.png" width="64" alt=""> | Moine libérateur | 3 | ouvre les cellules de la Prison ; insensible à la Terreur |
+| <img src="docs/readme/heroes/knight.png" width="64" alt=""> | Chevalier | 4 | très résistant |
+| <img src="docs/readme/heroes/mage.png" width="64" alt=""> | Magicienne | 4 | boules de feu en zone ; insensible à la Toile |
+| <img src="docs/readme/heroes/exorcist.png" width="64" alt=""> | Exorciste | 5 | dissipe tes sorts autour de lui (au moins un par vague dès la 8) |
+| <img src="docs/readme/heroes/paladin.png" width="64" alt=""> | Paladin | 6 | armure, se soigne ; insensible à la Terreur |
+| <img src="docs/readme/heroes/giant.png" width="64" alt=""> | Géant | 8 | 520 PV, défonce les portes ; insensible à la Toile |
+| <img src="docs/readme/heroes/champion.png" width="64" alt=""> | Champion du royaume | une vague sur 5 | chef des héros, cri de guerre, ne fuit jamais |
+| <img src="docs/readme/heroes/scout.png" width="64" alt=""> | Éclaireur | 3 (avant certaines vagues) | rapide ; repère tes pièges et repart les signaler à la vague suivante |
+| <img src="docs/readme/heroes/spectre.png" width="64" alt=""> | Spectre | ruine oubliée | libéré en creusant près de la ruine ; marche sur ton cœur |
+| <img src="docs/readme/heroes/colossus.png" width="64" alt=""> | Colosse endormi | profondeurs | gardien neutre de sa caverne et de son trésor ; vaincu, il te sert |
+| <img src="docs/readme/heroes/rival_kobold.png" width="48" alt=""><img src="docs/readme/heroes/rival_orc.png" width="48" alt=""><img src="docs/readme/heroes/rival_warlock.png" width="48" alt=""> | Troupes du rival | niveaux 6 et 8 | Kobolds, Orques et Sorciers du maître rival, teintés de bleu |
 
 Un héros vaincu rapporte une **rançon** (au Trésor). Avec un Attrapeur et une cellule libre, il tombe
 **assommé** et finit en Prison : il fait avancer la recherche, peut être **sacrifié** sur un autel (3 fois
 sa rançon) ou **converti**. Les profondeurs cachent aussi un **Colosse endormi**, un **lac de lave** et une
 **ruine oubliée** (avec ses Spectres) : creuser près d'eux donne un indice.
+
+<p align="center"><img src="docs/readme/combat.jpg" width="720" alt="Une vague de héros arrive sur un étendard gardé par les créatures"><br>
+<em>Une vague de héros (ombre bleue) arrive sur un étendard (Poste de défense) : tes créatures montaient la garde, le combat s'engage.</em></p>
 
 ## Défenses et combos
 
@@ -182,13 +197,14 @@ Les pièges, portes et autels sont **fabriqués à l'Atelier** (9 en stock au pl
 par un ouvrier sur le sol d'un couloir ; le Brasero s'achète en or.
 L'**étendard** (Poste de défense, 50 or, 3 au plus, moitié rendue s'il est arraché) se plante directement : les créatures y montent la garde.
 
-| Défense | Coût | Effet |
-|---------|------|-------|
-| Pointes | 80 points d'Atelier | 30 dégâts, se réarment en 2,5 s |
-| Rune explosive | 120 points d'Atelier | 90 dégâts autour d'elle, puis disparaît |
-| Porte | 100 points d'Atelier | 300 PV ; les héros doivent la casser, tes unités passent |
-| Autel de sacrifice | 150 points d'Atelier | un Attrapeur y conduit le prisonnier désigné (outil Sacrifier) |
-| Brasero | 80 or | éclaire et apaise les créatures à 3 cases |
+|   | Défense | Coût | Effet |
+|:-:|---------|------|-------|
+| <img src="assets/icons_panel/spikes.png" width="40" alt=""> | Pointes | 80 points d'Atelier | 30 dégâts, se réarment en 2,5 s |
+| <img src="assets/icons_panel/pentagram.png" width="40" alt=""> | Rune explosive | 120 points d'Atelier | 90 dégâts autour d'elle, puis disparaît |
+| <img src="assets/icons_panel/door.png" width="40" alt=""> | Porte | 100 points d'Atelier | 300 PV ; les héros doivent la casser, tes unités passent |
+| <img src="assets/icons_panel/sacrifice_altar.png" width="40" alt=""> | Autel de sacrifice | 150 points d'Atelier | un Attrapeur y conduit le prisonnier désigné (outil Sacrifier) ; se pose depuis l'onglet **Salles**, à côté de la Prison |
+| <img src="assets/icons_panel/brazier.png" width="40" alt=""> | Brasero | 80 or | éclaire et apaise les créatures à 3 cases |
+| <img src="assets/icons_hd/rally_flag.png" width="40" alt=""> | Étendard | 50 or | Poste de défense : les créatures y montent la garde (3 au plus, moitié rendue s'il est arraché) |
 
 **10 combos secrets** (le codex en donne un indice tant qu'ils ne sont pas découverts) : Rune de feu,
 Réaction en chaîne, Pointes ardentes, Empalement, Détonation, Porte hérissée, Porte électrifiée, Rune
@@ -199,25 +215,25 @@ engluée, Brasier runique, Traînée de feu.
 La **mana** (200 au plus) se recharge seule, plus vite avec un grand territoire (0,25 à 1,5 par seconde) ;
 la prière au Temple en donne aussi.
 
-| Sort | Onglet | Mana | Effet |
-|------|--------|------|-------|
-| Soin | Sorts | 30 | +60 PV à tes unités dans la zone |
-| Éclair | Sorts | 40 | 70 dégâts aux héros touchés |
-| Hâte | Sorts | 25 | une unité court 80 % plus vite 15 s |
-| Toile | Sorts | 35 | les héros de la zone sont 2 fois plus lents 8 s |
-| Brasier | Sorts | 45 | le sol de la zone brûle 6 s |
-| Terreur | Sorts | 50 | les héros de la zone fuient vers l'entrée 6 s |
-| Effondrement | Sorts | 60 | un couloir redevient de la terre ; 120 dégâts à ce qui s'y trouve |
-| Possession | Sorts | 55 | 15 s : la créature frappe +50 % et va où tu touches (ordres gratuits) |
-| Fouet | Pouvoirs | 20 | une unité travaille 2 fois plus vite 30 s (une créature perd un peu d'humeur) |
-| Festin | Pouvoirs | 60 | plus de faim pour personne, +15 d'humeur |
-| Œil du maître | Pouvoirs | 30 | montre la prochaine vague, démasque les Voleuses, révèle les secrets proches |
-| Invocation | Pouvoirs | 40 | un ouvrier fantôme pendant 60 s (4 au plus) |
-| Transmutation | Pouvoirs | 50 | 150 or au Trésor |
-| Relever les morts | Pouvoirs | 50 | (Cimetière) les tombes se relèvent aussitôt, sinon un Revenant pour 45 s |
-| Conversion | Pouvoirs | 70 | (Prison) un prisonnier rejoint ton donjon |
-| Sanctuaire | Pouvoirs | 45 | (Temple) tes unités proches prennent 40 % de dégâts en moins 20 s |
-| Rappel | Pouvoirs | 40 | toutes tes créatures reviennent autour du cœur |
+|   | Sort | Onglet | Mana | Effet |
+|:-:|------|--------|------|-------|
+| <img src="assets/icons_panel/heal.png" width="40" alt=""> | Soin | Sorts | 30 | +60 PV à tes unités dans la zone |
+| <img src="assets/icons_panel/storm.png" width="40" alt=""> | Éclair | Sorts | 40 | 70 dégâts aux héros touchés |
+| <img src="assets/icons_panel/fast.png" width="40" alt=""> | Hâte | Sorts | 25 | une unité court 80 % plus vite 15 s |
+| <img src="assets/icons_panel/chains.png" width="40" alt=""> | Toile | Sorts | 35 | les héros de la zone sont 2 fois plus lents 8 s |
+| <img src="assets/icons_panel/fire_rain.png" width="40" alt=""> | Brasier | Sorts | 45 | le sol de la zone brûle 6 s |
+| <img src="assets/icons_panel/panic.png" width="40" alt=""> | Terreur | Sorts | 50 | les héros de la zone fuient vers l'entrée 6 s |
+| <img src="assets/icons_panel/quake.png" width="40" alt=""> | Effondrement | Sorts | 60 | un couloir redevient de la terre ; 120 dégâts à ce qui s'y trouve |
+| <img src="assets/icons_panel/demon.png" width="40" alt=""> | Possession | Sorts | 55 | 15 s : la créature frappe +50 % et va où tu touches (ordres gratuits) |
+| <img src="assets/icons_panel/whip.png" width="40" alt=""> | Fouet | Pouvoirs | 20 | une unité travaille 2 fois plus vite 30 s (une créature perd un peu d'humeur) |
+| <img src="assets/icons_panel/feast.png" width="40" alt=""> | Festin | Pouvoirs | 60 | plus de faim pour personne, +15 d'humeur |
+| <img src="assets/icons_panel/eye.png" width="40" alt=""> | Œil du maître | Pouvoirs | 30 | montre la prochaine vague, démasque les Voleuses, révèle les secrets proches |
+| <img src="assets/icons_panel/ghost.png" width="40" alt=""> | Invocation | Pouvoirs | 40 | un ouvrier fantôme pendant 60 s (4 au plus) |
+| <img src="assets/icons_panel/gold.png" width="40" alt=""> | Transmutation | Pouvoirs | 50 | 150 or au Trésor |
+| <img src="assets/icons_panel/raise.png" width="40" alt=""> | Relever les morts | Pouvoirs | 50 | (Cimetière) les tombes se relèvent aussitôt, sinon un Revenant pour 45 s |
+| <img src="assets/icons_panel/madness.png" width="40" alt=""> | Conversion | Pouvoirs | 70 | (Prison) un prisonnier rejoint ton donjon |
+| <img src="assets/icons_panel/shield.png" width="40" alt=""> | Sanctuaire | Pouvoirs | 45 | (Temple) tes unités proches prennent 40 % de dégâts en moins 20 s |
+| <img src="assets/icons_panel/portal.png" width="40" alt=""> | Rappel | Pouvoirs | 40 | toutes tes créatures reviennent autour du cœur |
 
 **La recherche** (Bibliothèque, prisonniers) découvre, dans l'ordre : Atelier, Pointes, Fouet, Prison,
 Toile, Salle d'entraînement, Festin, Éclair, Porte, Œil du maître, Temple, Invocation, Hâte, Conversion,
@@ -348,6 +364,10 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
   viennent de Blender (`tools/blender/icons.py` → `assets/icons_hd/`). Le jeu prend l'icône peinte si elle
   existe (`Hud.hd` dans `scripts/hud.gd`). Cadres « pierre et braise » (pierre fissurée, liseré rouge, cornes
   et crânes) : `python3 tools/hud_gothic.py` → `assets/ui_hd/` (numpy, sans Blender).
+- **Images du README** (`docs/readme/`, ignoré par Godot grâce à `docs/.gdignore`, donc absent de l'APK) :
+  portraits des créatures et des héros (leur modèle 3D, fond transparent) et captures du jeu, refaits par
+  `tools/readme_images.gd` (projet importé, avec un écran ou `xvfb-run`). Les icônes des tableaux sont
+  celles du jeu (`assets/icons_panel/`, sinon `assets/icons_hd/`).
 - **Textures HD** du sol et des murs : `tools/textures_hd.py` ; taches de sang : `tools/blood_decals.py`.
 - **Pixel art 32 × 32** (vue 2D, portraits, petites icônes) : `tools/art32.py`, lancé par
   `python3 tools/generate_art.py` (il faut Pillow et numpy) ; attention, il écrase les PNG de `assets/`.

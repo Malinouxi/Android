@@ -135,11 +135,11 @@ const TOOL_ICON_NAMES := {
 const TABS := {
 	"Actions": ["tools", [Tool.DIG, Tool.MOVE, Tool.HAND, Tool.DEMOLISH, Tool.SACRIFICE]],
 	"Salles": ["arch", [Tool.TREASURY, Tool.LAIR, Tool.FARM, Tool.LIBRARY, Tool.WORKSHOP, Tool.TRAINING,
-			Tool.PRISON, Tool.TEMPLE, Tool.GRAVEYARD]],
+			Tool.PRISON, Tool.ALTAR, Tool.TEMPLE, Tool.GRAVEYARD]],
 	# Les antres (règles 2.7) : de quoi rendre le donjon plus vivant.
 	"Antres": ["sarcophagus", [Tool.TAVERN, Tool.INFIRMARY, Tool.MINT, Tool.TORTURE, Tool.GUARDPOST,
 			Tool.MANA_WELL, Tool.CRYPT]],
-	"Défenses": ["wall", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.ALTAR, Tool.BRAZIER, Tool.RALLY]],
+	"Défenses": ["wall", [Tool.SPIKES, Tool.RUNE, Tool.DOOR, Tool.BRAZIER, Tool.RALLY]],
 	# Les sorts de combat...
 	"Sorts": ["spell_room", [Tool.SPELL_HEAL, Tool.SPELL_LIGHTNING, Tool.SPELL_HASTE, Tool.SPELL_WEB,
 			Tool.SPELL_FIRESTORM, Tool.SPELL_TERROR, Tool.SPELL_COLLAPSE, Tool.SPELL_POSSESSION]],

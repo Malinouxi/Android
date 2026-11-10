@@ -1278,7 +1278,7 @@ func get_room(cell: Vector2i) -> int:
 ## On construit seulement sur du sol creusé, et pas deux salles sur la même case.
 func can_build_room(cell: Vector2i) -> bool:
 	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
-			and not defenses.has(cell) and not construction.has(cell)
+			and not defenses.has(cell) and not construction.has(cell) and not rally_flags.has(cell)
 
 
 ## Le nombre de cases UTILES d'une salle (couvertes par un objet).
@@ -1547,7 +1547,7 @@ func is_connected_to_heart(cell: Vector2i) -> bool:
 ## Les défenses se posent sur le sol des couloirs (pas dans les salles).
 func can_place_defense(cell: Vector2i) -> bool:
 	return get_tile(cell) == Tile.FLOOR and claimed.has(cell) and not rooms.has(cell) \
-			and not defenses.has(cell) and not construction.has(cell)
+			and not defenses.has(cell) and not construction.has(cell) and not rally_flags.has(cell)
 
 
 func place_defense(cell: Vector2i, type: int) -> void:

@@ -19,8 +19,9 @@ const VERSION := "2.9"
 ## Les nouveautés, de la plus récente à la plus ancienne (affichées dans le codex).
 const CHANGELOG := [
 	{"version": "2.9", "changes": [
+		"L'Autel de sacrifice passe dans l'onglet Salles, à côté de la Prison (l'Attrapeur y conduit les prisonniers).",
 		"Repli des blessés : sous 25 % de vie, une créature quitte le combat pour l'Infirmerie (ou son lit) et revient à 70 %. Les Bagarreuses ne reculent jamais, les morts-vivants non plus, et personne ne recule quand ton cœur est frappé.",
-		"Postes de défense (onglet Défenses, gratuits, 3 au plus) : plante un étendard dans un couloir. Les créatures sans travail utile y montent la garde, voient les héros de plus loin, et y accourent toutes à l'approche d'une vague.",
+		"Postes de défense (onglet Défenses, 50 or l'étendard, 3 au plus) : plante un étendard dans un couloir. Les créatures sans travail utile y montent la garde, voient les héros de plus loin, et y accourent toutes à l'approche d'une vague.",
 		"Le travail est mieux choisi : chaque créature fait ce qui est le plus utile (recherche en retard, Atelier quand le stock de pièges est bas, Puits de mana quand la mana manque, Temple quand elle est malheureuse...), selon ses talents et ses traits, et sans s'entasser au même endroit.",
 		"Les héros s'adaptent : ils visent d'abord tes tireurs et ta Goule, peuvent vouloir détruire ton Infirmerie ou ton Poste de garde, et dès la vague 6 certaines vagues attendent à l'entrée que tes créatures s'endorment.",
 		"Le maître rival est opportuniste : juste après une vague, si tes créatures sont blessées, il lance ses troupes aussitôt (avec une créature de plus).",
@@ -488,10 +489,12 @@ const WORKER_FLEE_CELLS := 5
 ## ni les morts-vivants, ni quand le cœur est frappé (le dernier carré). Les Peureuses,
 ## elles, fuient dès 35 % (leur trait), même quand le cœur est frappé.
 const CREATURE_RETREAT_BELOW := 0.25
-## LES POSTES DE DÉFENSE : au plus tant d'étendards (gratuits). Une créature y monte
+## LES POSTES DE DÉFENSE : au plus tant d'étendards, à tant d'or pièce (arraché, il
+## rend la moitié de son prix, comme le Brasero démoli). Une créature y monte
 ## la garde (à tant de cases au plus de l'étendard) pendant tant de secondes, et y voit
 ## les héros tant de fois plus loin.
 const MAX_RALLY_FLAGS := 3
+const RALLY_FLAG_COST := 50
 const RALLY_RADIUS := 1
 const RALLY_DURATION := 30.0
 const RALLY_AGGRO_BONUS := 1.5

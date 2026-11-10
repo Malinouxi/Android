@@ -2308,8 +2308,8 @@ func _refresh_tools() -> void:
 			unlocked = research.is_unlocked("room", Rooms.Type.WORKSHOP) # L'Atelier le fabrique.
 		_set_tool(tool, text, Defenses.display_name(defense), unlocked)
 	_set_tool(Hud.Tool.SACRIFICE, "Sacrifier", "Sacrifier", research.is_unlocked("room", Rooms.Type.WORKSHOP))
-	_set_tool(Hud.Tool.RALLY, "Poste de défense (%d/%d)" % [map.rally_flags.size(), Rules.MAX_RALLY_FLAGS],
-			"Poste de défense", true)
+	_set_tool(Hud.Tool.RALLY, "Poste de défense (%d) — %d/%d plantés" % [Rules.RALLY_FLAG_COST,
+			map.rally_flags.size(), Rules.MAX_RALLY_FLAGS], "Poste de défense", true)
 	for tool: int in TOOL_SPELLS:
 		var spell: int = TOOL_SPELLS[tool]
 		var text := "%s (%d)" % [Spells.display_name(spell), Spells.mana_cost(spell)]
@@ -2335,7 +2335,7 @@ func _on_tool_selected(tool: int) -> void:
 	elif tool == Hud.Tool.HAND:
 		hud.show_message("Touche une créature ou un ouvrier pour le prendre, puis touche le sol pour le déposer.", 5.0)
 	elif tool == Hud.Tool.RALLY:
-		hud.show_message("Plante un étendard dans un couloir (%d au plus) : tes créatures désœuvrées y montent la garde, et y accourent toutes à l'approche d'une vague. Touche un étendard pour l'arracher." % Rules.MAX_RALLY_FLAGS, 6.0)
+		hud.show_message("Plante un étendard dans un couloir (%d or, %d au plus) : tes créatures désœuvrées y montent la garde, et y accourent toutes à l'approche d'une vague. Touche un étendard pour l'arracher (la moitié de l'or revient)." % [Rules.RALLY_FLAG_COST, Rules.MAX_RALLY_FLAGS], 6.0)
 	elif TOOL_SPELLS.has(tool):
 		var spell: int = TOOL_SPELLS[tool]
 		var help: String = Spells.INFO[spell]["help"]
@@ -2535,12 +2535,16 @@ func _on_camera_tapped(screen_position: Vector2, world_position: Vector2) -> voi
 func _toggle_rally_flag(cell: Vector2i) -> void:
 	if map.rally_flags.has(cell):
 		map.set_rally_flag(cell, false)
+		_refund(Rules.RALLY_FLAG_COST / 2) # Comme le Brasero démoli : la moitié du prix revient.
 		Sound.play("build", map.cell_to_world(cell), -6.0)
-		hud.show_message("Étendard arraché.", 2.0)
+		hud.show_message("Étendard arraché : %d or rendus." % (Rules.RALLY_FLAG_COST / 2), 2.0)
 	else:
 		var refusal := map.rally_flag_refusal(cell)
 		if refusal != "":
 			_fail(refusal)
+			return
+		if not map.spend_gold(Rules.RALLY_FLAG_COST):
+			_fail("Pas assez d'or : l'étendard coûte %d." % Rules.RALLY_FLAG_COST)
 			return
 		map.set_rally_flag(cell, true)
 		Sound.play("horn", map.cell_to_world(cell), -10.0)

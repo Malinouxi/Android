@@ -180,7 +180,7 @@ sa rançon) ou **converti**. Les profondeurs cachent aussi un **Colosse endormi*
 
 Les pièges, portes et autels sont **fabriqués à l'Atelier** (9 en stock au plus, 2 autels) puis posés
 par un ouvrier sur le sol d'un couloir ; le Brasero s'achète en or.
-L'**étendard** (Poste de défense, gratuit, 3 au plus) se plante directement : les créatures y montent la garde.
+L'**étendard** (Poste de défense, 50 or, 3 au plus, moitié rendue s'il est arraché) se plante directement : les créatures y montent la garde.
 
 | Défense | Coût | Effet |
 |---------|------|-------|

@@ -241,8 +241,8 @@ règles**, **Réglages**, **Quitter** (absent de la version web).
 
 - **3D** (`scripts/view_3d.gd`) : la carte devient des blocs (sol pavé, remparts de pierre taillée),
   personnages et mobilier sont des modèles low-poly **faits dans Blender** (`assets/models/`). Les bipèdes
-  (créatures, héros, ouvriers) ont un squelette (coudes, genoux, cape, queue, ailes) et 19 clips
-  d'animation joués par `AnimationPlayer` (marche, coup, repos, et une pose par activité : dormir, manger,
+  (créatures, héros, ouvriers) ont un squelette (coudes, genoux, cape, queue, ailes) et 20 clips
+  d'animation joués par `AnimationPlayer` (marche, coup, mort, repos, et une pose par activité : dormir, manger,
   boire, étudier, forger, prier, méditer...) ; les bêtes et le mobilier sont animés par pivots. La salle du trône entoure le cœur ; chaque salle a sa lumière, les torches vacillent.
 - **Effets des sorts** modélisés dans Blender (`assets/models/fx/`, affichés par `scripts/fx_3d.gd`) :
   foudre, toile, flammes, rochers, spectre, dôme, œil, main squelettique, cercles magiques ; envoûtements

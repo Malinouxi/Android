@@ -37,6 +37,8 @@ def new_scene(name):
             bpy.context.window.scene = next(s for s in bpy.data.scenes if s != old)
         for obj in list(old.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
+        for action in [a for a in bpy.data.actions if a.name.startswith(old.name + ":")]:
+            bpy.data.actions.remove(action)  # Ses clips (clips.py).
         bpy.data.scenes.remove(old)
     for mesh in [m for m in bpy.data.meshes if m.users == 0]:
         bpy.data.meshes.remove(mesh)

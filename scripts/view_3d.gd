@@ -472,8 +472,18 @@ func _fall_and_vanish(data: Dictionary) -> void:
 	if data["title"] != null:
 		data["title"].visible = false
 	var tween := holder.create_tween()
-	tween.tween_property(model, "rotation:x", -PI / 2, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tween.tween_interval(0.4)
+	var player: AnimationPlayer = data["rig"].get("anim")
+	if player != null and player.has_animation("die"):
+		# Un bipède à squelette joue sa chute (clips.py : 1 s), puis reste étendu ; il
+		# s'efface avant la fin du clip (2 s), qui le remettrait debout.
+		model.rotation.x = 0.0
+		model.position = Vector3.ZERO
+		player.active = true
+		player.play("die", 0.1)
+		tween.tween_interval(player.get_animation("die").length * 0.5 + 0.4)
+	else:
+		tween.tween_property(model, "rotation:x", -PI / 2, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_interval(0.4)
 	tween.tween_property(holder, "scale", Vector3(0.01, 0.01, 0.01), 0.3)
 	tween.tween_callback(holder.queue_free)
 

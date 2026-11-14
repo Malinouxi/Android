@@ -228,7 +228,7 @@ static func _blender_character(sprite: String) -> Node3D:
 
 
 ## Les clips qui ne bouclent pas (le jeu les cale lui-même, voir view_3d.gd).
-const ONE_SHOT_CLIPS := ["attack"]
+const ONE_SHOT_CLIPS := ["attack", "die"]
 
 
 ## Un bipède à squelette (tools/blender/rig.py) : ses animations sont des clips

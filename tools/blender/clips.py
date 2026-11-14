@@ -14,7 +14,9 @@ Un os absent reste au repos. Les ailes, la queue et la cape bougent toutes seule
 (_secondary) si le clip ne les règle pas.
 
 Les clips en boucle tournent juste (la dernière image = la première). « attack »
-ne boucle pas : le jeu le cale sur la progression du coup (unit.attack_progress).
+ne boucle pas : le jeu le cale sur la progression du coup (unit.attack_progress) ;
+« die » non plus : il est joué une fois quand l'unité meurt, puis elle s'efface
+(voir view_3d.gd, _fall_and_vanish).
 """
 
 import math
@@ -293,12 +295,51 @@ def tipsy(t, length, c):
     return p
 
 
+# En fin de chute : (tangage, lacet vers l'extérieur) des ailes, tangage des deux os de la queue.
+DIE_FALL = 1.0  # Durée de la chute (s) ; le clip dure le double.
+DIE_WING = (0.3, -0.9)
+DIE_TAIL = (-1.6, -0.3)
+
+
+def die(t, length, c):
+    # Il recule sous le coup, les genoux lâchent, il bascule sur le dos et rebondit un peu
+    # (en 1 s), puis reste étendu : le jeu l'efface avant la fin du clip, car Godot remet
+    # le modèle au repos quand un clip sans boucle se termine.
+    k = min(1.0, t / DIE_FALL)
+    fall = keys(k, [(0, 0), (0.25, -0.1), (0.75, -1.62), (0.86, -1.5), (1, -1.57)])
+    buckle = keys(k, [(0, 0), (0.2, 0.15), (0.45, 1.0), (0.75, 0.35), (1, 0.25)])
+    flail = keys(k, [(0, 0), (0.15, 1.0), (0.6, 0.7), (0.85, 1.0), (1, 0.85)])
+    p = {"root": {"r": (fall, 0, keys(k, [(0, 0), (0.5, 0.1), (1, 0.15)])),
+                  "loc": (0, keys(k, [(0, 0), (0.6, 0.0), (0.8, 0.07 + c["depth"]), (1, 0.06 + c["depth"])]),
+                          keys(k, [(0, 0), (0.25, -0.05), (1, -0.1)]))},
+         "hips": {"loc": (0, -0.1 * buckle, 0)},
+         "chest": {"r": (keys(k, [(0, 0), (0.15, -0.35), (0.5, 0.2), (1, 0.05)]), 0.15 * flail, 0)},
+         "head": {"r": (keys(k, [(0, 0), (0.15, -0.5), (0.6, 0.3), (0.85, -0.2), (1, 0.1)]),
+                        keys(k, [(0, 0), (0.8, 0), (1, 0.6)]), 0)}}
+    for side in ("l", "r"):
+        legs(p, side, -0.55 * buckle, 1.0 * buckle, -0.2 * buckle, 0.08 * buckle)
+        # Bras projetés en avant, puis retombés au sol, écartés.
+        arms(p, side, keys(k, [(0, 0), (0.15, -0.8), (0.6, -0.6), (0.85, -0.15), (1, -0.05)]),
+             keys(k, [(0, 0), (0.15, -0.6), (0.6, -0.5), (0.85, -0.1), (1, -0.05)]), 0.3 + 0.6 * flail)
+    # Couché sur le dos : les ailes et la queue se rabattent au lieu de traverser le sol.
+    down = smooth(0.3, 0.8, k)
+    (wing_pitch, wing_yaw), (tail_pitch, tail_bend) = DIE_WING, DIE_TAIL
+    for side in ("l", "r"):
+        p["wing_" + side] = {"r": (wing_pitch * down, out(side, wing_yaw) * down, 0)}
+    # L'arme, pointée vers l'avant (donc vers le ciel une fois couché), retombe le long du corps.
+    p["hand_r"] = {"r": (1.4 * down, 0, 0)}
+    p["tail_1"] = {"r": (tail_pitch * down, 0, 0)}
+    p["tail_2"] = {"r": (tail_bend * down, 0, 0)}
+    return p
+
+
 # nom : (durée en secondes, fonction, en boucle)
 CLIPS = {
     "idle": (4.8, idle, True),
     "walk": (14 / FPS, walk, True),
     "walk_tipsy": (8 * 14 / FPS, walk_tipsy, True),
     "attack": (8 / FPS, attack, False),
+    "die": (2 * DIE_FALL, die, False),
     "sleep": (4.8, sleep, True),
     "lie": (4.8, sleep, True),
     "eat": (0.9, eat, True),
@@ -348,9 +389,16 @@ def bake(armature, context=None):
     que l'export glTF les emporte toutes)."""
     bones = armature.data.bones
     rest = {b.name: b.matrix_local.to_quaternion() for b in bones}
-    c = {"leg": bones["thigh_l"].head_local.z if "thigh_l" in bones else 0.3}
+    c = {"leg": bones["thigh_l"].head_local.z if "thigh_l" in bones else 0.3, "depth": 0.0}
+    # Couché sur le dos (die) : on soulève d'autant que le dos dépasse derrière les talons.
+    backs = [(armature.matrix_world.inverted() @ (o.matrix_world @ v.co)).y
+             for o in armature.children if o.type == "MESH" and o.vertex_groups.get("chest")
+             for v in o.data.vertices if any(g.group == o.vertex_groups["chest"].index for g in v.groups)]
+    if backs:
+        c["depth"] = max(0.0, max(backs) - 0.09)
     c.update(context or {})
     data = armature.animation_data_create()
+    owner = armature.users_scene[0].name if armature.users_scene else armature.name
     for track in list(data.nla_tracks):
         data.nla_tracks.remove(track)
     for name, (length, func, loop) in CLIPS.items():
@@ -381,7 +429,13 @@ def bake(armature, context=None):
                     pb.location = r.inverted() @ Vector((x, -forward, up))
                     pb.keyframe_insert("location", frame=frame)
         action = data.action
-        action.name = name
+        # « vampire:walk » : une action par personnage, remplacée à chaque reconstruction
+        # (l'export nomme le clip d'après la piste NLA : « walk »).
+        full_name = "%s:%s" % (owner, name)
+        old = bpy.data.actions.get(full_name)
+        if old is not None and old != action:
+            bpy.data.actions.remove(old)
+        action.name = full_name
         action.use_fake_user = True
         action["loop"] = loop
         track = data.nla_tracks.new()

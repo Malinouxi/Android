@@ -9,7 +9,9 @@ Le personnage est construit dans sa propre scène « demon ».
 
 import math
 
+import clips
 import lowpoly as lp
+import rig
 from lowpoly import Part, mirrored, pivot
 
 # Hauteurs des pivots (mêmes que voxel_models.gd, convertis : Godot y -> Blender z).
@@ -54,6 +56,8 @@ def build(export_path=None):
         _wing(scene, wing, m, side)
     _tail(scene, pivot(scene, "tail", body, (0, 0.08, 0.3)), m)
 
+    # Les pivots deviennent un squelette, avec ses animations (rig.py, clips.py).
+    clips.bake(rig.build(scene))
     if export_path:
         lp.export_glb(scene, export_path)
     return scene

@@ -3,8 +3,9 @@
 Chaque personnage est un assemblage de PIÈCES RIGIDES accrochées à des PIVOTS
 (objets vides) qui portent les noms attendus par scripts/view_3d.gd :
     body, leg_l, leg_r, arm_l, arm_r, head, weapon, wing_l, wing_r, tail
-Le jeu fait tourner ces pivots (marche, coup, ailes, queue) : pas besoin
-de squelette ni d'animations dans le fichier .glb.
+Les bipèdes (humanoid.py, demon.py, knight.py) remplacent ensuite ces pivots
+par un squelette animé (rig.py, clips.py) ; les bêtes et le mobilier gardent
+leurs pivots, que le jeu fait tourner lui-même.
 
 Repères (Blender) : Z vers le haut, le personnage regarde vers -Y (vue de face).
 À l'export glTF, -Y devient +Z, le « devant » des modèles dans Godot.
@@ -273,15 +274,23 @@ def export_glb(scene, path):
     bpy.context.window.scene = scene
     for obj in scene.objects:
         obj.select_set(True)
+    # Un bipède a un squelette (rig.py) : ses clips (clips.py, une piste NLA chacun)
+    # partent avec lui. Les autres modèles restent en pièces rigides sur des pivots.
+    animated = any(obj.type == "ARMATURE" for obj in scene.objects)
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
         use_active_scene=True,
         export_yup=True,
-        export_apply=True,
+        export_apply=not animated,  # (Appliquer les modificateurs retirerait la peau.)
         export_materials="EXPORT",
         export_cameras=False,
         export_lights=False,
-        export_animations=False,
+        export_animations=animated,
+        export_animation_mode="NLA_TRACKS",
+        export_skins=True,
+        export_def_bones=False,  # Les os sans poids (root, grip_*) servent au jeu.
+        export_optimize_animation_size=True,
+        export_frame_step=2,  # 12 images/s : assez pour du low-poly, deux fois moins lourd.
     )
     print("Exporté :", path)

@@ -181,8 +181,9 @@ static func character(sprite: String, tint := Color.WHITE, alpha := 1.0) -> Node
 
 
 ## Les modèles low-poly faits dans Blender (scripts de tools/blender/) : s'il
-## existe assets/models/<sprite>.glb, il remplace le modèle en blocs. Ses pivots
-## portent les mêmes noms : body, leg_*, arm_l, arm_r, wing_l, wing_r, tail.
+## existe assets/models/<sprite>.glb, il remplace le modèle en blocs. Les bêtes
+## ont des pivots aux mêmes noms : body, leg_*, arm_l, arm_r, wing_l, wing_r, tail ;
+## les bipèdes ont un squelette et leurs propres clips (voir _skinned_character).
 const BLENDER_MODELS := "res://assets/models/%s.glb"
 ## Le genre de squelette des bêtes (pour les animer comme leur modèle en blocs).
 const RIG_KINDS := {"spider": "spider", "bat": "bat", "cerberus": "quadruped"}
@@ -205,6 +206,10 @@ static func _blender_character(sprite: String) -> Node3D:
 	var root := _blender_model(BLENDER_MODELS % sprite)
 	if root == null:
 		return null
+	var skeletons := root.find_children("*", "Skeleton3D", true, false)
+	if not skeletons.is_empty():
+		_skinned_character(root, skeletons[0] as Skeleton3D, sprite)
+		return root
 	var body := root.get_node("body") as Node3D
 	var rig := {"body": body, "legs": [], "arms": [], "wings": [], "tail": body.get_node_or_null("tail"),
 			"kind": RIG_KINDS.get(sprite, "humanoid")}
@@ -220,6 +225,46 @@ static func _blender_character(sprite: String) -> Node3D:
 			rig["wings"].append(body.get_node(pivot_name))
 	root.set_meta("rig", rig)
 	return root
+
+
+## Les clips qui ne bouclent pas (le jeu les cale lui-même, voir view_3d.gd).
+const ONE_SHOT_CLIPS := ["attack"]
+
+
+## Un bipède à squelette (tools/blender/rig.py) : ses animations sont des clips
+## (tools/blender/clips.py) que view_3d.gd joue avec son AnimationPlayer.
+## rig["arms"] reçoit les points de prise des mains (os grip_l, grip_r), où le
+## jeu accroche les objets tenus ; « hand » est la place de la main par rapport à eux.
+static func _skinned_character(root: Node3D, skeleton: Skeleton3D, sprite: String) -> void:
+	var players := root.find_children("*", "AnimationPlayer", true, false)
+	var player: AnimationPlayer = null if players.is_empty() else players[0] as AnimationPlayer
+	if player != null:
+		for clip_name in player.get_animation_list():
+			player.get_animation(clip_name).loop_mode = (Animation.LOOP_NONE
+					if clip_name in ONE_SHOT_CLIPS else Animation.LOOP_LINEAR)
+	var rig := {"body": skeleton, "legs": [], "arms": [], "wings": [], "tail": null,
+			"kind": RIG_KINDS.get(sprite, "humanoid"), "anim": player, "skeleton": skeleton,
+			"hand": Vector3(0.0, -0.04, 0.02)}
+	for bone_name in ["grip_l", "grip_r"]:
+		var bone := skeleton.find_bone(bone_name)
+		if bone < 0:
+			continue
+		var attachment := BoneAttachment3D.new()
+		attachment.name = bone_name
+		attachment.bone_name = bone_name
+		skeleton.add_child(attachment)
+		# L'export glTF réoriente les os : on annule la rotation de repos, pour que
+		# ce qu'on y accroche soit tourné comme le modèle (comme sur les anciens pivots).
+		var rest := skeleton.get_bone_global_rest(bone).basis
+		var node: Node3D = skeleton
+		while node != root and node != null:
+			rest = node.basis * rest
+			node = node.get_parent() as Node3D
+		var grip := Node3D.new()
+		grip.basis = rest.orthonormalized().inverse()
+		attachment.add_child(grip)
+		rig["arms"].append(grip)
+	root.set_meta("rig", rig)
 
 
 ## Un objet de salle fait dans Blender, avec ses parties animées rangées comme

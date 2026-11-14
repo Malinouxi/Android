@@ -18,7 +18,9 @@ Clés de la fiche (couleurs « rrggbb ») :
 
 import math
 
+import clips
 import lowpoly as lp
+import rig
 from lowpoly import Part, mirrored, pivot
 
 HIP = 0.3
@@ -86,6 +88,8 @@ def build(name, spec, export_path=None):
         spec["extra"](ctx)
     for part in ctx.parts.values():
         part.finish()
+    # Les pivots deviennent un squelette, avec ses animations (rig.py, clips.py).
+    clips.bake(rig.build(scene))
     if export_path:
         lp.export_glb(scene, export_path)
     return scene

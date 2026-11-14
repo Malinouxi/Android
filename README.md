@@ -240,8 +240,10 @@ règles**, **Réglages**, **Quitter** (absent de la version web).
 ## Graphismes, effets et réglages
 
 - **3D** (`scripts/view_3d.gd`) : la carte devient des blocs (sol pavé, remparts de pierre taillée),
-  personnages et mobilier sont des modèles low-poly **faits dans Blender** (`assets/models/`), animés par
-  pivots. La salle du trône entoure le cœur ; chaque salle a sa lumière, les torches vacillent.
+  personnages et mobilier sont des modèles low-poly **faits dans Blender** (`assets/models/`). Les bipèdes
+  (créatures, héros, ouvriers) ont un squelette (coudes, genoux, cape, queue, ailes) et 19 clips
+  d'animation joués par `AnimationPlayer` (marche, coup, repos, et une pose par activité : dormir, manger,
+  boire, étudier, forger, prier, méditer...) ; les bêtes et le mobilier sont animés par pivots. La salle du trône entoure le cœur ; chaque salle a sa lumière, les torches vacillent.
 - **Effets des sorts** modélisés dans Blender (`assets/models/fx/`, affichés par `scripts/fx_3d.gd`) :
   foudre, toile, flammes, rochers, spectre, dôme, œil, main squelettique, cercles magiques ; envoûtements
   visibles sur les unités. Pensé pour un téléphone moyen de gamme : 4 lumières passagères au plus, pas
@@ -324,7 +326,9 @@ Quel morceau joue à quel moment : `play_music` dans `scripts/main.gd` et `scrip
 
 - **Modèles 3D** (personnages, mobilier, effets des sorts, Seigneur) : scripts Python pour Blender dans
   `tools/blender/` (`cast.py`, `beasts.py`, `rooms.py`, `spell_fx.py`, `lord.py`...), avec les briques de
-  `lowpoly.py` et les textures peintes de `textures.py`. Tout reconstruire :
+  `lowpoly.py` et les textures peintes de `textures.py`. Les bipèdes reçoivent un squelette commun
+  (`rig.py`) et leurs clips d'animation (`clips.py`, une fonction par clip : la retoucher, puis reconstruire).
+  Tout reconstruire :
   `blender --background --python tools/blender/build_all.py` (les effets : `spell_fx.build_all(...)`).
   Ils marchent aussi avec le module Python `bpy` (`pip install bpy`) au lieu de Blender.
   Les antres seules (7 créatures, 9 modèles de salle), avec des aperçus en image :

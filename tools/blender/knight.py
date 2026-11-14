@@ -7,7 +7,9 @@ Usage, dans Blender (onglet Scripting, ou par MCP) :
 Le personnage est construit dans sa propre scène « knight ».
 """
 
+import clips
 import lowpoly as lp
+import rig
 from lowpoly import Part, mirrored, pivot
 
 # Hauteurs des pivots (mêmes que voxel_models.gd, convertis : Godot y -> Blender z).
@@ -40,6 +42,8 @@ def build(export_path=None):
     _shield(scene, scene.objects["arm_l"], m)
     _head(scene, pivot(scene, "head", body, (0, 0, NECK)), m)
 
+    # Les pivots deviennent un squelette, avec ses animations (rig.py, clips.py).
+    clips.bake(rig.build(scene))
     if export_path:
         lp.export_glb(scene, export_path)
     return scene

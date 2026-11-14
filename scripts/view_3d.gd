@@ -380,7 +380,8 @@ func _make_held_props(unit: Unit, rig: Dictionary) -> Dictionary:
 		return held
 	var left: Node3D = arms[0]
 	var right: Node3D = arms[1]
-	var hand := Vector3(0.0, -0.31, 0.04)
+	# La main, par rapport au pivot du bras (ou au point de prise, avec un squelette).
+	var hand: Vector3 = rig.get("hand", Vector3(0.0, -0.31, 0.04))
 	# La chope de bière, mousse comprise.
 	var mug := Node3D.new()
 	left.add_child(mug)
@@ -522,6 +523,9 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 	# Hors de l'écran : seuls la position, l'orientation et le flash sont tenus à jour
 	# (le reste n'est que décor, refait dès que l'unité revient dans la vue).
 	var visible_now := _on_screen(holder.position + Vector3(0.0, 0.5, 0.0))
+	data["lying"] = lying
+	if rig.get("anim") != null:
+		rig["anim"].active = visible_now # Hors de l'écran, le squelette ne calcule rien.
 	if visible_now:
 		_animate(unit, rig, data, pose, walking)
 	# Le flash blanc quand l'unité est touchée (unit.gd met modulate à 2,5).
@@ -569,6 +573,9 @@ func _show_unit(unit: Unit, data: Dictionary) -> void:
 ## Les mouvements : jambes et bras qui balancent en marchant, bras qui frappe,
 ## ailes qui battent, queue qui remue.
 func _animate(unit: Unit, rig: Dictionary, data: Dictionary, pose: String, walking: bool) -> void:
+	if rig.get("anim") != null:
+		_animate_clips(unit, rig, data, pose, walking)
+		return
 	var phase: float = data["phase"] + _time * 11.0
 	var legs: Array = rig["legs"]
 	var arms: Array = rig["arms"]
@@ -607,6 +614,43 @@ func _animate(unit: Unit, rig: Dictionary, data: Dictionary, pose: String, walki
 	_animate_pose(rig, data, "" if walking and pose != "tipsy" else pose, attack)
 
 
+## Les bipèdes à squelette (modèles Blender, tools/blender/clips.py) : on choisit
+## le clip selon ce que fait l'unité. Les boucles démarrent à un moment au hasard
+## (« phase ») pour que deux créatures ne bougent pas en même temps ; le coup est
+## calé sur sa progression.
+func _animate_clips(unit: Unit, rig: Dictionary, data: Dictionary, pose: String, walking: bool) -> void:
+	var player: AnimationPlayer = rig["anim"]
+	var attack := unit.attack_progress()
+	var clip := "idle"
+	if attack > 0.0:
+		clip = "attack"
+	elif data.get("lying", false):
+		clip = "lie"
+	elif walking:
+		clip = "walk_tipsy" if pose == "tipsy" else "walk"
+	elif pose != "":
+		clip = pose
+	if not player.has_animation(clip):
+		clip = "idle"
+	_show_held(data, "" if walking and pose != "tipsy" else pose)
+	if data.get("clip", "") != clip:
+		data["clip"] = clip
+		player.play(clip, 0.05 if clip == "attack" else 0.25)
+		if clip != "attack":
+			player.seek(fmod(data["phase"], TAU) / TAU * player.current_animation_length)
+	if clip == "attack":
+		player.seek((1.0 - attack) * player.current_animation_length, true)
+
+
+## Les objets tenus : seulement pendant l'activité qui va avec.
+func _show_held(data: Dictionary, pose: String) -> void:
+	var held: Dictionary = data["held"]
+	if data["shown"] != pose:
+		data["shown"] = pose
+		for key: String in held:
+			held[key].visible = key == pose
+
+
 ## Les poses des créatures selon leur activité (voir Creature.pose) : elles dorment
 ## allongées, mangent, trinquent, forgent, prient à genoux, montent la garde,
 ## méditent en lévitation... Le temps est décalé pour chaque créature (« phase »).
@@ -623,12 +667,7 @@ func _animate_pose(rig: Dictionary, data: Dictionary, pose: String, attack: floa
 		arm.rotation.y = 0.0
 	if head != null:
 		head.rotation = Vector3.ZERO
-	# Les objets tenus : seulement pendant l'activité qui va avec.
-	var held: Dictionary = data["held"]
-	if data["shown"] != pose:
-		data["shown"] = pose
-		for key: String in held:
-			held[key].visible = key == pose
+	_show_held(data, pose)
 	var humanoid: bool = rig["kind"] == "humanoid" and arms.size() >= 2
 	if not humanoid:
 		# Les bêtes : elles se tassent pour dormir, et c'est tout.
